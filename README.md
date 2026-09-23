@@ -35,6 +35,7 @@ Supabase один, развёрнут на сервере Павла. Studio —
 | Названия и смысл таблиц, полей и связей | [Словарь данных](docs/DATA_DICTIONARY.md), [именование](docs/NAMING_CONVENTIONS.md) |
 | Как разделены компании в одном Supabase | [Доступ и изоляция](docs/specs/ACCESS_AND_ISOLATION.md) |
 | Что передаётся между компонентами | [Правила обмена](docs/specs/INTEGRATION_CONTRACTS.md) |
+| Как устроен CORE клиентского бота, guard, память, RAG и перехват | [CORE клиентского бота](docs/specs/BOT_CORE_WORKFLOW.md) |
 | Завершение разговора, напоминания, возврат | [Жизненный цикл](docs/specs/CONVERSATION_LIFECYCLE.md) |
 | Память, очередь сообщений и восстановление | [Надёжность и память](docs/specs/RELIABILITY_AND_MEMORY.md) |
 | Загрузка и обновление знаний | [Загрузка знаний](docs/specs/KNOWLEDGE_INGESTION.md), [формат Markdown](docs/specs/MARKDOWN_FORMAT.md) |
