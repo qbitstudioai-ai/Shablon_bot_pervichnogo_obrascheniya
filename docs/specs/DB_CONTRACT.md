@@ -1,6 +1,6 @@
 # DB-контракт шаблона
 
-Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 уже применён и проверен в test-контуре; SQL DB-02 подготовлен, но на сервер ещё не применён.
+Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 уже применены и проверены в test-контуре. DB-03 разбит на DB-03A…DB-03D для последовательной реализации и проверки.
 
 ## Граница контракта
 
@@ -224,6 +224,8 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 `zayavki`: `id`, `dialog_id`, `polzovatel_id`, `kontakt_zashchishchennyy jsonb`, `potrebnost jsonb`, `vneshniy_klyuch text`, `otvetstvennyy text`, `lokalnyy_status text`, `crm_tip text`, `crm_id text`, `status_sinhronizacii text`, `vremya_sozdaniya`, `vremya_obnovleniya`. Индексы: `uq_zayavki_vnesh_klyuch` UNIQUE (`vneshniy_klyuch`), `ix_zayavki_dialog`, `ix_zayavki_crm`.
 
 ## DB-03. Надёжность, память и операторский Telegram
+
+Для реализации DB-03 делится без изменения итогового контракта: DB-03A создаёт девять core-таблиц надёжности и добавляет FK `soobshcheniya.sobytie_id`; DB-03B создаёт три операторские таблицы и добавляет FK `dialogi.tekushchiy_menedzher_id`; DB-03C реализует клиентские/очередные/исходящие функции; DB-03D — функции служебного Telegram и конкурентного ручного перехвата. Родительский DB-03 закрывается только после всех четырёх подзадач и интегральных проверок.
 
 ### `sobytiya_integraciy`
 

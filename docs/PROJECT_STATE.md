@@ -95,29 +95,38 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 Важно: два ранних неуспешных запуска были остановлены до `COMMIT` и не считаются применённым DB-01. Актуальная проверенная версия — v0.3.
 
+## Последний завершённый блок
+
+**DB-02 — test-таблицы пользователя, диалога и содержимого. Статус: завершено 24 сентября 2026 года.**
+
+Павел выполнил `sql/DB-02_dialog_content.sql` v0.1 целиком в self-hosted Supabase Studio. Сервер вернул:
+- `db02_status = applied`;
+- owner schema = `qbit_test_owner`;
+- `tables_ok = true`;
+- `contract_indexes_ok = true`;
+- `probe_rows_remaining = 0`;
+- `duplicate_message_guard = true`;
+- `runtime_direct_dml = false`;
+- `isolation_canary_untouched = true`;
+- результат: `DB-02 SQL APPLIED: 13 tables, links/comments/duplicate guard verified; probe data removed; production untouched.`
+
+На сервере теперь существуют 13 таблиц DB-02 в `qbit_test`, 37 контрактных индексов, FK/CHECK/UNIQUE и русские COMMENT. Одноразовые probe-данные удалены откатом SAVEPOINT. Production и `kompaniya_001_test` не изменялись.
+
+Две forward-связи остаются обязательной частью DB-03:
+- `dialogi.tekushchiy_menedzher_id → menedzhery_telegram.id`;
+- `soobshcheniya.sobytie_id → sobytiya_integraciy.id`.
+
 ## Текущая задача
 
-**DB-02 — test-таблицы пользователя, диалога и содержимого. Статус: в работе.**
+**DB-03A — core-таблицы надёжности. Статус: не начато.**
 
-Подготовлен полный SQL `sql/DB-02_dialog_content.sql` v0.1 только для `qbit_test`. Он создаёт 13 таблиц DB-02: `polzovateli`, `identifikatory_kanalov`, `dialogi`, `soobshcheniya`, `vlozheniya_soobshcheniy`, `transkripcii_golosa`, `fakty_dialoga`, `sootvetstviya_pii`, `narusheniya_tematiky`, `sobytiya_dialogov`, `sobytiya_etapov`, `celevye_sobytiya`, `zayavki`.
+DB-03 разделён на четыре постоянные подзадачи, потому что исходный пункт объединяет 12 таблиц и большой прикладной API:
+- DB-03A — 9 core-таблиц надёжности/памяти и FK `soobshcheniya.sobytie_id`;
+- DB-03B — 3 операторские таблицы и FK текущего менеджера;
+- DB-03C — клиентский ingress/guard/очередь/исходящие/напоминания;
+- DB-03D — service Telegram, зеркало, topic, Take/Return и ручной ответ.
 
-Статически проверено до server-run:
-- ровно 13 создаваемых таблиц;
-- 182 поля и 182 русских COMMENT на поля, плюс COMMENT на все 13 таблиц;
-- 37 контрактных индексов;
-- собственные SQL-имена не длиннее 63 байт;
-- нет создания production schema/production-ролей;
-- нет бизнес-таблиц в `kompaniya_001_test`;
-- нет исполняемых `DROP SCHEMA`, `DROP ROLE`, `TRUNCATE` или `DELETE FROM`;
-- runtime-роли не получают прямой DML.
-
-Внутри SQL есть одноразовый SAVEPOINT-probe: он создаёт согласованный набор тестовых строк во всех 13 таблицах, проверяет обязательные FK/CHECK/UNIQUE, в том числе запрет второго сообщения с тем же `vneshnee_soobshchenie_id` в одном диалоге, затем выполняет `ROLLBACK TO SAVEPOINT`. После успешного DB-02 таблицы должны остаться пустыми.
-
-Две связи намеренно отложены до DB-03, потому что их целевые таблицы ещё не существуют: `dialogi.tekushchiy_menedzher_id → menedzhery_telegram.id` и `soobshcheniya.sobytie_id → sobytiya_integraciy.id`. DB-03 обязан добавить и проверить эти FK. Полная идемпотентность повторного webhook/event также относится к DB-03; DB-02 проверяет локальную уникальность внешнего сообщения внутри диалога.
-
-**Не выполнено:** SQL DB-02 ещё не запускался в self-hosted Supabase, поэтому таблицы и ограничения не считаются созданными. Следующее действие — Павел запускает актуальный `sql/DB-02_dialog_content.sql` целиком одним Run в Supabase Studio и передаёт единственный `db02_result` либо полный ERROR/CONTEXT. DB-02 закрывается только после серверной проверки.
-
-Production, Credentials, n8n workflow и рабочий трафик в DB-02 не меняются.
+Следующий шаг — подготовить один полный test-only SQL DB-03A только для `qbit_test`. Production, Credentials, workflow и рабочий трафик не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
