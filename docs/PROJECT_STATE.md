@@ -152,35 +152,34 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 На сервере созданы `menedzhery_telegram`, `operator_telegram_temy`, `sobytiya_zerkala_operatora` и добавлен FK `dialogi.tekushchiy_menedzher_id → menedzhery_telegram.id`. Probe-данные удалены. Production не затронут.
 
+## Последний завершённый блок
+
+**DB-03C1 — клиентский ingress, вложения, STT и PII. Статус: завершено 24 сентября 2026 года.**
+
+Павел выполнил `sql/DB-03C1_client_ingress.sql` v0.3 целиком в self-hosted Supabase Studio. Сервер вернул:
+- `db03c1_status = applied`;
+- `functions_ok = true`;
+- `bot_execute_ok = true`;
+- `service_execute_denied = true`;
+- `runtime_direct_dml = false`;
+- `attachment_idempotency_indexes_ok = true`;
+- `probe_rows_remaining = 0`;
+- результат: `DB-03C1 v0.3 SQL APPLIED: ingress/media/STT/PII API verified; variable/ambiguity/phone-normalization/idempotency/conflict/wait-cancel probes passed; production untouched.`
+
+Тем самым серверно проверены четыре узкие API-функции ingress/media/STT/PII, два UNIQUE-index для retry вложений, идемпотентность входа, конфликт hash, повтор external message без второго dialog/message, отмена старого ожидания, local STT/PII и нормализация RU-телефона. v0.1 и v0.2 остаются в истории как неуспешные попытки, остановленные до COMMIT; применён только v0.3.
+
 ## Текущая задача
 
-**DB-03C1 — клиентский ingress, вложения, STT и PII. Статус: в работе.**
+**DB-03C2 — контекст, память, rate limit, тематический guard и unblock. Статус: не начато.**
 
-24 сентября 2026 года было два неуспешных server-run, оба остановились внутри встроенного probe **до `COMMIT`** и поэтому не считаются применёнными:
-- v0.1: PostgreSQL 42702 — неоднозначное `versiya_dialoga` между output-переменной `RETURNS TABLE` и столбцом;
-- v0.2: PostgreSQL 42703 — ingress использовал `v_topic_chat/v_topic_thread`, хотя в этой функции объявлен `v_topic record`; в attachment-функции была обратная несогласованность.
+Нужно подготовить 5 test-only PostgreSQL-функций:
+- `poluchit_kontekst_dialoga` — AI-safe context отдельно от локальных PII;
+- `sohranit_fakty_i_pamyat` — CAS по dialog/memory version и долговечные подтверждённые факты;
+- `proverit_limit_chastoty` — считает уже сохранённые логические входы и не меняет thematic counter;
+- `zapisat_narushenie_tematiky` — один violation на message, row lock identity, warning counter и block при trusted limit;
+- `razblokirovat_polzovatelya` — только dash_admin, явная причина/operation, audit journal.
 
-Подготовлен `sql/DB-03C1_client_ingress.sql` **v0.3**. Исправления:
-- во всех 4 PL/pgSQL-функциях сохранён `#variable_conflict use_column`;
-- критические `RETURNING/UPDATE` квалифицированы алиасами;
-- ingress использует только объявленный `v_topic record`;
-- attachment использует только объявленные scalar `v_topic_chat/v_topic_thread`;
-- выполнен статический аудит всех ссылок `v_*` во всех четырёх функциях: необъявленных переменных не осталось;
-- сохранены idempotency/closed-dialog/wait/STT/PII probes.
-
-Телефонный PII не привязан к одной строковой маске. Локальный PII-detector сначала находит телефон, затем `sohranit_obezlichivanie` канонизирует уже найденное значение по trusted `region_telefona`. Для RU формы `89611234567`, `8 (961) 123-45-67`, `8-961-123-45-67`, `+7 961 123 45 67` и 10 цифр без префикса приводятся к `+79611234567`. Регион не берётся из текста клиента или LLM.
-
-v0.3 создаёт:
-- `zaregistrirovat_vhod_klienta(jsonb)`;
-- `sohranit_vlozhenie(jsonb, bytea)`;
-- `sohranit_transkripciyu_golosa(jsonb)`;
-- `sohranit_obezlichivanie(jsonb)`;
-- `uq_vlozheniya_msg_file_id`;
-- `uq_vlozheniya_msg_file_unique`.
-
-Статически проверено: 4 функции, 4 compiler directives, 4 фиксированных `search_path`, 4 точечных REVOKE/GRANT; одна секция privileges, одна probe-секция и один финальный result; production/canary объекты не создаются; SAVEPOINT/rollback сохранены.
-
-**Следующее действие:** Павел запускает актуальный `sql/DB-03C1_client_ingress.sql` **v0.3 целиком одним Run** в self-hosted Supabase Studio и передаёт `db03c1_result` либо полный ERROR/CONTEXT. Старые v0.1/v0.2 повторно не запускать.
+Production, workflow и Credentials не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

@@ -1,6 +1,6 @@
 # DB-контракт шаблона
 
-Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 уже применены и проверены в test-контуре. DB-03 разбит на DB-03A…DB-03D; DB-03A и DB-03B уже применены и проверены. DB-03C для реализации дополнительно делится на DB-03C1…C4: ingress/media/STT/PII; context/memory/guard; queue lease/CAS; outgoing/reminders.
+Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 уже применены и проверены в test-контуре. DB-03 разбит на DB-03A…DB-03D; DB-03A, DB-03B и DB-03C1 уже применены и проверены. DB-03C2…C4 остаются: context/memory/guard; queue lease/CAS; outgoing/reminders.
 
 ## Граница контракта
 
