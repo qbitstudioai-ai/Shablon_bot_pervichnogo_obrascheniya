@@ -6,7 +6,7 @@
 
 **Подготовка реализации.** 23 сентября 2026 года Павел отдельно разрешил приступить к реализации шаблона. Это разрешение не включает изменение production, удаление рабочих данных или переключение рабочего трафика.
 
-Завершена задача DOC-03. Первая эталонная установка создаётся для компании qBit; безопасный технический код — `qbit`. В PRE-01 подтверждены: n8n 2.41.0; Docker 29.8.1; Docker Compose v5.5.1; self-hosted Supabase в Docker; Supabase Postgres image 17.6.1.136 и PostgreSQL 17.6; Auth/GoTrue 2.196.0; Supavisor 2.9.12; PostgREST 14.17; Studio 2026.09.07-sha-7996410; отдельная БД n8n — PostgreSQL 17.11-alpine; reverse proxy Caddy 2.11.4; Portainer 2.45.1. pgvector 0.8.2 включён и функционально проверен: операция L2 для тестовых векторов вернула `1`. Сверка с текущим официальным Docker Compose Supabase показала совпадение основных тегов стека; переустановка Supabase ради векторного хранилища не требуется. n8n и Supabase открываются через веб-интерфейсы; сервер администрируется через терминал. Instance ID n8n и имя сервера в публичную документацию не сохраняются. SQL для DB-01 подготовлен в репозитории, но ещё не применён на сервере; SQL DB-02…DB-05 и production-код пока не создавались. Draft workflow уже импортированы Павлом 24.09.2026; это отражено ниже. Production, рабочий трафик и production schema/roles не менялись.
+Завершена задача DOC-03. Первая эталонная установка создаётся для компании qBit; безопасный технический код — `qbit`. В PRE-01 подтверждены: n8n 2.41.0; Docker 29.8.1; Docker Compose v5.5.1; self-hosted Supabase в Docker; Supabase Postgres image 17.6.1.136 и PostgreSQL 17.6; Auth/GoTrue 2.196.0; Supavisor 2.9.12; PostgREST 14.17; Studio 2026.09.07-sha-7996410; отдельная БД n8n — PostgreSQL 17.11-alpine; reverse proxy Caddy 2.11.4; Portainer 2.45.1. pgvector 0.8.2 включён и функционально проверен: операция L2 для тестовых векторов вернула `1`. Сверка с текущим официальным Docker Compose Supabase показала совпадение основных тегов стека; переустановка Supabase ради векторного хранилища не требуется. n8n и Supabase открываются через веб-интерфейсы; сервер администрируется через терминал. Instance ID n8n и имя сервера в публичную документацию не сохраняются. SQL DB-01 v0.3 применён и проверен в self-hosted Supabase; SQL DB-02…DB-05 и production-код пока не создавались. Draft workflow уже импортированы Павлом 24.09.2026; это отражено ниже. Production, рабочий трафик и production schema/roles не менялись.
 
 ## Последний завершённый блок
 
@@ -70,30 +70,36 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 Не выполнены runtime-проверки LLM/embedding, tokenizer/parser и similarity threshold. PRE-02 блокирует DB-04, но не подготовку DB-01/DB-02/DB-03 по уже согласованной структуре.
 
-## Текущая задача
+## Последний завершённый блок
 
-**DB-01 — основа тестовых schema и ограниченных ролей. Статус: в работе.**
+**DB-01 — основа test schema и ограниченных ролей. Статус: завершено 24 сентября 2026 года.**
 
-Подготовлен полный файл `sql/DB-01_test_schemas_roles.sql`. Он рассчитан на PostgreSQL 17 и уже установленный `vector`, запускается одной транзакцией и создаёт только:
-- `qbit_test` — test schema первой эталонной установки;
-- `kompaniya_001_test` — вымышленную test schema для двусторонней проверки изоляции;
-- по 6 ролей на каждую schema: `owner`, `deploy`, `bot`, `sluzhebnyy`, `dash_read`, `dash_admin`.
+Файл `sql/DB-01_test_schemas_roles.sql` v0.3 успешно выполнен Павлом в self-hosted Supabase Studio на базе PostgreSQL 17.6. До запуска read-only диагностикой подтверждены фактические права среды: session/current user `postgres`, `rolsuper=false`, `rolcreaterole=true`, `rolcreatedb=true`, CREATE на текущей БД=true, CREATE для PUBLIC в schema `public`=false, `vector=0.8.2`.
 
-Файл не создаёт `qbit` production schema и production-роли, не задаёт пароли и не меняет Credentials. LOGIN-роли создаются с `PASSWORD NULL`; реальные секреты задаются позже вне GitHub/чата.
+На сервере созданы только test-объекты DB-01:
+- schema `qbit_test`, владелец `qbit_test_owner`;
+- schema `kompaniya_001_test`, владелец `kompaniya_001_test_owner`;
+- по 6 ограниченных ролей на каждую schema: `owner`, `deploy`, `bot`, `sluzhebnyy`, `dash_read`, `dash_admin`.
 
-Защита DB-01: прикладные роли имеют только `USAGE` своей schema и не получают `CREATE`/прямой DML; `PUBLIC` закрыт; стандартные Supabase-роли `anon`, `authenticated`, `service_role`, `authenticator` явно лишаются доступа к двум test schema; будущие функции/типы по default privileges не получают PUBLIC EXECUTE/USAGE. Deploy может только явно `SET ROLE` в своего NOLOGIN owner и не наследует owner автоматически.
+Финальный серверный результат SQL:
+- `db01_status = applied`;
+- `roles_ok = true`;
+- `qbit_bot_foreign_usage = false`;
+- `fictional_bot_foreign_usage = false`;
+- `probe_objects_remaining = false`;
+- owners обеих schema совпадают с контрактом;
+- `postgres_version = 17.6`, `vector_version = 0.8.2`;
+- финальная проверка: `DB-01 SQL APPLIED: assertions passed; production objects untouched.`
 
-В SQL встроены preflight и self-check: PostgreSQL 17+, наличие `vector`, отсутствие опасного PUBLIC CREATE в общей schema `public`, правильные владельцы/атрибуты ролей, отсутствие межкомпанейского USAGE/CREATE, отсутствие прямого DML и default PUBLIC EXECUTE. Для проверки создаются временные probe-table/function каждой test schema и удаляются до `COMMIT`.
+Тем самым критерий DB-01 выполнен: основа двух test schema создана, прикладные роли не получают чужую schema, disposable probe-объекты удалены. Production schema/production-роли не создавались, Credentials не менялись, рабочий трафик не переключался.
 
-Первый запуск DB-01 в Supabase Studio 24.09.2026 остановился на preflight с `current_user=postgres`, потому что первоначальная версия ошибочно требовала `rolsuper=true`. Это ожидаемая особенность Supabase: роль `postgres` может не быть SUPERUSER. Ошибка произошла до секции создания ролей, внутри открытой транзакции, поэтому объекты DB-01 не были применены. SQL исправлен: теперь он принимает доверенную роль `postgres`, проверяет реальные необходимые права `CREATEROLE` и `CREATE` на текущую БД, а также явно получает `SET ROLE` к двум NOLOGIN owner-ролям без наследования их прав.
+Важно: два ранних неуспешных запуска были остановлены до `COMMIT` и не считаются применённым DB-01. Актуальная проверенная версия — v0.3.
 
-Диагностика self-hosted Supabase/PostgreSQL 24.09.2026 подтверждена одной строкой: PostgreSQL 17.6, database `postgres`, session/current user `postgres`, `rolsuper=false`, `rolcreaterole=true`, `rolcreatedb=true`, `rolcanlogin=true`, `rolinherit=true`, `rolreplication=true`, `rolbypassrls=true`, CREATE на текущей БД=true, CREATE для PUBLIC в schema `public`=false, vector=0.8.2.
+## Следующая одна задача
 
-По этой фактической конфигурации DB-01 переписан в v0.3. Убраны предположения о Supabase Cloud. Важное исправление ownership: после `CREATE SCHEMA ... AUTHORIZATION *_owner` все COMMENT/GRANT/REVOKE/default privileges и probe-объекты выполняются через `SET LOCAL ROLE *_owner`; роль `postgres` остаётся только доверенным инфраструктурным администратором. Также глобально отзывается стандартный PUBLIC EXECUTE будущих функций/USAGE типов, а встроенные probe-проверки доказывают отсутствие прямого DML/EXECUTE и межкомпанейского доступа до COMMIT.
+**DB-02 — создать test-таблицы пользователя, диалога и содержимого по DB_CONTRACT. Статус: не начато.**
 
-**Не выполнено:** исправленный файл ещё не прошёл успешный запуск в Supabase, поэтому schema/роли фактически не считаются созданными и DB-01 нельзя отмечать завершённой. Следующее действие — Павел повторно запускает весь актуальный файл от начала до конца в Supabase Studio SQL Editor и передаёт последние результирующие таблицы либо точную ошибку.
-
-Production schema, production Credentials и рабочий трафик не меняются без отдельного явного разрешения Павла.
+Следующая сессия должна работать только с `qbit_test` и подготовить полный SQL DB-02 для пользователей, идентификаторов каналов, диалогов, сообщений, вложений, транскрипций, долговечных фактов, PII-соответствий, событий этапов/целей/диалогов и заявок. Нужны связи, индексы, ограничения, русские COMMENT и проверка повторного входа/связей по критерию плана. `kompaniya_001_test` остаётся изоляционным canary и не получает бизнес-данные DB-02 без отдельной необходимости проверки. Production не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
