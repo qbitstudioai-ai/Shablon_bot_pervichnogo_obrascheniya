@@ -1,4 +1,4 @@
--- DB-03C1 v0.2: client ingress, attachment, STT and PII API
+-- DB-03C1 v0.3: client ingress, attachment, STT and PII API
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Contract: docs/specs/DB_CONTRACT.md
 --
@@ -36,6 +36,7 @@
 --   * Any error before COMMIT rolls the whole DB-03C1 migration back.
 --   * v0.2 fixes PL/pgSQL output-column ambiguity found by server-run of v0.1.
 --   * Phone PII is canonicalized after local detection; region comes only from trusted settings.
+--   * v0.3 fixes topic target variables found by server-run of v0.2.
 
 BEGIN;
 
@@ -847,8 +848,8 @@ BEGIN
             'soobshchenie_klienta',
             'klient:' || v_message_id::text,
             10,
-            v_topic_chat,
-            v_topic_thread,
+            v_topic.sluzhebnyy_chat_id,
+            v_topic.message_thread_id,
             COALESCE(v_bezopasnaya_podpis, 'Клиент'),
             v_tekst,
             jsonb_build_object(
@@ -1144,8 +1145,8 @@ BEGIN
             'media_klienta',
             'media:' || v_attachment_id::text,
             20,
-            v_topic.sluzhebnyy_chat_id,
-            v_topic.message_thread_id,
+            v_topic_chat,
+            v_topic_thread,
             jsonb_build_object(
                 'vlozhenie_id', v_attachment_id,
                 'tip_vlozheniya', v_tip,
@@ -2606,5 +2607,5 @@ SELECT jsonb_build_object(
     'runtime_direct_dml',
     false,
     'result',
-    'DB-03C1 v0.2 SQL APPLIED: ingress/media/STT/PII API verified; ambiguity/phone-normalization/idempotency/conflict/wait-cancel probes passed; production untouched.'
+    'DB-03C1 v0.3 SQL APPLIED: ingress/media/STT/PII API verified; variable/ambiguity/phone-normalization/idempotency/conflict/wait-cancel probes passed; production untouched.'
 ) AS db03c1_result;
