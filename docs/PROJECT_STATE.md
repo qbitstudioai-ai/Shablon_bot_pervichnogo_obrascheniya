@@ -136,11 +136,39 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 ## Текущая задача
 
-**DB-03B — операторские таблицы и FK текущего менеджера. Статус: не начато.**
+**DB-03B — операторские таблицы и FK текущего менеджера. Статус: в работе.**
 
-Следующий шаг — подготовить один полный test-only SQL только для `qbit_test`: `menedzhery_telegram`, `operator_telegram_temy`, `sobytiya_zerkala_operatora`, а также FK `dialogi.tekushchiy_menedzher_id → menedzhery_telegram.id`. Нужны индексы, CHECK/UNIQUE, русские COMMENT, default-deny и SAVEPOINT-probe topic/manager/mirror ограничений.
+Подготовлен полный SQL `sql/DB-03B_operator_tables.sql` v0.1 только для `qbit_test`. Он создаёт:
+- `menedzhery_telegram`;
+- `operator_telegram_temy`;
+- `sobytiya_zerkala_operatora`.
 
-Функции Take/Return/manual outgoing, конкурентный захват и выдача узкого mirror payload относятся к DB-03D и в DB-03B не реализуются.
+Также DB-03B добавляет второй отложенный после DB-02 FK: `dialogi.tekushchiy_menedzher_id → menedzhery_telegram.id`.
+
+Статически проверено:
+- ровно 3 новые таблицы;
+- 54 поля и 54 русских COMMENT на поля, COMMENT на все 3 таблицы;
+- 10 контрактных индексов;
+- нет SQL-имён длиннее 63 байт;
+- нет функций DB-03C/DB-03D;
+- нет production-команд и таблиц в `kompaniya_001_test`;
+- runtime-роли не получают прямой DML.
+
+SAVEPOINT-probe проверяет:
+- уникальность разрешённого Telegram user ID менеджера;
+- согласованность подтверждённого private chat и уникальность private chat ID;
+- FK текущего менеджера в `dialogi`;
+- обязательный thread/time для готовой операторской темы;
+- уникальность пары `sluzhebnyy_chat_id + message_thread_id`;
+- уникальность stable mirror key;
+- обязательную lease для mirror в `v_rabote`;
+- обязательное вложение для `media_klienta`;
+- обязательного разрешённого manager target для `lichnoe_uvedomlenie`.
+После probe тестовые строки откатываются.
+
+Функции Take/Return/manual outgoing, narrow mirror claim и конкурентные проверки остаются DB-03D; DB-03B создаёт только надёжную структуру и ограничения.
+
+**Не выполнено:** SQL DB-03B ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03b_result` либо полный ERROR/CONTEXT. До server-check DB-03B не закрывается.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
