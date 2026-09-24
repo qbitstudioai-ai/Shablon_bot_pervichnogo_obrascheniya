@@ -203,7 +203,7 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 
 Локальная таблица обратного соответствия псевдометок. Не читается служебным workflow, дашбордом руководителя или внешним AI.
 
-Поля: `id uuid`; `dialog_id uuid FK`; `polzovatel_id uuid FK`; `soobshchenie_id uuid FK`; `tip_pii text`; `psevdometka text`; `znachenie_zashchishchennoe text`; `hash_normalizovannogo_znacheniya text`; `vremya_sozdaniya timestamptz`; `deystvitelno_do timestamptz`.
+Поля: `id uuid`; `dialog_id uuid FK`; `polzovatel_id uuid FK`; `soobshchenie_id uuid FK`; `tip_pii text`; `psevdometka text`; `znachenie_zashchishchennoe text`; `hash_normalizovannogo_znacheniya text`; `vremya_sozdaniya timestamptz`; `deystvitelno_do timestamptz`. Для `tip_pii=telefon` защищённое значение хранится в canonical international form после локальной нормализации; исходное написание остаётся в сыром сообщении. Регион нормализации приходит только из доверенной настройки компании, не из текста/LLM.
 
 Индексы: `uq_pii_dialog_metka` UNIQUE (`dialog_id`,`psevdometka`); `ix_pii_soobshchenie` (`soobshchenie_id`); `ix_pii_hash` (`tip_pii`,`hash_normalizovannogo_znacheniya`) partial not null.
 
@@ -364,7 +364,7 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 | `zaregistrirovat_vhod_klienta` | bot | DB-03C1 signature `jsonb`; нормализованный вход v1; одной транзакцией integration event → identity/user → dialog/message → job; увеличивает `versiya_dialoga` только для нового логического входа, отменяет старое ожидание/напоминания; первый dialog получает `obespechit_temu`, текст — зеркало; duplicate external message ищется по всей channel identity и не меняет dialog; возвращает user/identity/dialog/message/job/version |
 | `sohranit_vlozhenie` | bot | DB-03C1 signature `jsonb, bytea`; message + проверенные байты/metadata/hash; требует trusted file-size limit для bytea, создаёт media mirror intent; retry идемпотентен по message+provider file ID/unique ID; фото/видео AI=false |
 | `sohranit_transkripciyu_golosa` | bot | DB-03C1 signature `jsonb`; message/status/local engine/version/raw+deidentified transcript; final `gotova` не перезаписывается другим текстом; ошибка STT не создаёт нарушение |
-| `sohranit_obezlichivanie` | bot | DB-03C1 signature `jsonb`; message, `tekst_obezlichennyy`, PII placeholder↔protected value; сначала проверяет весь набор, затем атомарно пишет message+`sootvetstviya_pii`; другой protected value для placeholder → konflikt |
+| `sohranit_obezlichivanie` | bot | DB-03C1 signature `jsonb`; message, `tekst_obezlichennyy`, PII placeholder↔protected value; сначала проверяет весь набор, затем атомарно пишет message+`sootvetstviya_pii`; уже найденный локальным PII-detector телефон канонизируется по trusted `region_telefona` (для RU: `8(...)`, `8-...`, digits-only, `+7 ...` → `+7XXXXXXXXXX`) либо по явному trusted normalized value; другой canonical protected value для placeholder → konflikt |
 | `poluchit_kontekst_dialoga` | bot | dialog/job/version; возвращает owner/block/status, память 3–5, факты, новые обезличенные сообщения; сырые PII только отдельными локальными полями, не смешанными с AI-пакетом |
 | `sohranit_fakty_i_pamyat` | bot | CAS по `versiya_dialoga` и `versiya_pamyati`; upsert новых подтверждённых фактов с evidence, summary/window/processed pointer |
 | `proverit_limit_chastoty` | bot | channel identity + окно/лимит из доверенной конфигурации; считает сохранённые входы, не меняя тематический счётчик |

@@ -1,4 +1,4 @@
--- DB-03C1 v0.1: client ingress, attachment, STT and PII API
+-- DB-03C1 v0.2: client ingress, attachment, STT and PII API
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Contract: docs/specs/DB_CONTRACT.md
 --
@@ -34,6 +34,8 @@
 --   * No Credentials/secrets are created.
 --   * Probe rows are rolled back to SAVEPOINT before COMMIT.
 --   * Any error before COMMIT rolls the whole DB-03C1 migration back.
+--   * v0.2 fixes PL/pgSQL output-column ambiguity found by server-run of v0.1.
+--   * Phone PII is canonicalized after local detection; region comes only from trusted settings.
 
 BEGIN;
 
@@ -198,6 +200,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, qbit_test
 AS $fn$
+#variable_conflict use_column
 DECLARE
     v_operaciya_id text;
     v_versiya_formata integer;
@@ -587,11 +590,11 @@ BEGIN
             END IF;
         END IF;
 
-        UPDATE qbit_test.polzovateli
+        UPDATE qbit_test.polzovateli AS p_upd
            SET vremya_poslednego_obrashcheniya =
-                   GREATEST(vremya_poslednego_obrashcheniya, v_vremya_priema),
+                   GREATEST(p_upd.vremya_poslednego_obrashcheniya, v_vremya_priema),
                vremya_obnovleniya = clock_timestamp()
-         WHERE id = v_user_id;
+         WHERE p_upd.id = v_user_id;
 
         UPDATE qbit_test.identifikatory_kanalov
            SET vneshniy_dialog_id = v_vnesh_dialog,
@@ -616,7 +619,7 @@ BEGIN
          ORDER BY d.vremya_nachala DESC
          LIMIT 1;
 
-        INSERT INTO qbit_test.dialogi (
+        INSERT INTO qbit_test.dialogi AS new_dialog (
             polzovatel_id,
             identifikator_kanala_id,
             predydushchiy_dialog_id,
@@ -646,7 +649,7 @@ BEGIN
             v_workflow,
             v_prompt
         )
-        RETURNING id, versiya_dialoga
+        RETURNING new_dialog.id, new_dialog.versiya_dialoga
         INTO v_dialog_id, v_dialog_version;
 
         v_is_new_dialog := true;
@@ -693,8 +696,8 @@ BEGIN
             RETURN;
         END IF;
 
-        UPDATE qbit_test.dialogi
-           SET versiya_dialoga = versiya_dialoga + 1,
+        UPDATE qbit_test.dialogi AS d_upd
+           SET versiya_dialoga = d_upd.versiya_dialoga + 1,
                ozhidaetsya_otvet = false,
                t0 = NULL,
                pokolenie_ozhidaniya = pokolenie_ozhidaniya + 1,
@@ -705,8 +708,8 @@ BEGIN
                versiya_workflow = v_workflow,
                versiya_prompta = v_prompt,
                vremya_obnovleniya = clock_timestamp()
-         WHERE id = v_dialog_id
-         RETURNING versiya_dialoga
+         WHERE d_upd.id = v_dialog_id
+         RETURNING d_upd.versiya_dialoga
          INTO v_dialog_version;
 
         UPDATE qbit_test.napominaniya
@@ -895,6 +898,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, qbit_test
 AS $fn$
+#variable_conflict use_column
 DECLARE
     v_operaciya_id text;
     v_message_id uuid;
@@ -1185,6 +1189,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, qbit_test
 AS $fn$
+#variable_conflict use_column
 DECLARE
     v_operaciya_id text;
     v_message_id uuid;
@@ -1333,19 +1338,19 @@ BEGIN
         RETURN;
     END IF;
 
-    UPDATE qbit_test.transkripcii_golosa
+    UPDATE qbit_test.transkripcii_golosa AS t_upd
        SET status = v_status,
            tekst_transkripcii = v_raw,
            tekst_obezlichennyy = v_deid,
            dvizhok = v_engine,
            versiya_dvizhka = v_engine_version,
-           popytki = GREATEST(popytki, v_attempts),
+           popytki = GREATEST(t_upd.popytki, v_attempts),
            vremya_nachala = COALESCE(v_start, vremya_nachala),
            vremya_zaversheniya = v_finish,
            kod_oshibki = v_error_code,
            opisanie_oshibki = v_error_desc,
            vremya_obnovleniya = clock_timestamp()
-     WHERE id = v_id;
+     WHERE t_upd.id = v_id;
 
     RETURN QUERY SELECT
         v_operaciya_id, 'uspeshno'::text, NULL::text,
@@ -1378,6 +1383,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, qbit_test
 AS $fn$
+#variable_conflict use_column
 DECLARE
     v_operaciya_id text;
     v_message_id uuid;
@@ -1390,6 +1396,9 @@ DECLARE
     v_protected text;
     v_hash text;
     v_expiry timestamptz;
+    v_phone_region text;
+    v_phone_digits text;
+    v_phone_explicit text;
     v_existing record;
     v_count integer := 0;
     v_all_same boolean := true;
@@ -1458,6 +1467,58 @@ BEGIN
         v_protected := v_item->>'znachenie_zashchishchennoe';
         v_hash := NULLIF(btrim(v_item->>'hash_normalizovannogo_znacheniya'), '');
         v_expiry := NULLIF(v_item->>'deystvitelno_do', '')::timestamptz;
+        v_phone_region := upper(
+            COALESCE(
+                NULLIF(btrim(v_item->>'region_telefona'), ''),
+                NULLIF(btrim(p_dannye->>'region_telefona'), '')
+            )
+        );
+        v_phone_explicit := NULLIF(btrim(v_item->>'znachenie_normalizovannoe'), '');
+
+        -- Detection happens locally before this function. Here an already
+        -- detected phone is canonicalized so punctuation/8/+7 formatting
+        -- cannot create different protected values.
+        IF v_tip = 'telefon' THEN
+            IF v_phone_explicit IS NOT NULL THEN
+                IF v_phone_explicit !~ '^\+[0-9]{8,15}$' THEN
+                    RETURN QUERY SELECT
+                        v_operaciya_id, 'otkaz'::text, 'telefon_ne_normalizovan'::text,
+                        'Нормализованный телефон должен иметь формат + и 8–15 цифр.'::text,
+                        NULL::timestamptz, v_message_id, v_message.dialog_id, 0;
+                    RETURN;
+                END IF;
+                v_protected := v_phone_explicit;
+            ELSE
+                v_phone_digits := regexp_replace(v_protected, '[^0-9]', '', 'g');
+
+                IF v_phone_region = 'RU' THEN
+                    IF length(v_phone_digits) = 11
+                       AND left(v_phone_digits, 1) IN ('7', '8') THEN
+                        v_protected := '+7' || right(v_phone_digits, 10);
+                    ELSIF length(v_phone_digits) = 10 THEN
+                        v_protected := '+7' || v_phone_digits;
+                    ELSIF btrim(v_item->>'znachenie_zashchishchennoe') LIKE '+%'
+                       AND length(v_phone_digits) BETWEEN 8 AND 15 THEN
+                        v_protected := '+' || v_phone_digits;
+                    ELSE
+                        RETURN QUERY SELECT
+                            v_operaciya_id, 'otkaz'::text, 'telefon_ne_normalizovan'::text,
+                            'Телефон не удалось безопасно нормализовать для региона RU.'::text,
+                            NULL::timestamptz, v_message_id, v_message.dialog_id, 0;
+                        RETURN;
+                    END IF;
+                ELSIF btrim(v_item->>'znachenie_zashchishchennoe') LIKE '+%'
+                   AND length(v_phone_digits) BETWEEN 8 AND 15 THEN
+                    v_protected := '+' || v_phone_digits;
+                ELSE
+                    RETURN QUERY SELECT
+                        v_operaciya_id, 'otkaz'::text, 'telefon_nuzhen_region'::text,
+                        'Для национального формата нужен доверенный region_telefona или явное нормализованное значение.'::text,
+                        NULL::timestamptz, v_message_id, v_message.dialog_id, 0;
+                    RETURN;
+                END IF;
+            END IF;
+        END IF;
 
         IF v_tip IS NULL
            OR v_placeholder IS NULL
@@ -1499,6 +1560,58 @@ BEGIN
         v_protected := v_item->>'znachenie_zashchishchennoe';
         v_hash := NULLIF(btrim(v_item->>'hash_normalizovannogo_znacheniya'), '');
         v_expiry := NULLIF(v_item->>'deystvitelno_do', '')::timestamptz;
+        v_phone_region := upper(
+            COALESCE(
+                NULLIF(btrim(v_item->>'region_telefona'), ''),
+                NULLIF(btrim(p_dannye->>'region_telefona'), '')
+            )
+        );
+        v_phone_explicit := NULLIF(btrim(v_item->>'znachenie_normalizovannoe'), '');
+
+        -- Detection happens locally before this function. Here an already
+        -- detected phone is canonicalized so punctuation/8/+7 formatting
+        -- cannot create different protected values.
+        IF v_tip = 'telefon' THEN
+            IF v_phone_explicit IS NOT NULL THEN
+                IF v_phone_explicit !~ '^\+[0-9]{8,15}$' THEN
+                    RETURN QUERY SELECT
+                        v_operaciya_id, 'otkaz'::text, 'telefon_ne_normalizovan'::text,
+                        'Нормализованный телефон должен иметь формат + и 8–15 цифр.'::text,
+                        NULL::timestamptz, v_message_id, v_message.dialog_id, 0;
+                    RETURN;
+                END IF;
+                v_protected := v_phone_explicit;
+            ELSE
+                v_phone_digits := regexp_replace(v_protected, '[^0-9]', '', 'g');
+
+                IF v_phone_region = 'RU' THEN
+                    IF length(v_phone_digits) = 11
+                       AND left(v_phone_digits, 1) IN ('7', '8') THEN
+                        v_protected := '+7' || right(v_phone_digits, 10);
+                    ELSIF length(v_phone_digits) = 10 THEN
+                        v_protected := '+7' || v_phone_digits;
+                    ELSIF btrim(v_item->>'znachenie_zashchishchennoe') LIKE '+%'
+                       AND length(v_phone_digits) BETWEEN 8 AND 15 THEN
+                        v_protected := '+' || v_phone_digits;
+                    ELSE
+                        RETURN QUERY SELECT
+                            v_operaciya_id, 'otkaz'::text, 'telefon_ne_normalizovan'::text,
+                            'Телефон не удалось безопасно нормализовать для региона RU.'::text,
+                            NULL::timestamptz, v_message_id, v_message.dialog_id, 0;
+                        RETURN;
+                    END IF;
+                ELSIF btrim(v_item->>'znachenie_zashchishchennoe') LIKE '+%'
+                   AND length(v_phone_digits) BETWEEN 8 AND 15 THEN
+                    v_protected := '+' || v_phone_digits;
+                ELSE
+                    RETURN QUERY SELECT
+                        v_operaciya_id, 'otkaz'::text, 'telefon_nuzhen_region'::text,
+                        'Для национального формата нужен доверенный region_telefona или явное нормализованное значение.'::text,
+                        NULL::timestamptz, v_message_id, v_message.dialog_id, 0;
+                    RETURN;
+                END IF;
+            END IF;
+        END IF;
 
         SELECT p.*
           INTO v_existing
@@ -1557,7 +1670,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_test.sohranit_obezlichivanie(jsonb) IS
-'DB-03C1: атомарно сохраняет обезличенный текст и локальную reverse-map PII; другой protected value для той же псевдометки возвращает konflikt.';
+'DB-03C1: атомарно сохраняет обезличенный текст и локальную reverse-map PII; найденный телефон канонизирует по доверенному region_telefona или явному normalized value, поэтому разные визуальные форматы одного номера совпадают.';
 
 -- ===========================================================================
 -- 6. PRIVILEGES
@@ -1729,6 +1842,7 @@ DECLARE
     rsttconf record;
     rpii record;
     rpiidup record;
+    rpiidup2 record;
     rpiiconf record;
     v_old_reminder uuid;
     v_before_violations integer;
@@ -1750,7 +1864,7 @@ BEGIN
             'vneshnee_soobshchenie_id', 'db03c1_msg_1',
             'tip_sobytiya', 'message',
             'tip_soobshcheniya', 'text',
-            'tekst_ishodnyy', 'Телефон +70000000000',
+            'tekst_ishodnyy', 'Телефон 8 (961) 123-45-67',
             'vremya_istochnika', '2026-09-24T17:00:00+00',
             'vremya_priema', '2026-09-24T17:00:01+00',
             'trassirovka_id', 'db03c1_trace_1',
@@ -1789,7 +1903,7 @@ BEGIN
             'vneshnee_soobshchenie_id', 'db03c1_msg_1',
             'tip_sobytiya', 'message',
             'tip_soobshcheniya', 'text',
-            'tekst_ishodnyy', 'Телефон +70000000000',
+            'tekst_ishodnyy', 'Телефон 8 (961) 123-45-67',
             'vremya_istochnika', '2026-09-24T17:00:00+00',
             'vremya_priema', '2026-09-24T17:00:01+00',
             'versiya_workflow', 'db03c1_probe',
@@ -1857,7 +1971,7 @@ BEGIN
             'vneshnee_soobshchenie_id', 'db03c1_msg_1',
             'tip_sobytiya', 'message',
             'tip_soobshcheniya', 'text',
-            'tekst_ishodnyy', 'Телефон +70000000000',
+            'tekst_ishodnyy', 'Телефон 8 (961) 123-45-67',
             'vremya_priema', '2026-09-24T17:00:02+00',
             'versiya_workflow', 'db03c1_probe',
             'versiya_prompta', 'db03c1_probe',
@@ -1889,7 +2003,7 @@ BEGIN
             'vneshnee_soobshchenie_id', 'db03c1_msg_1',
             'tip_sobytiya', 'message',
             'tip_soobshcheniya', 'text',
-            'tekst_ishodnyy', 'Телефон +70000000000',
+            'tekst_ishodnyy', 'Телефон 8 (961) 123-45-67',
             'vremya_priema', '2026-09-24T17:00:02+00',
             'versiya_workflow', 'db03c1_probe',
             'versiya_prompta', 'db03c1_probe',
@@ -1928,7 +2042,7 @@ BEGIN
             'vneshnee_soobshchenie_id', 'db03c1_msg_1',
             'tip_sobytiya', 'message',
             'tip_soobshcheniya', 'text',
-            'tekst_ishodnyy', 'Телефон +70000000000',
+            'tekst_ishodnyy', 'Телефон 8 (961) 123-45-67',
             'vremya_priema', '2026-09-24T17:00:03+00',
             'versiya_workflow', 'db03c1_probe',
             'versiya_prompta', 'db03c1_probe',
@@ -2238,11 +2352,12 @@ BEGIN
             'operaciya_id', 'db03c1_pii_1',
             'soobshchenie_id', r1.soobshchenie_id,
             'tekst_obezlichennyy', 'Телефон <TELEFON_1>',
+            'region_telefona', 'RU',
             'sootvetstviya', jsonb_build_array(
                 jsonb_build_object(
                     'tip_pii', 'telefon',
                     'psevdometka', '<TELEFON_1>',
-                    'znachenie_zashchishchennoe', '+70000000000',
+                    'znachenie_zashchishchennoe', '8 (961) 123-45-67',
                     'hash_normalizovannogo_znacheniya', 'db03c1_phone_hash'
                 )
             )
@@ -2256,18 +2371,31 @@ BEGIN
             row_to_json(rpii);
     END IF;
 
+    IF NOT EXISTS (
+        SELECT 1
+          FROM qbit_test.sootvetstviya_pii AS p
+         WHERE p.dialog_id = r1.dialog_id
+           AND p.psevdometka = '<TELEFON_1>'
+           AND p.znachenie_zashchishchennoe = '+79611234567'
+    ) THEN
+        RAISE EXCEPTION
+            'DB-03C1 phone canonicalization failed for parentheses/dashes format';
+    END IF;
+
+    -- Same phone without punctuation must resolve to the same protected value.
     SELECT *
       INTO rpiidup
       FROM qbit_test.sohranit_obezlichivanie(
         jsonb_build_object(
-            'operaciya_id', 'db03c1_pii_1_retry',
+            'operaciya_id', 'db03c1_pii_1_retry_digits',
             'soobshchenie_id', r1.soobshchenie_id,
             'tekst_obezlichennyy', 'Телефон <TELEFON_1>',
+            'region_telefona', 'RU',
             'sootvetstviya', jsonb_build_array(
                 jsonb_build_object(
                     'tip_pii', 'telefon',
                     'psevdometka', '<TELEFON_1>',
-                    'znachenie_zashchishchennoe', '+70000000000',
+                    'znachenie_zashchishchennoe', '89611234567',
                     'hash_normalizovannogo_znacheniya', 'db03c1_phone_hash'
                 )
             )
@@ -2276,10 +2404,37 @@ BEGIN
 
     IF rpiidup.rezultat <> 'dublikat' THEN
         RAISE EXCEPTION
-            'DB-03C1 PII retry not idempotent: %',
+            'DB-03C1 PII digits-only phone retry not idempotent: %',
             row_to_json(rpiidup);
     END IF;
 
+    -- Same phone in +7/spaces format must also be identical.
+    SELECT *
+      INTO rpiidup2
+      FROM qbit_test.sohranit_obezlichivanie(
+        jsonb_build_object(
+            'operaciya_id', 'db03c1_pii_1_retry_plus7',
+            'soobshchenie_id', r1.soobshchenie_id,
+            'tekst_obezlichennyy', 'Телефон <TELEFON_1>',
+            'region_telefona', 'RU',
+            'sootvetstviya', jsonb_build_array(
+                jsonb_build_object(
+                    'tip_pii', 'telefon',
+                    'psevdometka', '<TELEFON_1>',
+                    'znachenie_zashchishchennoe', '+7 961 123 45 67',
+                    'hash_normalizovannogo_znacheniya', 'db03c1_phone_hash'
+                )
+            )
+        )
+      );
+
+    IF rpiidup2.rezultat <> 'dublikat' THEN
+        RAISE EXCEPTION
+            'DB-03C1 PII +7/spaces phone retry not idempotent: %',
+            row_to_json(rpiidup2);
+    END IF;
+
+    -- A genuinely different phone under the same placeholder must conflict.
     SELECT *
       INTO rpiiconf
       FROM qbit_test.sohranit_obezlichivanie(
@@ -2287,11 +2442,12 @@ BEGIN
             'operaciya_id', 'db03c1_pii_conflict',
             'soobshchenie_id', r1.soobshchenie_id,
             'tekst_obezlichennyy', 'Телефон <TELEFON_1>',
+            'region_telefona', 'RU',
             'sootvetstviya', jsonb_build_array(
                 jsonb_build_object(
                     'tip_pii', 'telefon',
                     'psevdometka', '<TELEFON_1>',
-                    'znachenie_zashchishchennoe', '+71111111111',
+                    'znachenie_zashchishchennoe', '8-962-123-45-67',
                     'hash_normalizovannogo_znacheniya', 'different_hash'
                 )
             )
@@ -2300,7 +2456,7 @@ BEGIN
 
     IF rpiiconf.rezultat <> 'konflikt' THEN
         RAISE EXCEPTION
-            'DB-03C1 PII conflict not detected: %',
+            'DB-03C1 PII different-phone conflict not detected: %',
             row_to_json(rpiiconf);
     END IF;
 
@@ -2450,5 +2606,5 @@ SELECT jsonb_build_object(
     'runtime_direct_dml',
     false,
     'result',
-    'DB-03C1 SQL APPLIED: ingress/media/STT/PII API verified; idempotency/conflict/wait-cancel probes passed; production untouched.'
+    'DB-03C1 v0.2 SQL APPLIED: ingress/media/STT/PII API verified; ambiguity/phone-normalization/idempotency/conflict/wait-cancel probes passed; production untouched.'
 ) AS db03c1_result;

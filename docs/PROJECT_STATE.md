@@ -156,36 +156,28 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 **DB-03C1 — клиентский ingress, вложения, STT и PII. Статус: в работе.**
 
-Подготовлен полный SQL `sql/DB-03C1_client_ingress.sql` v0.1 только для `qbit_test`.
+Первый server-run `sql/DB-03C1_client_ingress.sql` v0.1 24 сентября 2026 года остановился внутри встроенного probe до `COMMIT` с PostgreSQL 42702: имя `versiya_dialoga` было неоднозначно между output-переменной `RETURNS TABLE` и столбцом `dialogi`. Поскольку ошибка произошла внутри явной транзакции до `COMMIT`, v0.1 не считается применённым; DB-03C1 остаётся незавершённым.
 
-Он создаёт 4 `SECURITY DEFINER` функции:
+Подготовлен v0.2. Исправление системное для всех четырёх PL/pgSQL-функций:
+- добавлена директива `#variable_conflict use_column`;
+- критические `INSERT ... RETURNING` и `UPDATE` в ingress дополнительно квалифицированы алиасами таблиц;
+- квалифицированы RHS обновления last-contact и STT attempts;
+- сохранены ранее подготовленные проверки duplicate external message по всей channel identity, включая повтор после закрытия диалога;
+- сохранён двухпроходный atomic PII mapping и scalar topic target для attachment mirror.
+
+Телефонный PII в v0.2 не привязан к одной строковой маске. Локальный PII-детектор сначала находит кандидата в тексте, а `sohranit_obezlichivanie` канонизирует уже найденное значение по доверенному `region_telefona` из настроек компании. Для `RU` формы `89611234567`, `8 (961) 123-45-67`, `8-961-123-45-67`, `+7 961 123 45 67` и 10 цифр без префикса приводятся к `+79611234567`. Регион не берётся из текста клиента или LLM. Для другого региона caller передаёт trusted region либо явное `znachenie_normalizovannoe` в международном формате `+...`.
+
+v0.2 создаёт:
 - `zaregistrirovat_vhod_klienta(jsonb)`;
 - `sohranit_vlozhenie(jsonb, bytea)`;
 - `sohranit_transkripciyu_golosa(jsonb)`;
-- `sohranit_obezlichivanie(jsonb)`.
-
-Интерфейс функций принимает нормализованный JSON-пакет v1; байты вложения передаются отдельным `bytea`. Все функции имеют фиксированный `search_path = pg_catalog, qbit_test`, `PUBLIC EXECUTE` отозван, EXECUTE выдаётся только `qbit_test_bot`; прямой DML runtime-роли не получают.
-
-Для надёжного повтора скачивания добавлены два узких индекса:
+- `sohranit_obezlichivanie(jsonb)`;
 - `uq_vlozheniya_msg_file_id`;
 - `uq_vlozheniya_msg_file_unique`.
 
-Ingress одной транзакцией создаёт/находит integration event, identity/user, dialog/message и processing job; первый dialog получает durable topic intent, текст — mirror intent. Новый реальный вход увеличивает версию диалога, сбрасывает ожидание и отменяет старые pending/in-work reminders. Повтор external message ID проверяется по всей channel identity до изменения пользователя/диалога, поэтому старое сообщение не создаёт новый dialog даже после закрытия прежнего.
+Статически проверено: 4 функции, 4 compiler directives, 4 фиксированных `search_path`, 4 точечных REVOKE/GRANT; старые неоднозначные выражения отсутствуют; production/canary объекты не создаются; SAVEPOINT-probe и rollback сохранены. Probe дополнительно подтверждает, что три разных визуальных формата одного RU-номера дают один canonical protected value, а другой номер под той же псевдометкой даёт `konflikt`.
 
-SAVEPOINT-probe проверяет:
-- same idempotency key + same hash → `dublikat` с прежними IDs/version;
-- тот же key/event + другой hash → `konflikt`;
-- новый provider event с тем же external message ID → без второго сообщения/version bump;
-- повтор такого duplicate-event стабилен;
-- старый external message после закрытия dialog не создаёт новый dialog;
-- новый настоящий вход отменяет wait/reminder;
-- attachment retry возвращает тот же attachment ID, другое hash → conflict;
-- voice STT retry идемпотентен, готовая транскрипция с другим текстом конфликтует и не меняет thematic violations;
-- PII reverse-map сохраняется атомарно двумя проходами: конфликт placeholder не оставляет частичных записей.
-
-Статически проверено: 4 функции, 4 COMMENT, 4 точечных REVOKE/GRANT, 4 фиксированных search_path; production/canary объекты не создаются; SQL-имена ≤63 байт.
-
-**Не выполнено:** SQL DB-03C1 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03c1_result` либо полный ERROR/CONTEXT. До server-check DB-03C1 не закрывается.
+**Следующее действие:** Павел запускает актуальный `sql/DB-03C1_client_ingress.sql` **v0.2 целиком одним Run** в self-hosted Supabase Studio и передаёт `db03c1_result` либо полный ERROR/CONTEXT. Старую v0.1 повторно не запускать.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
