@@ -1,6 +1,6 @@
 # DB-контракт шаблона
 
-Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 уже применены и проверены в test-контуре. DB-03 разбит на DB-03A…DB-03D для последовательной реализации и проверки.
+Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 уже применены и проверены в test-контуре. DB-03 разбит на DB-03A…DB-03D; SQL DB-03A подготовлен, но ещё не применён на сервере.
 
 ## Граница контракта
 
@@ -245,6 +245,8 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 
 Поля: `id uuid`; `dialog_id uuid FK`; `zagruzka_id uuid`; `soobshchenie_id uuid FK`; `vid_deystviya text` (`soobshchenie`,`crm`,`uvedomlenie`,`otchet`); `istochnik text` (`bot`,`menedzher`,`sistema`); `klyuch_povtora text`; `kanal text`; `akkaunt_kanala_id text`; `vneshniy_dialog_id text`; `vneshnee_otvet_na_id text`; `payload jsonb`; `status text` (`zaplanirovano`,`v_rabote`,`podtverzhdeno`,`povtor`,`neizvestno`,`otmeneno`,`oshibka`); `popytki integer`; `sleduyushchiy_zapusk timestamptz`; `vladelec_arendy text`; `arenda_do timestamptz`; `nomer_vladeniya bigint`; `versiya_dialoga bigint`; `vneshniy_id text`; `vremya_zaprosa timestamptz`; `vremya_podtverzhdeniya timestamptz`; `povtor_posle timestamptz`; `kod_oshibki text`; `opisanie_oshibki text`; `vremya_sozdaniya`; `vremya_obnovleniya`.
 
+`zagruzka_id` получает FK на `zagruzki_znaniy.id` только в DB-04 после создания таблицы знаний; до этого поле остаётся nullable UUID и прикладные функции DB-03C не используют его для несуществующей загрузки.
+
 Индексы: `uq_ishod_klyuch_povtora` UNIQUE (`klyuch_povtora`); `ix_ishod_gotovy` partial (`sleduyushchiy_zapusk`,`vremya_sozdaniya`) where status in (`zaplanirovano`,`povtor`); `ix_ishod_dialog_status` (`dialog_id`,`status`,`vremya_sozdaniya`); `ix_ishod_arenda` partial (`arenda_do`) where status=`v_rabote`; `ix_ishod_vnesh` (`kanal`,`akkaunt_kanala_id`,`vneshniy_id`) partial not null.
 
 ### `napominaniya`
@@ -269,9 +271,9 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 
 ### `sistemnye_sobytiya`
 
-Поля: `id`; `kompaniya_kod`; `sreda`; `komponent`; `operaciya_id`; `trassirovka_id`; `vremya_sobytiya`; `uroven`; `kod`; `opisanie`; `klyuch_gruppirovki`; `status_uvedomleniya`; `kolichestvo_povtorov`; `poslednee_povtorenie`; `vremya_sozdaniya`.
+Поля: `id`; `kompaniya_kod`; `sreda`; `komponent`; `operaciya_id`; `trassirovka_id`; `vremya_sobytiya`; `uroven`; `kod`; `opisanie`; `klyuch_gruppirovki`; `status_uvedomleniya`; `kolichestvo_povtorov`; `poslednee_povtorenie`; `vremya_sozdaniya`. Для DB-03A фиксируются коды уведомления: `ne_trebuetsya`, `ozhidaet`, `otpravleno`, `povtor`, `oshibka`, `zakryto`; технические уровни: `info`, `preduprezhdenie`, `oshibka`, `kritichno`.
 
-Индексы: `ix_sissob_vremya_uroven`; `ix_sissob_gruppa`; `ix_sissob_uvedomlenie` partial по незакрытым уведомлениям.
+Индексы: `ix_sissob_vremya_uroven`; `ix_sissob_gruppa`; `ix_sissob_uvedomlenie` partial по состояниям, требующим обработки уведомления: `ozhidaet`, `povtor`, `oshibka`.
 
 ### `zhurnal_administrirovaniya`
 

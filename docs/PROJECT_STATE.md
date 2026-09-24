@@ -118,15 +118,46 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 ## Текущая задача
 
-**DB-03A — core-таблицы надёжности. Статус: не начато.**
+**DB-03A — core-таблицы надёжности. Статус: в работе.**
 
-DB-03 разделён на четыре постоянные подзадачи, потому что исходный пункт объединяет 12 таблиц и большой прикладной API:
-- DB-03A — 9 core-таблиц надёжности/памяти и FK `soobshcheniya.sobytie_id`;
-- DB-03B — 3 операторские таблицы и FK текущего менеджера;
-- DB-03C — клиентский ingress/guard/очередь/исходящие/напоминания;
-- DB-03D — service Telegram, зеркало, topic, Take/Return и ручной ответ.
+Подготовлен полный SQL `sql/DB-03A_reliability_core.sql` v0.1 только для `qbit_test`. Он создаёт 9 таблиц:
+- `sobytiya_integraciy`;
+- `zadaniya_obrabotki`;
+- `ishodyashchie_deystviya`;
+- `napominaniya`;
+- `pamyat_dialoga`;
+- `analiz_dialogov`;
+- `obratnaya_svyaz`;
+- `sistemnye_sobytiya`;
+- `zhurnal_administrirovaniya`.
 
-Следующий шаг — подготовить один полный test-only SQL DB-03A только для `qbit_test`. Production, Credentials, workflow и рабочий трафик не менять.
+Также DB-03A добавляет отложенный после DB-02 FK `soobshcheniya.sobytie_id → sobytiya_integraciy.id`.
+
+Статически проверено:
+- ровно 9 новых таблиц;
+- 129 полей и 129 русских COMMENT на поля, COMMENT на все 9 таблиц;
+- 25 контрактных индексов;
+- нет SQL-имён длиннее 63 байт;
+- нет production-команд и таблиц в `kompaniya_001_test`;
+- операторские таблицы DB-03B не создаются;
+- runtime-роли не получают прямой DML.
+
+SAVEPOINT-probe создаёт минимальный граф DB-02 и по одной записи во всех таблицах DB-03A, проверяет:
+- уникальность внешнего integration event;
+- уникальность idempotency key;
+- FK сообщения к integration event;
+- один `v_rabote` job на диалог;
+- обязательную lease для `v_rabote`;
+- стабильный уникальный ключ исходящего действия;
+- уникальность reminder по dialog/generation/type;
+- оценку feedback только 1–5.
+После probe все временные строки откатываются.
+
+Для `sistemnye_sobytiya.status_uvedomleniya` DB-03A фиксирует технические коды `ne_trebuetsya`, `ozhidaet`, `otpravleno`, `povtor`, `oshibka`, `zakryto`; индекс очереди уведомлений охватывает `ozhidaet/povtor/oshibka`. Это закрывает ранее неуточнённый список кодов без изменения бизнес-логики.
+
+Поле `ishodyashchie_deystviya.zagruzka_id` остаётся без FK до DB-04, потому что `zagruzki_znaniy` ещё не существует.
+
+**Не выполнено:** SQL DB-03A ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03a_result` либо полный ERROR/CONTEXT. До server-check DB-03A не закрывается.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
