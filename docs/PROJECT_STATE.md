@@ -154,15 +154,38 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 ## Текущая задача
 
-**DB-03C1 — клиентский ingress, вложения, STT и PII. Статус: не начато.**
+**DB-03C1 — клиентский ingress, вложения, STT и PII. Статус: в работе.**
 
-Родительский DB-03C дополнительно разбит на четыре постоянные подзадачи:
-- DB-03C1 — `zaregistrirovat_vhod_klienta`, `sohranit_vlozhenie`, `sohranit_transkripciyu_golosa`, `sohranit_obezlichivanie`;
-- DB-03C2 — контекст, память, rate limit, thematic guard и unblock;
-- DB-03C3 — claim/lease/finish очереди;
-- DB-03C4 — исходящие действия, подтверждение/unknown, напоминания и loss check.
+Подготовлен полный SQL `sql/DB-03C1_client_ingress.sql` v0.1 только для `qbit_test`.
 
-Следующий шаг — подготовить один test-only SQL DB-03C1 с SECURITY DEFINER-функциями, явным search_path, REVOKE FROM PUBLIC, EXECUTE только `qbit_test_bot`, идемпотентностью same-key/same-hash и конфликтом same-key/different-hash. Production и workflow не менять.
+Он создаёт 4 `SECURITY DEFINER` функции:
+- `zaregistrirovat_vhod_klienta(jsonb)`;
+- `sohranit_vlozhenie(jsonb, bytea)`;
+- `sohranit_transkripciyu_golosa(jsonb)`;
+- `sohranit_obezlichivanie(jsonb)`.
+
+Интерфейс функций принимает нормализованный JSON-пакет v1; байты вложения передаются отдельным `bytea`. Все функции имеют фиксированный `search_path = pg_catalog, qbit_test`, `PUBLIC EXECUTE` отозван, EXECUTE выдаётся только `qbit_test_bot`; прямой DML runtime-роли не получают.
+
+Для надёжного повтора скачивания добавлены два узких индекса:
+- `uq_vlozheniya_msg_file_id`;
+- `uq_vlozheniya_msg_file_unique`.
+
+Ingress одной транзакцией создаёт/находит integration event, identity/user, dialog/message и processing job; первый dialog получает durable topic intent, текст — mirror intent. Новый реальный вход увеличивает версию диалога, сбрасывает ожидание и отменяет старые pending/in-work reminders. Повтор external message ID проверяется по всей channel identity до изменения пользователя/диалога, поэтому старое сообщение не создаёт новый dialog даже после закрытия прежнего.
+
+SAVEPOINT-probe проверяет:
+- same idempotency key + same hash → `dublikat` с прежними IDs/version;
+- тот же key/event + другой hash → `konflikt`;
+- новый provider event с тем же external message ID → без второго сообщения/version bump;
+- повтор такого duplicate-event стабилен;
+- старый external message после закрытия dialog не создаёт новый dialog;
+- новый настоящий вход отменяет wait/reminder;
+- attachment retry возвращает тот же attachment ID, другое hash → conflict;
+- voice STT retry идемпотентен, готовая транскрипция с другим текстом конфликтует и не меняет thematic violations;
+- PII reverse-map сохраняется атомарно двумя проходами: конфликт placeholder не оставляет частичных записей.
+
+Статически проверено: 4 функции, 4 COMMENT, 4 точечных REVOKE/GRANT, 4 фиксированных search_path; production/canary объекты не создаются; SQL-имена ≤63 байт.
+
+**Не выполнено:** SQL DB-03C1 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03c1_result` либо полный ERROR/CONTEXT. До server-check DB-03C1 не закрывается.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

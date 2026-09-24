@@ -361,10 +361,10 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 
 | Функция | Роль | Вход / атомарный результат |
 |---|---|---|
-| `zaregistrirovat_vhod_klienta` | bot | нормализованный вход v1, вложения-метаданные; одной транзакцией integration event → identity/user → dialog/message → job; увеличивает `versiya_dialoga`, отменяет старое ожидание/напоминания; для первого сообщения ставит `obespechit_temu`, для текста — зеркало; возвращает user/dialog/message/job/version |
-| `sohranit_vlozhenie` | bot | message + проверенные байты/метаданные/hash; соблюдает лимиты, создаёт media mirror job; не передаёт файл наружу |
-| `sohranit_transkripciyu_golosa` | bot | message, status, локальный engine/version, raw transcript и deidentified transcript; ошибка STT не создаёт нарушение |
-| `sohranit_obezlichivanie` | bot | message, `tekst_obezlichennyy`, набор PII placeholder↔protected value; атомарно обновляет сообщение и `sootvetstviya_pii` |
+| `zaregistrirovat_vhod_klienta` | bot | DB-03C1 signature `jsonb`; нормализованный вход v1; одной транзакцией integration event → identity/user → dialog/message → job; увеличивает `versiya_dialoga` только для нового логического входа, отменяет старое ожидание/напоминания; первый dialog получает `obespechit_temu`, текст — зеркало; duplicate external message ищется по всей channel identity и не меняет dialog; возвращает user/identity/dialog/message/job/version |
+| `sohranit_vlozhenie` | bot | DB-03C1 signature `jsonb, bytea`; message + проверенные байты/metadata/hash; требует trusted file-size limit для bytea, создаёт media mirror intent; retry идемпотентен по message+provider file ID/unique ID; фото/видео AI=false |
+| `sohranit_transkripciyu_golosa` | bot | DB-03C1 signature `jsonb`; message/status/local engine/version/raw+deidentified transcript; final `gotova` не перезаписывается другим текстом; ошибка STT не создаёт нарушение |
+| `sohranit_obezlichivanie` | bot | DB-03C1 signature `jsonb`; message, `tekst_obezlichennyy`, PII placeholder↔protected value; сначала проверяет весь набор, затем атомарно пишет message+`sootvetstviya_pii`; другой protected value для placeholder → konflikt |
 | `poluchit_kontekst_dialoga` | bot | dialog/job/version; возвращает owner/block/status, память 3–5, факты, новые обезличенные сообщения; сырые PII только отдельными локальными полями, не смешанными с AI-пакетом |
 | `sohranit_fakty_i_pamyat` | bot | CAS по `versiya_dialoga` и `versiya_pamyati`; upsert новых подтверждённых фактов с evidence, summary/window/processed pointer |
 | `proverit_limit_chastoty` | bot | channel identity + окно/лимит из доверенной конфигурации; считает сохранённые входы, не меняя тематический счётчик |
