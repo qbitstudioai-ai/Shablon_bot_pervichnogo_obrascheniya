@@ -1,4 +1,4 @@
--- DB-01: test schema and restricted roles
+-- DB-01 v0.2: test schemas and restricted roles
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Contract: docs/specs/DB_CONTRACT.md
 --
@@ -9,19 +9,18 @@
 --   and their restricted PostgreSQL roles.
 --
 -- IMPORTANT
---   * Run in the target Supabase PostgreSQL database as the trusted postgres role.
---     Supabase postgres is intentionally not SUPERUSER; DB-01 checks required capabilities.
---   * This file does NOT create qbit production schema or any production role.
---   * This file does NOT create or change passwords. LOGIN roles are created with PASSWORD NULL.
---   * This file does NOT install extensions. It only verifies that vector is already installed.
---   * This file is transactional and contains no DROP of business objects or data.
---   * If an object with the expected name already exists but has unsafe/incompatible attributes,
---     the transaction stops instead of silently rewriting it.
+--   * Run the WHOLE file in Supabase Studio -> SQL Editor as the trusted postgres role.
+--   * Supabase postgres is intentionally not SUPERUSER; this file checks concrete privileges.
+--   * This file DOES NOT create qbit production schema or production roles.
+--   * This file DOES NOT create/change passwords or Credentials.
+--   * LOGIN roles are created with PASSWORD NULL.
+--   * This file DOES NOT install extensions; it only verifies vector is already installed.
+--   * The migration is transactional. On any error before COMMIT, DB-01 changes roll back.
+--   * It contains no DROP SCHEMA, DROP ROLE, DELETE, TRUNCATE, or business-data changes.
 --
--- AFTER SUCCESS
---   DB-02/DB-03 migrations must create objects as the corresponding *_owner role
---   (directly via SET ROLE from *_deploy or by an equivalent controlled deployment path).
---   Runtime roles receive per-function EXECUTE later; they do not receive direct table DML here.
+-- NOTE ABOUT FUTURE MIGRATIONS
+--   DB-02...DB-05 must create company objects as the matching *_owner role
+--   (normally via controlled SET ROLE from *_deploy) and use schema-qualified names.
 
 BEGIN;
 
@@ -29,9 +28,9 @@ SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 SET LOCAL search_path = pg_catalog;
 
--- ---------------------------------------------------------------------------
--- 0. Preconditions
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- 0. PRECHECK
+-- ===========================================================================
 
 DO $db01$
 DECLARE
@@ -50,35 +49,33 @@ BEGIN
     SELECT r.rolsuper, r.rolcreaterole
       INTO v_is_superuser, v_can_create_roles
       FROM pg_catalog.pg_roles AS r
-     WHERE r.rolname = current_user;
+     WHERE r.rolname = session_user;
 
-    -- Supabase intentionally runs Studio as postgres without SUPERUSER.
-    -- DB-01 therefore checks the concrete capabilities it needs instead of rolsuper=true.
-    IF current_user <> 'postgres'
+    IF session_user <> 'postgres'
        AND COALESCE(v_is_superuser, false) IS NOT TRUE
     THEN
         RAISE EXCEPTION
-            'DB-01 must be executed by the trusted postgres role (or a real superuser). current_user=%',
-            current_user;
+            'DB-01 must be run as trusted postgres (or a real superuser). session_user=%',
+            session_user;
     END IF;
 
     IF COALESCE(v_is_superuser, false) IS NOT TRUE
        AND COALESCE(v_can_create_roles, false) IS NOT TRUE
     THEN
         RAISE EXCEPTION
-            'DB-01 requires CREATEROLE when postgres is not a superuser. current_user=%',
-            current_user;
+            'DB-01 requires CREATEROLE when postgres is not SUPERUSER. session_user=%',
+            session_user;
     END IF;
 
     IF NOT pg_catalog.has_database_privilege(
-        current_user,
+        session_user,
         current_database(),
         'CREATE'
     ) THEN
         RAISE EXCEPTION
-            'DB-01 requires CREATE on database %. current_user=%',
+            'DB-01 requires CREATE on database %. session_user=%',
             current_database(),
-            current_user;
+            session_user;
     END IF;
 
     IF NOT EXISTS (
@@ -90,9 +87,8 @@ BEGIN
             'Extension vector is not installed. DB-01 does not install extensions.';
     END IF;
 
-    -- Application roles must not be able to create objects in public through PUBLIC.
-    -- On PostgreSQL 15+ this is normally already false, but upgraded/custom databases
-    -- can retain CREATE for PUBLIC. DB-01 refuses to make a cluster-wide change silently.
+    -- Do not silently change shared schema "public".
+    -- If PUBLIC can CREATE there, stop for a separate reviewed infrastructure change.
     IF EXISTS (
         SELECT 1
           FROM pg_catalog.pg_namespace AS n
@@ -107,16 +103,14 @@ BEGIN
            AND a.privilege_type = 'CREATE'
     ) THEN
         RAISE EXCEPTION
-            'Schema public grants CREATE to PUBLIC. Stop: this shared-database setting needs a separate reviewed change.';
+            'Schema public grants CREATE to PUBLIC. Stop: shared setting requires separate review.';
     END IF;
 END
 $db01$;
 
--- ---------------------------------------------------------------------------
--- 1. Roles
--- ---------------------------------------------------------------------------
--- All roles are cluster-wide PostgreSQL roles, but their names include company + environment.
--- Runtime/deploy LOGIN roles intentionally have no password after creation.
+-- ===========================================================================
+-- 1. CREATE / VALIDATE TEST ROLES
+-- ===========================================================================
 
 DO $db01$
 DECLARE
@@ -133,6 +127,7 @@ BEGIN
                     ('qbit_test_sluzhebnyy', true),
                     ('qbit_test_dash_read', true),
                     ('qbit_test_dash_admin', true),
+
                     ('kompaniya_001_test_owner', false),
                     ('kompaniya_001_test_deploy', true),
                     ('kompaniya_001_test_bot', true),
@@ -184,10 +179,10 @@ BEGIN
 END
 $db01$;
 
--- PostgreSQL 17 gives a non-superuser CREATEROLE creator ADMIN on a newly created role,
--- but not SET ROLE by default. Supabase postgres is intentionally not SUPERUSER, so grant
--- this trusted infrastructure role SET-only access to the two NOLOGIN owner roles.
--- INHERIT stays false: postgres does not silently inherit company-owner privileges.
+-- PostgreSQL 17: a non-superuser CREATEROLE creator gets ADMIN on roles it creates,
+-- but SET ROLE is not automatically usable. Give only SET access to the two NOLOGIN
+-- owner roles; do not inherit their privileges automatically.
+
 DO $db01$
 DECLARE
     v_owner text;
@@ -197,37 +192,37 @@ BEGIN
         'kompaniya_001_test_owner'
     ]
     LOOP
-        IF NOT pg_catalog.pg_has_role(current_user, v_owner, 'SET') THEN
+        IF NOT pg_catalog.pg_has_role(session_user, v_owner, 'SET') THEN
             EXECUTE pg_catalog.format(
                 'GRANT %I TO %I WITH INHERIT FALSE',
                 v_owner,
-                current_user
+                session_user
             );
             EXECUTE pg_catalog.format(
                 'GRANT %I TO %I WITH SET TRUE',
                 v_owner,
-                current_user
+                session_user
             );
         END IF;
 
-        IF NOT pg_catalog.pg_has_role(current_user, v_owner, 'SET') THEN
+        IF NOT pg_catalog.pg_has_role(session_user, v_owner, 'SET') THEN
             RAISE EXCEPTION
-                'DB-01 cannot SET ROLE %. current_user=%',
+                'DB-01 cannot SET ROLE %. session_user=%',
                 v_owner,
-                current_user;
+                session_user;
         END IF;
 
-        IF pg_catalog.pg_has_role(current_user, v_owner, 'USAGE') THEN
+        IF pg_catalog.pg_has_role(session_user, v_owner, 'USAGE') THEN
             RAISE EXCEPTION
-                'DB-01 infrastructure role must not inherit owner %. current_user=%',
+                'Infrastructure role unexpectedly inherits owner %. session_user=%',
                 v_owner,
-                current_user;
+                session_user;
         END IF;
     END LOOP;
 END
 $db01$;
 
--- Deploy can explicitly SET ROLE to owner, but does not inherit owner privileges automatically.
+-- Deploy roles can explicitly SET ROLE to their own owner only.
 GRANT qbit_test_owner TO qbit_test_deploy WITH INHERIT FALSE;
 GRANT qbit_test_owner TO qbit_test_deploy WITH SET TRUE;
 GRANT qbit_test_owner TO qbit_test_deploy WITH ADMIN FALSE;
@@ -236,9 +231,9 @@ GRANT kompaniya_001_test_owner TO kompaniya_001_test_deploy WITH INHERIT FALSE;
 GRANT kompaniya_001_test_owner TO kompaniya_001_test_deploy WITH SET TRUE;
 GRANT kompaniya_001_test_owner TO kompaniya_001_test_deploy WITH ADMIN FALSE;
 
--- ---------------------------------------------------------------------------
--- 2. Schemas
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- 2. CREATE / VALIDATE TEST SCHEMAS
+-- ===========================================================================
 
 CREATE SCHEMA IF NOT EXISTS qbit_test AUTHORIZATION qbit_test_owner;
 CREATE SCHEMA IF NOT EXISTS kompaniya_001_test AUTHORIZATION kompaniya_001_test_owner;
@@ -256,7 +251,7 @@ BEGIN
 
     IF v_owner IS DISTINCT FROM 'qbit_test_owner' THEN
         RAISE EXCEPTION
-            'Schema qbit_test exists with wrong owner: expected qbit_test_owner, actual %',
+            'qbit_test owner mismatch: expected qbit_test_owner, actual %',
             COALESCE(v_owner, '<missing>');
     END IF;
 
@@ -269,7 +264,7 @@ BEGIN
 
     IF v_owner IS DISTINCT FROM 'kompaniya_001_test_owner' THEN
         RAISE EXCEPTION
-            'Schema kompaniya_001_test exists with wrong owner: expected kompaniya_001_test_owner, actual %',
+            'kompaniya_001_test owner mismatch: expected kompaniya_001_test_owner, actual %',
             COALESCE(v_owner, '<missing>');
     END IF;
 END
@@ -279,15 +274,16 @@ COMMENT ON SCHEMA qbit_test IS
 'Тестовая schema первой эталонной установки qBit. Production-данные здесь запрещены.';
 
 COMMENT ON SCHEMA kompaniya_001_test IS
-'Вымышленная тестовая schema для проверки межкомпанейской изоляции DB-01.';
+'Вымышленная test schema для проверки межкомпанейской изоляции DB-01.';
 
--- ---------------------------------------------------------------------------
--- 3. Schema privileges
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- 3. SCHEMA ACCESS: DEFAULT DENY
+-- ===========================================================================
 
 REVOKE ALL ON SCHEMA qbit_test FROM PUBLIC;
 REVOKE ALL ON SCHEMA kompaniya_001_test FROM PUBLIC;
 
+-- Runtime roles see only their own schema namespace.
 GRANT USAGE ON SCHEMA qbit_test
     TO qbit_test_bot,
        qbit_test_sluzhebnyy,
@@ -300,7 +296,22 @@ GRANT USAGE ON SCHEMA kompaniya_001_test
        kompaniya_001_test_dash_read,
        kompaniya_001_test_dash_admin;
 
--- Explicitly remove custom-schema access from standard/shared Supabase roles if they exist.
+-- Explicitly remove accidental cross-company schema grants if this file is re-run.
+REVOKE ALL ON SCHEMA qbit_test
+    FROM kompaniya_001_test_bot,
+         kompaniya_001_test_sluzhebnyy,
+         kompaniya_001_test_dash_read,
+         kompaniya_001_test_dash_admin,
+         kompaniya_001_test_deploy;
+
+REVOKE ALL ON SCHEMA kompaniya_001_test
+    FROM qbit_test_bot,
+         qbit_test_sluzhebnyy,
+         qbit_test_dash_read,
+         qbit_test_dash_admin,
+         qbit_test_deploy;
+
+-- Standard/shared Supabase roles must not access company schemas.
 DO $db01$
 DECLARE
     v_shared_role text;
@@ -330,8 +341,7 @@ BEGIN
 END
 $db01$;
 
--- If this script is safely re-run after later migrations, keep PUBLIC away from existing
--- table/sequence/function objects too. Runtime roles are not affected by these PUBLIC revokes.
+-- If DB-01 is safely re-run later, PUBLIC still must not receive direct object access.
 REVOKE ALL ON ALL TABLES IN SCHEMA qbit_test FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA qbit_test FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA qbit_test FROM PUBLIC;
@@ -340,34 +350,36 @@ REVOKE ALL ON ALL TABLES IN SCHEMA kompaniya_001_test FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA kompaniya_001_test FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA kompaniya_001_test FROM PUBLIC;
 
--- ---------------------------------------------------------------------------
--- 4. Default privileges for future objects created by *_owner
--- ---------------------------------------------------------------------------
--- Important: PostgreSQL normally grants PUBLIC EXECUTE on new functions and PUBLIC USAGE
--- on new types. Revoke both in advance. Per-function EXECUTE is granted later by DB-02…DB-05.
+-- ===========================================================================
+-- 4. GLOBAL DEFAULT PRIVILEGES OF COMPANY OWNERS
+-- ===========================================================================
+-- PostgreSQL default EXECUTE on functions is granted to PUBLIC globally.
+-- A per-schema REVOKE cannot remove a global default grant.
+-- Therefore these REVOKEs intentionally omit "IN SCHEMA".
+-- The owner roles are dedicated to their one company/environment.
 
-ALTER DEFAULT PRIVILEGES FOR ROLE qbit_test_owner IN SCHEMA qbit_test
+ALTER DEFAULT PRIVILEGES FOR ROLE qbit_test_owner
     REVOKE ALL ON TABLES FROM PUBLIC;
-ALTER DEFAULT PRIVILEGES FOR ROLE qbit_test_owner IN SCHEMA qbit_test
+ALTER DEFAULT PRIVILEGES FOR ROLE qbit_test_owner
     REVOKE ALL ON SEQUENCES FROM PUBLIC;
-ALTER DEFAULT PRIVILEGES FOR ROLE qbit_test_owner IN SCHEMA qbit_test
+ALTER DEFAULT PRIVILEGES FOR ROLE qbit_test_owner
     REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
-ALTER DEFAULT PRIVILEGES FOR ROLE qbit_test_owner IN SCHEMA qbit_test
+ALTER DEFAULT PRIVILEGES FOR ROLE qbit_test_owner
     REVOKE USAGE ON TYPES FROM PUBLIC;
 
-ALTER DEFAULT PRIVILEGES FOR ROLE kompaniya_001_test_owner IN SCHEMA kompaniya_001_test
+ALTER DEFAULT PRIVILEGES FOR ROLE kompaniya_001_test_owner
     REVOKE ALL ON TABLES FROM PUBLIC;
-ALTER DEFAULT PRIVILEGES FOR ROLE kompaniya_001_test_owner IN SCHEMA kompaniya_001_test
+ALTER DEFAULT PRIVILEGES FOR ROLE kompaniya_001_test_owner
     REVOKE ALL ON SEQUENCES FROM PUBLIC;
-ALTER DEFAULT PRIVILEGES FOR ROLE kompaniya_001_test_owner IN SCHEMA kompaniya_001_test
+ALTER DEFAULT PRIVILEGES FOR ROLE kompaniya_001_test_owner
     REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
-ALTER DEFAULT PRIVILEGES FOR ROLE kompaniya_001_test_owner IN SCHEMA kompaniya_001_test
+ALTER DEFAULT PRIVILEGES FOR ROLE kompaniya_001_test_owner
     REVOKE USAGE ON TYPES FROM PUBLIC;
 
--- ---------------------------------------------------------------------------
--- 5. Safe search_path for login roles in this database only
--- ---------------------------------------------------------------------------
--- public is intentionally absent. pg_catalog is first.
+-- ===========================================================================
+-- 5. SAFE search_path FOR LOGIN ROLES
+-- ===========================================================================
+-- public is intentionally absent. Future migrations still use qualified names.
 
 DO $db01$
 DECLARE
@@ -382,6 +394,7 @@ BEGIN
                     ('qbit_test_sluzhebnyy', 'qbit_test'),
                     ('qbit_test_dash_read', 'qbit_test'),
                     ('qbit_test_dash_admin', 'qbit_test'),
+
                     ('kompaniya_001_test_deploy', 'kompaniya_001_test'),
                     ('kompaniya_001_test_bot', 'kompaniya_001_test'),
                     ('kompaniya_001_test_sluzhebnyy', 'kompaniya_001_test'),
@@ -399,41 +412,40 @@ BEGIN
 END
 $db01$;
 
--- ---------------------------------------------------------------------------
--- 6. Russian role comments
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- 6. COMMENTS
+-- ===========================================================================
 
 COMMENT ON ROLE qbit_test_owner IS
-'DB-01: владелец объектов qbit_test; NOLOGIN; используется только через контролируемый deployment.';
+'DB-01: NOLOGIN owner объектов qbit_test.';
 COMMENT ON ROLE qbit_test_deploy IS
-'DB-01: тестовая роль миграций qBit; LOGIN без пароля; SET ROLE qbit_test_owner разрешён явно.';
+'DB-01: test deployment role qBit; explicit SET ROLE to qbit_test_owner.';
 COMMENT ON ROLE qbit_test_bot IS
-'DB-01: тестовый клиентский workflow qBit; только USAGE schema и будущие точечные EXECUTE.';
+'DB-01: test client workflow qBit; schema USAGE plus future narrow EXECUTE only.';
 COMMENT ON ROLE qbit_test_sluzhebnyy IS
-'DB-01: тестовый служебный workflow qBit; только USAGE schema и будущие точечные EXECUTE.';
+'DB-01: test service workflow qBit; schema USAGE plus future narrow EXECUTE only.';
 COMMENT ON ROLE qbit_test_dash_read IS
-'DB-01: тестовый сервер дашборда qBit, чтение только через будущие разрешённые функции/представления.';
+'DB-01: test dashboard read server role qBit; future narrow views/functions only.';
 COMMENT ON ROLE qbit_test_dash_admin IS
-'DB-01: тестовый административный сервер qBit; только будущие узкие административные функции.';
+'DB-01: test dashboard admin server role qBit; future narrow admin functions only.';
 
 COMMENT ON ROLE kompaniya_001_test_owner IS
-'DB-01: владелец объектов вымышленной schema kompaniya_001_test; NOLOGIN.';
+'DB-01: NOLOGIN owner fictional isolation schema kompaniya_001_test.';
 COMMENT ON ROLE kompaniya_001_test_deploy IS
-'DB-01: роль миграций вымышленной test-компании; LOGIN без пароля; явный SET ROLE owner.';
+'DB-01: fictional test deployment role; explicit SET ROLE to own owner only.';
 COMMENT ON ROLE kompaniya_001_test_bot IS
-'DB-01: клиентский workflow вымышленной test-компании; изоляционный canary.';
+'DB-01: fictional client workflow role used as isolation canary.';
 COMMENT ON ROLE kompaniya_001_test_sluzhebnyy IS
-'DB-01: служебный workflow вымышленной test-компании; изоляционный canary.';
+'DB-01: fictional service workflow role used as isolation canary.';
 COMMENT ON ROLE kompaniya_001_test_dash_read IS
-'DB-01: read-роль дашборда вымышленной test-компании; изоляционный canary.';
+'DB-01: fictional dashboard read role used as isolation canary.';
 COMMENT ON ROLE kompaniya_001_test_dash_admin IS
-'DB-01: admin-роль дашборда вымышленной test-компании; изоляционный canary.';
+'DB-01: fictional dashboard admin role used as isolation canary.';
 
--- ---------------------------------------------------------------------------
--- 7. Disposable probes: prove default-deny before commit
--- ---------------------------------------------------------------------------
--- Probe objects are created by owner roles, checked through ACL inspection, then removed.
--- No probe object remains after the migration.
+-- ===========================================================================
+-- 7. DISPOSABLE PROBES
+-- ===========================================================================
+-- Prove future owner-created objects are default-deny, then remove them before COMMIT.
 
 SET LOCAL ROLE qbit_test_owner;
 
@@ -445,7 +457,7 @@ CREATE FUNCTION qbit_test.db01_probe_function()
 RETURNS integer
 LANGUAGE sql
 IMMUTABLE
-AS $probe$SELECT 1$probe$;
+AS $probe$ SELECT 1 $probe$;
 
 RESET ROLE;
 
@@ -459,22 +471,26 @@ CREATE FUNCTION kompaniya_001_test.db01_probe_function()
 RETURNS integer
 LANGUAGE sql
 IMMUTABLE
-AS $probe$SELECT 1$probe$;
+AS $probe$ SELECT 1 $probe$;
 
 RESET ROLE;
+
+-- ===========================================================================
+-- 8. SECURITY ASSERTIONS
+-- ===========================================================================
 
 DO $db01$
 DECLARE
     v_role text;
     v_shared_role text;
 BEGIN
-    -- Owners/deploy membership must be explicit SET-only, without inherited owner privileges.
+    -- Deploy roles: SET allowed, inheritance forbidden.
     IF NOT pg_catalog.pg_has_role('qbit_test_deploy', 'qbit_test_owner', 'SET') THEN
         RAISE EXCEPTION 'qbit_test_deploy cannot SET ROLE qbit_test_owner';
     END IF;
 
     IF pg_catalog.pg_has_role('qbit_test_deploy', 'qbit_test_owner', 'USAGE') THEN
-        RAISE EXCEPTION 'qbit_test_deploy unexpectedly inherits qbit_test_owner privileges';
+        RAISE EXCEPTION 'qbit_test_deploy unexpectedly inherits qbit_test_owner';
     END IF;
 
     IF NOT pg_catalog.pg_has_role('kompaniya_001_test_deploy', 'kompaniya_001_test_owner', 'SET') THEN
@@ -482,10 +498,10 @@ BEGIN
     END IF;
 
     IF pg_catalog.pg_has_role('kompaniya_001_test_deploy', 'kompaniya_001_test_owner', 'USAGE') THEN
-        RAISE EXCEPTION 'kompaniya_001_test_deploy unexpectedly inherits kompaniya_001_test_owner privileges';
+        RAISE EXCEPTION 'kompaniya_001_test_deploy unexpectedly inherits kompaniya_001_test_owner';
     END IF;
 
-    -- qBit runtime roles: own schema USAGE only, no CREATE, no foreign schema access.
+    -- qBit runtime roles.
     FOREACH v_role IN ARRAY ARRAY[
         'qbit_test_bot',
         'qbit_test_sluzhebnyy',
@@ -512,11 +528,15 @@ BEGIN
            OR pg_catalog.has_table_privilege(v_role, 'qbit_test.db01_probe_table', 'UPDATE')
            OR pg_catalog.has_table_privilege(v_role, 'qbit_test.db01_probe_table', 'DELETE')
         THEN
-            RAISE EXCEPTION '% unexpectedly has direct DML on qbit_test owner-created table', v_role;
+            RAISE EXCEPTION '% unexpectedly has direct DML on qbit_test probe table', v_role;
         END IF;
 
-        IF pg_catalog.has_function_privilege(v_role, 'qbit_test.db01_probe_function()', 'EXECUTE') THEN
-            RAISE EXCEPTION '% unexpectedly receives PUBLIC/default EXECUTE on qbit_test function', v_role;
+        IF pg_catalog.has_function_privilege(
+            v_role,
+            'qbit_test.db01_probe_function()',
+            'EXECUTE'
+        ) THEN
+            RAISE EXCEPTION '% unexpectedly has default EXECUTE on qbit_test probe function', v_role;
         END IF;
 
         IF pg_catalog.pg_has_role(v_role, 'qbit_test_owner', 'MEMBER')
@@ -526,7 +546,7 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- Fictional-company runtime roles: mirror checks in the other direction.
+    -- Fictional-company runtime roles, opposite direction.
     FOREACH v_role IN ARRAY ARRAY[
         'kompaniya_001_test_bot',
         'kompaniya_001_test_sluzhebnyy',
@@ -548,16 +568,36 @@ BEGIN
             RAISE EXCEPTION '% can access foreign schema qbit_test', v_role;
         END IF;
 
-        IF pg_catalog.has_table_privilege(v_role, 'kompaniya_001_test.db01_probe_table', 'SELECT')
-           OR pg_catalog.has_table_privilege(v_role, 'kompaniya_001_test.db01_probe_table', 'INSERT')
-           OR pg_catalog.has_table_privilege(v_role, 'kompaniya_001_test.db01_probe_table', 'UPDATE')
-           OR pg_catalog.has_table_privilege(v_role, 'kompaniya_001_test.db01_probe_table', 'DELETE')
+        IF pg_catalog.has_table_privilege(
+            v_role,
+            'kompaniya_001_test.db01_probe_table',
+            'SELECT'
+        )
+           OR pg_catalog.has_table_privilege(
+               v_role,
+               'kompaniya_001_test.db01_probe_table',
+               'INSERT'
+           )
+           OR pg_catalog.has_table_privilege(
+               v_role,
+               'kompaniya_001_test.db01_probe_table',
+               'UPDATE'
+           )
+           OR pg_catalog.has_table_privilege(
+               v_role,
+               'kompaniya_001_test.db01_probe_table',
+               'DELETE'
+           )
         THEN
-            RAISE EXCEPTION '% unexpectedly has direct DML on kompaniya_001_test owner-created table', v_role;
+            RAISE EXCEPTION '% unexpectedly has direct DML on kompaniya_001_test probe table', v_role;
         END IF;
 
-        IF pg_catalog.has_function_privilege(v_role, 'kompaniya_001_test.db01_probe_function()', 'EXECUTE') THEN
-            RAISE EXCEPTION '% unexpectedly receives PUBLIC/default EXECUTE on kompaniya_001_test function', v_role;
+        IF pg_catalog.has_function_privilege(
+            v_role,
+            'kompaniya_001_test.db01_probe_function()',
+            'EXECUTE'
+        ) THEN
+            RAISE EXCEPTION '% unexpectedly has default EXECUTE on kompaniya_001_test probe function', v_role;
         END IF;
 
         IF pg_catalog.pg_has_role(v_role, 'qbit_test_owner', 'MEMBER')
@@ -567,7 +607,7 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- Shared Supabase roles must not see either company schema.
+    -- Shared Supabase roles.
     FOREACH v_shared_role IN ARRAY ARRAY[
         'anon',
         'authenticated',
@@ -585,14 +625,16 @@ BEGIN
                OR pg_catalog.has_schema_privilege(v_shared_role, 'kompaniya_001_test', 'USAGE')
                OR pg_catalog.has_schema_privilege(v_shared_role, 'kompaniya_001_test', 'CREATE')
             THEN
-                RAISE EXCEPTION 'Shared role % can access a company schema', v_shared_role;
+                RAISE EXCEPTION
+                    'Shared Supabase role % can access a company test schema',
+                    v_shared_role;
             END IF;
         END IF;
     END LOOP;
 END
 $db01$;
 
--- Remove probes before commit.
+-- Remove disposable probes.
 SET LOCAL ROLE qbit_test_owner;
 DROP FUNCTION qbit_test.db01_probe_function();
 DROP TABLE qbit_test.db01_probe_table;
@@ -603,9 +645,9 @@ DROP FUNCTION kompaniya_001_test.db01_probe_function();
 DROP TABLE kompaniya_001_test.db01_probe_table;
 RESET ROLE;
 
--- ---------------------------------------------------------------------------
--- 8. Final security assertions
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- 9. FINAL ROLE ASSERTIONS
+-- ===========================================================================
 
 DO $db01$
 DECLARE
@@ -621,6 +663,7 @@ BEGIN
                     ('qbit_test_sluzhebnyy', true),
                     ('qbit_test_dash_read', true),
                     ('qbit_test_dash_admin', true),
+
                     ('kompaniya_001_test_owner', false),
                     ('kompaniya_001_test_deploy', true),
                     ('kompaniya_001_test_bot', true),
@@ -645,8 +688,16 @@ BEGIN
         END IF;
     END LOOP;
 
-    IF pg_catalog.has_schema_privilege('qbit_test_bot', 'kompaniya_001_test', 'USAGE')
-       OR pg_catalog.has_schema_privilege('kompaniya_001_test_bot', 'qbit_test', 'USAGE')
+    IF pg_catalog.has_schema_privilege(
+        'qbit_test_bot',
+        'kompaniya_001_test',
+        'USAGE'
+    )
+       OR pg_catalog.has_schema_privilege(
+           'kompaniya_001_test_bot',
+           'qbit_test',
+           'USAGE'
+       )
     THEN
         RAISE EXCEPTION 'Final cross-company isolation assertion failed';
     END IF;
@@ -655,9 +706,9 @@ $db01$;
 
 COMMIT;
 
--- ---------------------------------------------------------------------------
--- 9. Human-readable evidence (read-only)
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- 10. READ-ONLY EVIDENCE AFTER COMMIT
+-- ===========================================================================
 
 SELECT
     n.nspname AS schema_name,
@@ -696,10 +747,26 @@ ORDER BY r.rolname;
 
 SELECT
     x.rolname,
-    pg_catalog.has_schema_privilege(x.rolname, 'qbit_test', 'USAGE') AS qbit_test_usage,
-    pg_catalog.has_schema_privilege(x.rolname, 'qbit_test', 'CREATE') AS qbit_test_create,
-    pg_catalog.has_schema_privilege(x.rolname, 'kompaniya_001_test', 'USAGE') AS kompaniya_001_test_usage,
-    pg_catalog.has_schema_privilege(x.rolname, 'kompaniya_001_test', 'CREATE') AS kompaniya_001_test_create
+    pg_catalog.has_schema_privilege(
+        x.rolname,
+        'qbit_test',
+        'USAGE'
+    ) AS qbit_test_usage,
+    pg_catalog.has_schema_privilege(
+        x.rolname,
+        'qbit_test',
+        'CREATE'
+    ) AS qbit_test_create,
+    pg_catalog.has_schema_privilege(
+        x.rolname,
+        'kompaniya_001_test',
+        'USAGE'
+    ) AS kompaniya_001_test_usage,
+    pg_catalog.has_schema_privilege(
+        x.rolname,
+        'kompaniya_001_test',
+        'CREATE'
+    ) AS kompaniya_001_test_create
 FROM (
     VALUES
         ('qbit_test_bot'),
@@ -714,4 +781,5 @@ FROM (
 ORDER BY x.rolname;
 
 SELECT
-    'DB-01 SQL APPLIED: assertions passed; probe objects removed; production objects untouched.' AS result;
+    'DB-01 SQL APPLIED: assertions passed; probe objects removed; production objects untouched.'
+        AS result;
