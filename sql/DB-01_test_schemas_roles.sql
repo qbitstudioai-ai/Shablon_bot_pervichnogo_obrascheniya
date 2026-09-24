@@ -9,7 +9,8 @@
 --   and their restricted PostgreSQL roles.
 --
 -- IMPORTANT
---   * Run in the target Supabase PostgreSQL database as postgres/superuser.
+--   * Run in the target Supabase PostgreSQL database as the trusted postgres role.
+--     Supabase postgres is intentionally not SUPERUSER; DB-01 checks required capabilities.
 --   * This file does NOT create qbit production schema or any production role.
 --   * This file does NOT create or change passwords. LOGIN roles are created with PASSWORD NULL.
 --   * This file does NOT install extensions. It only verifies that vector is already installed.
@@ -36,6 +37,7 @@ DO $db01$
 DECLARE
     v_server_num integer;
     v_is_superuser boolean;
+    v_can_create_roles boolean;
 BEGIN
     v_server_num := current_setting('server_version_num')::integer;
 
@@ -45,14 +47,37 @@ BEGIN
             v_server_num;
     END IF;
 
-    SELECT r.rolsuper
-      INTO v_is_superuser
+    SELECT r.rolsuper, r.rolcreaterole
+      INTO v_is_superuser, v_can_create_roles
       FROM pg_catalog.pg_roles AS r
      WHERE r.rolname = current_user;
 
-    IF COALESCE(v_is_superuser, false) IS NOT TRUE THEN
+    -- Supabase intentionally runs Studio as postgres without SUPERUSER.
+    -- DB-01 therefore checks the concrete capabilities it needs instead of rolsuper=true.
+    IF current_user <> 'postgres'
+       AND COALESCE(v_is_superuser, false) IS NOT TRUE
+    THEN
         RAISE EXCEPTION
-            'DB-01 must be executed by postgres/superuser. current_user=%',
+            'DB-01 must be executed by the trusted postgres role (or a real superuser). current_user=%',
+            current_user;
+    END IF;
+
+    IF COALESCE(v_is_superuser, false) IS NOT TRUE
+       AND COALESCE(v_can_create_roles, false) IS NOT TRUE
+    THEN
+        RAISE EXCEPTION
+            'DB-01 requires CREATEROLE when postgres is not a superuser. current_user=%',
+            current_user;
+    END IF;
+
+    IF NOT pg_catalog.has_database_privilege(
+        current_user,
+        current_database(),
+        'CREATE'
+    ) THEN
+        RAISE EXCEPTION
+            'DB-01 requires CREATE on database %. current_user=%',
+            current_database(),
             current_user;
     END IF;
 
@@ -154,6 +179,49 @@ BEGIN
                     'Existing role % has incompatible/unsafe attributes. DB-01 will not alter it silently.',
                     v_role.rolname;
             END IF;
+        END IF;
+    END LOOP;
+END
+$db01$;
+
+-- PostgreSQL 17 gives a non-superuser CREATEROLE creator ADMIN on a newly created role,
+-- but not SET ROLE by default. Supabase postgres is intentionally not SUPERUSER, so grant
+-- this trusted infrastructure role SET-only access to the two NOLOGIN owner roles.
+-- INHERIT stays false: postgres does not silently inherit company-owner privileges.
+DO $db01$
+DECLARE
+    v_owner text;
+BEGIN
+    FOREACH v_owner IN ARRAY ARRAY[
+        'qbit_test_owner',
+        'kompaniya_001_test_owner'
+    ]
+    LOOP
+        IF NOT pg_catalog.pg_has_role(current_user, v_owner, 'SET') THEN
+            EXECUTE pg_catalog.format(
+                'GRANT %I TO %I WITH INHERIT FALSE',
+                v_owner,
+                current_user
+            );
+            EXECUTE pg_catalog.format(
+                'GRANT %I TO %I WITH SET TRUE',
+                v_owner,
+                current_user
+            );
+        END IF;
+
+        IF NOT pg_catalog.pg_has_role(current_user, v_owner, 'SET') THEN
+            RAISE EXCEPTION
+                'DB-01 cannot SET ROLE %. current_user=%',
+                v_owner,
+                current_user;
+        END IF;
+
+        IF pg_catalog.pg_has_role(current_user, v_owner, 'USAGE') THEN
+            RAISE EXCEPTION
+                'DB-01 infrastructure role must not inherit owner %. current_user=%',
+                v_owner,
+                current_user;
         END IF;
     END LOOP;
 END
