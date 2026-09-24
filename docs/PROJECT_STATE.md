@@ -134,41 +134,35 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 На сервере созданы 9 core-таблиц DB-03A и добавлен FK `soobshcheniya.sobytie_id → sobytiya_integraciy.id`. Probe-данные удалены. Production и операторские таблицы не затронуты.
 
+## Последний завершённый блок
+
+**DB-03B — операторские таблицы и FK текущего менеджера. Статус: завершено 24 сентября 2026 года.**
+
+Павел выполнил `sql/DB-03B_operator_tables.sql` v0.1 целиком в self-hosted Supabase Studio. Сервер вернул:
+- `db03b_status = applied`;
+- owner = `qbit_test_owner`;
+- `tables_ok = true`;
+- `contract_indexes_ok = true`;
+- `manager_fk_ok = true`;
+- `probe_rows_remaining = 0`;
+- `runtime_direct_dml = false`;
+- `functions_created = false`;
+- `isolation_canary_untouched = true`;
+- результат: `DB-03B SQL APPLIED: operator manager/topic/mirror tables and manager FK verified; probe data removed; production untouched.`
+
+На сервере созданы `menedzhery_telegram`, `operator_telegram_temy`, `sobytiya_zerkala_operatora` и добавлен FK `dialogi.tekushchiy_menedzher_id → menedzhery_telegram.id`. Probe-данные удалены. Production не затронут.
+
 ## Текущая задача
 
-**DB-03B — операторские таблицы и FK текущего менеджера. Статус: в работе.**
+**DB-03C1 — клиентский ingress, вложения, STT и PII. Статус: не начато.**
 
-Подготовлен полный SQL `sql/DB-03B_operator_tables.sql` v0.1 только для `qbit_test`. Он создаёт:
-- `menedzhery_telegram`;
-- `operator_telegram_temy`;
-- `sobytiya_zerkala_operatora`.
+Родительский DB-03C дополнительно разбит на четыре постоянные подзадачи:
+- DB-03C1 — `zaregistrirovat_vhod_klienta`, `sohranit_vlozhenie`, `sohranit_transkripciyu_golosa`, `sohranit_obezlichivanie`;
+- DB-03C2 — контекст, память, rate limit, thematic guard и unblock;
+- DB-03C3 — claim/lease/finish очереди;
+- DB-03C4 — исходящие действия, подтверждение/unknown, напоминания и loss check.
 
-Также DB-03B добавляет второй отложенный после DB-02 FK: `dialogi.tekushchiy_menedzher_id → menedzhery_telegram.id`.
-
-Статически проверено:
-- ровно 3 новые таблицы;
-- 54 поля и 54 русских COMMENT на поля, COMMENT на все 3 таблицы;
-- 10 контрактных индексов;
-- нет SQL-имён длиннее 63 байт;
-- нет функций DB-03C/DB-03D;
-- нет production-команд и таблиц в `kompaniya_001_test`;
-- runtime-роли не получают прямой DML.
-
-SAVEPOINT-probe проверяет:
-- уникальность разрешённого Telegram user ID менеджера;
-- согласованность подтверждённого private chat и уникальность private chat ID;
-- FK текущего менеджера в `dialogi`;
-- обязательный thread/time для готовой операторской темы;
-- уникальность пары `sluzhebnyy_chat_id + message_thread_id`;
-- уникальность stable mirror key;
-- обязательную lease для mirror в `v_rabote`;
-- обязательное вложение для `media_klienta`;
-- обязательного разрешённого manager target для `lichnoe_uvedomlenie`.
-После probe тестовые строки откатываются.
-
-Функции Take/Return/manual outgoing, narrow mirror claim и конкурентные проверки остаются DB-03D; DB-03B создаёт только надёжную структуру и ограничения.
-
-**Не выполнено:** SQL DB-03B ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03b_result` либо полный ERROR/CONTEXT. До server-check DB-03B не закрывается.
+Следующий шаг — подготовить один test-only SQL DB-03C1 с SECURITY DEFINER-функциями, явным search_path, REVOKE FROM PUBLIC, EXECUTE только `qbit_test_bot`, идемпотентностью same-key/same-hash и конфликтом same-key/different-hash. Production и workflow не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
