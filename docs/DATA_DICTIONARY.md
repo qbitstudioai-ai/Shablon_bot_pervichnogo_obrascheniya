@@ -17,12 +17,14 @@
 |---|---|
 | polzovateli | id; vremya_pervogo_obrashcheniya и vremya_poslednego_obrashcheniya; pervyy_kanal; признаки testovyy и sluzhebnyy; текущая метка и исторический признак возврата. Это известная идентичность, а не гарантированно один физический человек во всех каналах |
 | identifikatory_kanalov | id, polzovatel_id; kanal, akkaunt_kanala_id, vneshniy_polzovatel_id; адрес диалога и подтверждённый способ восстановления сессии; vozmozhna_otlozhennaya_otpravka; zapret_iniciativnyh_soobshcheniy |
-| dialogi | id, polzovatel_id, identifikator_kanala_id; начало, завершение; etap, status, rezultat; ID последних входящего/исходящего; versiya_dialoga; ozhidaetsya_otvet, t0, pokolenie_ozhidaniya; владелец bot/chelovek; версия workflow/prompt и связь с предыдущим диалогом |
-| soobshcheniya | id, dialog_id, sobytie_id; направление/автор/вид; tekst_ishodnyy, tekst_obezlichennyy; vneshnee_soobshchenie_id, otvet_na_id; vremya_istochnika, vremya_priema, vremya_otpravki, vremya_dostavki; статус отправки; признак ожидания ответа; ID выполнения |
+| dialogi | id, polzovatel_id, identifikator_kanala_id; начало, завершение; etap, status, rezultat; ID последних входящего/исходящего; versiya_dialoga; ozhidaetsya_otvet, t0, pokolenie_ozhidaniya; vladelec bot/chelovek и ссылка на текущего менеджера при ручном владении; версия workflow/prompt и связь с предыдущим диалогом |
+| soobshcheniya | id, dialog_id, sobytie_id; направление/автор/вид; tekst_ishodnyy, tekst_obezlichennyy; для голоса — ссылка на локальную транскрипцию; vneshnee_soobshchenie_id, otvet_na_id; vremya_istochnika, vremya_priema, vremya_otpravki, vremya_dostavki; статус отправки; признак ожидания ответа; ID выполнения |
 | sobytiya_dialogov | id, dialog_id, polzovatel_id; tip_sobytiya (начало, закрытие, потеря, vozvrat, передача, возврат управления); vremya_sobytiya, vremya_zapisi; причина/результат; ссылка на прежнюю потерю для vozvrat |
 | sobytiya_etapov | id, dialog_id; старый/новый этап, время, причина, источник (правило/LLM/человек), уверенность и доказательное сообщение |
 | celevye_sobytiya | id, polzovatel_id, dialog_id; kod_celi, время; источник и ID подтверждения; доказательные сообщения; признак подтверждения. Сомнение модели само не становится фактом цели |
 | zayavki | id, dialog_id, polzovatel_id; защищённый контакт, потребность, стабильный внешний ключ; ответственный, локальный статус, CRM ID и статус синхронизации |
+| vlozheniya_soobshcheniy | id, soobshchenie_id; tip_vlozheniya; Telegram file_id/file_unique_id либо эквивалент канала; MIME, размер, длительность и безопасные метаданные; признак `razresheno_ai` по политике. Фото/видео v1 имеют false |
+| transkripcii_golosa | id, soobshchenie_id; tekst_transkripcii, status; локальный движок/версия; время и безопасная ошибка. Сырой голос не уходит во внешний STT по умолчанию |
 
 Уникальность идентичности — канал + аккаунт + внешний пользователь внутри schema. Уникальность внешнего сообщения учитывает аккаунт/диалог. Поле первого обращения не обновляется при возврате.
 
@@ -41,6 +43,11 @@
 | obratnaya_svyaz | id, dialog_id, polzovatel_id; оценка 1–5, текст, дата, канал, ссылка на прежнюю редакцию |
 | sistemnye_sobytiya | id; компания/среда, компонент, операция, ID выполнения, время, уровень, код и безопасное описание; состояние/ключ группировки уведомления |
 | zhurnal_administrirovaniya | id; автор, действие, объект, время, безопасные изменения и результат |
+| operator_telegram_temy | dialog_id; sluzhebnyy_chat_id, message_thread_id, ID карточки; статус создания, время, последняя подтверждённая синхронизация. Для одного dialog_id одна активная тема |
+| menedzhery_telegram | внутренний ID менеджера; разрешённый Telegram user_id, подтверждённый private chat_id после /start, отображаемое имя, активность/право захвата; без bot token |
+| sobytiya_zerkala_operatora | id, dialog_id, soobshchenie_id при наличии; tip_sobytiya, ключ идемпотентности, статус, число попыток, следующий запуск, внешний message ID, безопасная ошибка |
+
+Операторская тема и зеркало не заменяют архив сообщений: Telegram-группа является рабочим представлением, а Supabase остаётся источником истины.
 
 Исходящее действие и сообщение — связанные, но разные сущности: одна запись описывает попытки отправки, другая — реплику диалога. Повтор попытки не создаёт новое логическое сообщение. Отдельная строка памяти не заменяет архив.
 
