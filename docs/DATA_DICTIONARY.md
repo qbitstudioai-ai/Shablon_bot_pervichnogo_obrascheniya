@@ -1,6 +1,6 @@
 # Словарь данных
 
-Описательная модель v0.2 для одной schema компании. SQL, типы, индексы и миграции создаются позже. Перечисленные связи и смысл обязательны для будущей реализации.
+Описательная модель v0.3 для одной schema компании. Точные типы, обязательность, индексы, роли и атомарные PostgreSQL-функции зафиксированы в [DB_CONTRACT.md](specs/DB_CONTRACT.md). SQL и миграции создаются следующими задачами DB-01…DB-05; перечисленные связи и смысл обязательны для реализации.
 
 ## Общие правила
 
@@ -16,15 +16,18 @@
 | Таблица | Поля и назначение |
 |---|---|
 | polzovateli | id; vremya_pervogo_obrashcheniya и vremya_poslednego_obrashcheniya; pervyy_kanal; признаки testovyy и sluzhebnyy; текущая метка и исторический признак возврата. Это известная идентичность, а не гарантированно один физический человек во всех каналах |
-| identifikatory_kanalov | id, polzovatel_id; kanal, akkaunt_kanala_id, vneshniy_polzovatel_id; адрес диалога и подтверждённый способ восстановления сессии; vozmozhna_otlozhennaya_otpravka; zapret_iniciativnyh_soobshcheniy |
+| identifikatory_kanalov | id, polzovatel_id; kanal, akkaunt_kanala_id, vneshniy_polzovatel_id, адрес диалога; подтверждённый способ восстановления сессии; vozmozhna_otlozhennaya_otpravka; zapret_iniciativnyh_soobshcheniy; logicheski_zablokirovan, schetchik_narusheniy и время/причина блокировки |
 | dialogi | id, polzovatel_id, identifikator_kanala_id; начало, завершение; etap, status, rezultat; ID последних входящего/исходящего; versiya_dialoga; ozhidaetsya_otvet, t0, pokolenie_ozhidaniya; vladelec bot/chelovek и ссылка на текущего менеджера при ручном владении; версия workflow/prompt и связь с предыдущим диалогом |
 | soobshcheniya | id, dialog_id, sobytie_id; направление/автор/вид; tekst_ishodnyy, tekst_obezlichennyy; для голоса — ссылка на локальную транскрипцию; vneshnee_soobshchenie_id, otvet_na_id; vremya_istochnika, vremya_priema, vremya_otpravki, vremya_dostavki; статус отправки; признак ожидания ответа; ID выполнения |
 | sobytiya_dialogov | id, dialog_id, polzovatel_id; tip_sobytiya (начало, закрытие, потеря, vozvrat, передача, возврат управления); vremya_sobytiya, vremya_zapisi; причина/результат; ссылка на прежнюю потерю для vozvrat |
 | sobytiya_etapov | id, dialog_id; старый/новый этап, время, причина, источник (правило/LLM/человек), уверенность и доказательное сообщение |
 | celevye_sobytiya | id, polzovatel_id, dialog_id; kod_celi, время; источник и ID подтверждения; доказательные сообщения; признак подтверждения. Сомнение модели само не становится фактом цели |
 | zayavki | id, dialog_id, polzovatel_id; защищённый контакт, потребность, стабильный внешний ключ; ответственный, локальный статус, CRM ID и статус синхронизации |
-| vlozheniya_soobshcheniy | id, soobshchenie_id; tip_vlozheniya; Telegram file_id/file_unique_id либо эквивалент канала; MIME, размер, длительность и безопасные метаданные; признак `razresheno_ai` по политике. Фото/видео v1 имеют false |
-| transkripcii_golosa | id, soobshchenie_id; tekst_transkripcii, status; локальный движок/версия; время и безопасная ошибка. Сырой голос не уходит во внешний STT по умолчанию |
+| vlozheniya_soobshcheniy | id, soobshchenie_id; tip_vlozheniya; внешний file_id/file_unique_id; MIME, размер, длительность, SHA-256 и безопасные метаданные; status_sohraneniya, hranilishche_tip, локальные байты `soderzhimoe` v1 либо защищённый hranilishche_klyuch; `razresheno_ai`. Фото/видео v1 имеют false. Локальное содержимое нужно для повторной отправки другим Telegram-ботом и локального STT |
+| transkripcii_golosa | id, soobshchenie_id; tekst_transkripcii и tekst_obezlichennyy; status, локальный движок/версия, попытки, время и безопасная ошибка. Сырой голос не уходит во внешний STT по умолчанию |
+| fakty_dialoga | id, dialog_id, polzovatel_id; kod_polya; защищённое значение и разрешённое представление для AI; PII/подтверждение; источник, доказательное сообщение, время/срок актуальности и ссылка на заменивший факт. Это нормализованный долговечный источник важных фактов |
+| sootvetstviya_pii | id, dialog_id, polzovatel_id, soobshchenie_id; tip_pii, psevdometka, защищённое исходное значение, необязательный нормализованный hash и срок. Таблица остаётся только в локальном контуре и не выдаётся внешнему AI/служебному workflow |
+| narusheniya_tematiky | id, identifikator_kanala_id, dialog_id, soobshchenie_id; klassifikaciya, nomer_narusheniya, источник/уверенность/причина, время и признак блокировки. Техническая ошибка, STT failure и неподдерживаемое вложение сюда не попадают |
 
 Уникальность идентичности — канал + аккаунт + внешний пользователь внутри schema. Уникальность внешнего сообщения учитывает аккаунт/диалог. Поле первого обращения не обновляется при возврате.
 
@@ -57,7 +60,8 @@
 
 | Таблица | Поля и назначение |
 |---|---|
-| zagruzki_znaniy | id; ID события Telegram, отправитель/чат, имя файла; ishodnyy_fayl (исходные байты), размер, hash_istochnika; время/порядок приёма; status, код ошибки, документ/версия при наличии |
+| zagruzki_znaniy | id; ID зарегистрированного служебного события Telegram, отправитель/чат/file_id, имя файла; ishodnyy_fayl (исходные байты), размер, hash_istochnika/hash_soderzhaniya; время/порядок приёма; status, код ошибки, документ/версия при наличии |
+| zadaniya_znaniy | id, zagruzka_id, dokument_id; тип/status, приоритет/попытки/следующий запуск, владелец/срок аренды/номер владения, ожидаемая активная версия и безопасная payload/error. Обеспечивает долговечную последовательную очередь одного логического документа |
 | dokumenty_znaniy | id; уникальный identifikator_dokumenta; aktivnaya_versiya_id (может быть пустым до публикации или после отзыва); время создания |
 | versii_dokumentov_znaniy | id, dokument_id, zagruzka_id; nomer_versii, nazvanie, tip_dokumenta, versiya_istochnika, data_obnovleniya; hash_soderzhaniya, otpechatok_obrabotki, profil_indeksa_id; status; время проверки/публикации/архивирования; ожидаемая предыдущая версия |
 | fragmenty_znaniy | id, versiya_id; nomer_fragmenta, put_razdela; tekst_fragmenta (точный текст для embedding с заголовками), kolichestvo_tokenov, hash_fragmenta, vektor; время создания |
@@ -79,8 +83,8 @@
 
 Системные auth-таблицы Supabase не переименовываются и не копируются в каждую schema. Членство конкретной компании проверяет сервер дашборда.
 
-## Что уточняет будущая SQL-задача
+## Точный DB-контракт
 
-Типы/обязательность, внешние ключи, индексы, функции атомарных операций, ограничения прав, сроки очистки и представления отчётов. Она реализует эту модель и не может молча удалить поля или поменять бизнес-смысл.
+[DB_CONTRACT.md](specs/DB_CONTRACT.md) фиксирует для DB-01…DB-05 полный список полей, типов, индексов, ролей и функций, а также проверки идемпотентности, очередей, операторского Telegram и публикации знаний. Будущий SQL реализует этот контракт и не может молча удалить поле или поменять бизнес-смысл.
 
-Связи и форматы операций: [INTEGRATION_CONTRACTS.md](specs/INTEGRATION_CONTRACTS.md). Доступ: [ACCESS_AND_ISOLATION.md](specs/ACCESS_AND_ISOLATION.md). Никакие таблицы из этого документа пока не созданы на сервере.
+Сроки очистки и хранения остаются PRE-03; представления отчётов — задачами UI. Связи и форматы операций: [INTEGRATION_CONTRACTS.md](specs/INTEGRATION_CONTRACTS.md). Доступ: [ACCESS_AND_ISOLATION.md](specs/ACCESS_AND_ISOLATION.md). Никакие таблицы, роли или функции DB-00 пока не созданы на сервере.
