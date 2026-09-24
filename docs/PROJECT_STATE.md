@@ -170,16 +170,37 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 ## Текущая задача
 
-**DB-03C2 — контекст, память, rate limit, тематический guard и unblock. Статус: не начато.**
+**DB-03C2 — контекст, память, rate limit, тематический guard и unblock. Статус: в работе.**
 
-Нужно подготовить 5 test-only PostgreSQL-функций:
-- `poluchit_kontekst_dialoga` — AI-safe context отдельно от локальных PII;
-- `sohranit_fakty_i_pamyat` — CAS по dialog/memory version и долговечные подтверждённые факты;
-- `proverit_limit_chastoty` — считает уже сохранённые логические входы и не меняет thematic counter;
-- `zapisat_narushenie_tematiky` — один violation на message, row lock identity, warning counter и block при trusted limit;
-- `razblokirovat_polzovatelya` — только dash_admin, явная причина/operation, audit journal.
+Подготовлен полный SQL `sql/DB-03C2_context_memory_guard.sql` v0.1 только для `qbit_test`.
 
-Production, workflow и Credentials не менять.
+Он создаёт 5 `SECURITY DEFINER` функций:
+- `poluchit_kontekst_dialoga(jsonb)` — `qbit_test_bot`;
+- `sohranit_fakty_i_pamyat(jsonb)` — `qbit_test_bot`;
+- `proverit_limit_chastoty(jsonb)` — `qbit_test_bot`;
+- `zapisat_narushenie_tematiky(jsonb)` — `qbit_test_bot`;
+- `razblokirovat_polzovatelya(jsonb)` — только `qbit_test_dash_admin`.
+
+Ключевые правила v0.1:
+- AI-safe context возвращается отдельным JSON от локального protected PII;
+- context проверяет соответствие job/dialog/version и не принимает terminal job;
+- memory save использует CAS по `versiya_dialoga` и `versiya_pamyati`;
+- memory-window максимум 5 сообщений, без дублей; message ID/direction/author/type/deidentified text сверяются с БД;
+- summary отклоняется, если содержит уже известное protected PII;
+- долговечные факты сначала полностью валидируются, затем заменяют предыдущий current fact цепочкой `zamenen_faktom_id`;
+- для PII-факта AI-value не может быть scalar string/number;
+- быстрый cache памяти строится только из `znachenie_dlya_ai`;
+- rate limit считает сохранённые logical incoming messages, поэтому provider retry без второго message не увеличивает flood count;
+- rate limit не меняет `schetchik_narusheniy`;
+- thematic violation сериализуется row lock по channel identity и UNIQUE message guard;
+- trusted limit (для qBit стартово 3) включает logical block, повышает `versiya_dialoga`, сбрасывает wait и отменяет pending/in-work reminders;
+- unblock доступен только dash_admin, может только уменьшить/reset thematic counter, инвалидирует stale bot-version и пишет idempotent admin journal по operation ID.
+
+SAVEPOINT-probe проверяет success/conflict/security ветки: PII separation, raw PII reject в summary, memory/dialog CAS, duplicate provider retry, rate/thematic separation, duplicate violation, warning 1/2/3+block, отмену wait/reminder, stale job после block, явный `mozhno_ai=false` при block и повтор admin-unblock без второго journal.
+
+Статический аудит кандидата: 5 функций, 5 compiler directives, 5 фиксированных `search_path`, 5 COMMENT, 5 REVOKE/GRANT; во всех функциях нет необъявленных `v_*`; production/canary объекты не создаются; SAVEPOINT/rollback сохранены.
+
+**Не выполнено:** DB-03C2 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03c2_result` либо полный ERROR/CONTEXT.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

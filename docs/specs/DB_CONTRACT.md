@@ -1,6 +1,6 @@
 # DB-контракт шаблона
 
-Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 уже применены и проверены в test-контуре. DB-03 разбит на DB-03A…DB-03D; DB-03A, DB-03B и DB-03C1 уже применены и проверены. DB-03C2…C4 остаются: context/memory/guard; queue lease/CAS; outgoing/reminders.
+Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 уже применены и проверены в test-контуре. DB-03 разбит на DB-03A…DB-03D; DB-03A, DB-03B и DB-03C1 уже применены и проверены. SQL DB-03C2 подготовлен, но ещё не применён; DB-03C3…C4 остаются: queue lease/CAS и outgoing/reminders.
 
 ## Граница контракта
 
@@ -365,11 +365,11 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 | `sohranit_vlozhenie` | bot | DB-03C1 signature `jsonb, bytea`; message + проверенные байты/metadata/hash; требует trusted file-size limit для bytea, создаёт media mirror intent; retry идемпотентен по message+provider file ID/unique ID; фото/видео AI=false |
 | `sohranit_transkripciyu_golosa` | bot | DB-03C1 signature `jsonb`; message/status/local engine/version/raw+deidentified transcript; final `gotova` не перезаписывается другим текстом; ошибка STT не создаёт нарушение |
 | `sohranit_obezlichivanie` | bot | DB-03C1 signature `jsonb`; message, `tekst_obezlichennyy`, PII placeholder↔protected value; сначала проверяет весь набор, затем атомарно пишет message+`sootvetstviya_pii`; уже найденный локальным PII-detector телефон канонизируется по trusted `region_telefona` (для RU: `8(...)`, `8-...`, digits-only, `+7 ...` → `+7XXXXXXXXXX`) либо по явному trusted normalized value; другой canonical protected value для placeholder → konflikt |
-| `poluchit_kontekst_dialoga` | bot | dialog/job/version; возвращает owner/block/status, память 3–5, факты, новые обезличенные сообщения; сырые PII только отдельными локальными полями, не смешанными с AI-пакетом |
-| `sohranit_fakty_i_pamyat` | bot | CAS по `versiya_dialoga` и `versiya_pamyati`; upsert новых подтверждённых фактов с evidence, summary/window/processed pointer |
-| `proverit_limit_chastoty` | bot | channel identity + окно/лимит из доверенной конфигурации; считает сохранённые входы, не меняя тематический счётчик |
-| `zapisat_narushenie_tematiky` | bot | identity/dialog/message/classification; под row lock создаёт ровно одно нарушение, увеличивает счётчик, при лимите блокирует; возвращает номер предупреждения и block flag |
-| `razblokirovat_polzovatelya` | dash_admin | identity + причина + admin operation; снимает логическую блокировку, сбрасывает/корректирует счётчик по политике, пишет admin journal |
+| `poluchit_kontekst_dialoga` | bot | DB-03C2 signature `jsonb`; dialog/job/expected version; terminal/stale job отклоняется; возвращает owner/block/status, память до 5, current AI-safe facts и новые deidentified messages; protected PII — только отдельный `lokalnye_pii`, не внутри `ai_kontekst` |
+| `sohranit_fakty_i_pamyat` | bot | DB-03C2 signature `jsonb`; CAS по dialog/memory version; memory-window сверяется с сохранёнными deidentified message metadata/text, summary не может содержать известное protected PII; confirmed facts имеют evidence, replacement chain; AI cache строится только из `znachenie_dlya_ai` |
+| `proverit_limit_chastoty` | bot | DB-03C2 signature `jsonb`; channel identity + trusted window/limit; считает logical incoming messages, а не raw provider events, поэтому redelivery без второго message не штрафует; thematic counter не меняет |
+| `zapisat_narushenie_tematiky` | bot | DB-03C2 signature `jsonb`; identity/dialog/client message/classification + trusted violation limit; row lock identity + unique message guard; при limit включает logical block, bump dialog version, cancel wait/reminders; handoff/closed имеют приоритет |
+| `razblokirovat_polzovatelya` | dash_admin | DB-03C2 signature `jsonb`; identity + причина + admin operation; только уменьшает/reset counter, снимает logical block, invalidates stale bot version; operation id idempotent через admin journal; bot/service EXECUTE запрещён |
 
 ### Очередь обработки
 
