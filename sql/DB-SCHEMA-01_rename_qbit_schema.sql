@@ -1,4 +1,4 @@
--- DB-SCHEMA-01 v0.2: rename qBit test schema for project-level clarity
+-- DB-SCHEMA-01 v0.3: rename qBit test schema for project-level clarity
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 --
 -- RENAME
@@ -12,6 +12,8 @@
 --   * Function OIDs, owners and ACLs must remain unchanged.
 --   * qbit_test_owner receives CREATE ON DATABASE postgres only temporarily
 --     for ALTER SCHEMA RENAME; the privilege is revoked before COMMIT.
+--   * After ALTER/CREATE OR REPLACE, role is reset to postgres BEFORE
+--     snapshot assertions; no access to postgres-owned TEMP tables is granted.
 --   * Any error before COMMIT rolls the entire rename back.
 
 BEGIN;
@@ -7923,6 +7925,15 @@ BEGIN
 END
 $fn$;
 
+-- Return to the trusted session role before reading postgres-owned TEMP
+-- snapshots. This also keeps post-rename assertions independent from runtime
+-- privileges of qbit_test_owner.
+RESET ROLE;
+
+-- Restore the exact intended steady-state database privilege boundary before
+-- assertions. Any later failure still rolls the whole transaction back.
+REVOKE CREATE ON DATABASE postgres FROM qbit_test_owner;
+
 -- ===========================================================================
 -- 3. POST-RENAME ASSERTIONS
 -- ===========================================================================
@@ -8239,11 +8250,6 @@ BEGIN
     END IF;
 END
 $dbschema01$;
-
-RESET ROLE;
-
--- Restore the exact intended steady-state privilege boundary.
-REVOKE CREATE ON DATABASE postgres FROM qbit_test_owner;
 
 DO $dbschema01$
 BEGIN
