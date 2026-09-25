@@ -204,7 +204,7 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 **DB-03C4 — исходящие действия, подтверждение отправки, напоминания и потеря без ответа. Статус: в работе.**
 
-Подготовлен полный SQL `sql/DB-03C4_outgoing_reminders.sql` v0.1 только для `qbit_test`.
+Подготовлен исправленный SQL `sql/DB-03C4_outgoing_reminders.sql` v0.2 только для `qbit_test`.
 
 Он создаёт 5 `SECURITY DEFINER` функций, все только для `qbit_test_bot`:
 - `sozdat_ishodyashchee_deystvie(jsonb)`;
@@ -240,9 +240,11 @@ SAVEPOINT-probe проверяет:
 - due loss-check закрывает `net_otveta`;
 - отдельный confirmed non-waiting reply корректно закрывает консультацию без напоминаний.
 
-Статический аудит: 5 функций, 5 compiler directives, 5 фиксированных `search_path`, 5 COMMENT/REVOKE/GRANT; необъявленных/неиспользуемых `v_*` нет; одна секция precheck/privileges/probe/result; production/canary не создаются; SAVEPOINT/rollback сохранены.
+Первый запуск v0.1 в self-hosted Supabase 25.09.2026 остановился внутри SAVEPOINT-probe до `COMMIT`: основной confirmed-flow корректно вернул `pokolenie_ozhidaniya=2`, а probe ошибочно ожидал жёсткую константу `1`. Причина подтверждена по DB-03C1: каждый новый вход в существующий диалог увеличивает `pokolenie_ozhidaniya`; затем confirmed waiting reply увеличивает его ещё раз. В v0.2 probe вычисляет ожидаемое поколение и текущую версию динамически.
 
-**Не выполнено:** DB-03C4 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03c4_result` либо полный ERROR/CONTEXT.
+Статический аудит v0.2: 5 функций, 5 compiler directives, 5 фиксированных `search_path`, 5 COMMENT/REVOKE/GRANT; необъявленных/неиспользуемых `v_*` нет; одна секция precheck/privileges/probe/result; production/canary не создаются; SAVEPOINT/rollback сохранены.
+
+**Не выполнено:** DB-03C4 ещё не применён. Неуспешный v0.1 завершился до `COMMIT`, поэтому его изменения откатились. Следующее действие — Павел запускает актуальный v0.2 целиком одним Run и передаёт `db03c4_result` либо полный ERROR/CONTEXT.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

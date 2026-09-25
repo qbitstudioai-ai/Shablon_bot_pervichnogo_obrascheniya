@@ -1,4 +1,4 @@
--- DB-03C4 v0.1: outgoing actions, confirmed effects, reminders and no-response loss
+-- DB-03C4 v0.2: outgoing actions, confirmed effects, reminders and no-response loss
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Contract: docs/specs/DB_CONTRACT.md
 --
@@ -2002,6 +2002,7 @@ DECLARE
     confirm_close record;
     v_t0 timestamptz;
     v_generation bigint;
+    v_generation_before_wait bigint;
 BEGIN
     SELECT *
       INTO rin
@@ -2201,7 +2202,13 @@ BEGIN
         )
       );
 
-    IF rin2.versiya_dialoga <> 2
+    SELECT d.pokolenie_ozhidaniya
+      INTO v_generation_before_wait
+      FROM qbit_test.dialogi AS d
+     WHERE d.id = rin.dialog_id;
+
+    IF rin2.versiya_dialoga <> rin.versiya_dialoga + 1
+       OR v_generation_before_wait IS NULL
        OR confirm_stale.rezultat <> 'uspeshno'
        OR confirm_stale.status_deystviya <> 'podtverzhdeno'
        OR EXISTS (
@@ -2224,7 +2231,7 @@ BEGIN
             row_to_json(rin2), row_to_json(confirm_stale);
     END IF;
 
-    -- Continue all normal confirmed-flow probes on current dialog version 2.
+    -- Continue normal confirmed-flow probes from the actual current dialog version/generation.
     -- Confirmed main message: retry once, then confirm and create t0/reminders.
     SELECT *
       INTO create2
@@ -2235,7 +2242,7 @@ BEGIN
             'vid_deystviya', 'soobshchenie',
             'istochnik', 'bot',
             'dialog_id', rin.dialog_id,
-            'ozhidaemaya_versiya_dialoga', 2,
+            'ozhidaemaya_versiya_dialoga', rin2.versiya_dialoga,
             'iniciativnoe', false,
             'kanal', 'telegram',
             'akkaunt_kanala_id', 'db03c4_client_bot',
@@ -2330,7 +2337,9 @@ BEGIN
 
     IF confirm2.rezultat <> 'uspeshno'
        OR v_t0 IS NULL
-       OR v_generation <> 1
+       OR v_generation <> v_generation_before_wait + 1
+       OR confirm2.pokolenie_ozhidaniya <> v_generation
+       OR confirm2.versiya_dialoga <> rin2.versiya_dialoga
        OR rem1 IS NULL
        OR rem2 IS NULL
        OR NOT EXISTS (
@@ -2338,7 +2347,9 @@ BEGIN
              WHERE z.soobshchenie_id=create2.soobshchenie_id
                AND z.tip_sobytiya='otvet_bota'
        ) THEN
-        RAISE EXCEPTION 'DB-03C4 confirmed main/t0/reminders/mirror failed: %',row_to_json(confirm2);
+        RAISE EXCEPTION
+            'DB-03C4 confirmed main/t0/reminders/mirror failed: result=%, generation_before=%, generation_after=%',
+            row_to_json(confirm2), v_generation_before_wait, v_generation;
     END IF;
 
     -- Reminder1 confirmed: t0 must stay unchanged.
