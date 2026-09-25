@@ -258,19 +258,35 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 ## Текущая задача
 
-**DB-03V — интегральная проверка позднего bot-ответа после Take. Статус: не начато.**
+**DB-03V — интегральная проверка позднего bot-ответа после Take. Статус: в работе.**
 
-Родительский DB-03 пока **не закрыт**. Остался один явный критерий из плана, который нельзя считать доказанным только отдельными probe:
-1. bot outgoing action уже должен быть в состоянии `v_rabote`;
-2. менеджер выполняет Take и dialog становится `vladelec='chelovek'`;
-3. затем приходит поздний внешний результат `podtverzhdeno` по уже начатой bot-отправке;
-4. confirmed-факт/внешний message ID должен сохраниться;
-5. stale зависимые effects не должны примениться;
-6. dialog должен остаться у человека;
-7. `ozhidaetsya_otvet/t0/reminders` не должны восстановиться;
-8. probe-данные после проверки удаляются/откатываются, production не затрагивается.
+Подготовлен `sql/DB-03V_late_confirm_after_take.sql` v0.1 только для `qbit_test`.
 
-После успешного DB-03V можно закрыть родительский DB-03 и переходить дальше по зависимостям. DB-04 всё ещё зависит от runtime-подтверждения PRE-02, поэтому автоматически его не начинаем.
+Это **не миграция схемы**: файл не создаёт и не заменяет функции/таблицы/индексы. Он выполняет один disposable probe внутри `SAVEPOINT`, затем `ROLLBACK TO SAVEPOINT`.
+
+Проверяемый сценарий:
+1. создаётся новый test dialog и waiting bot outgoing с allowlisted effects `novyy_etap`, `kod_celi` и reminder policy;
+2. только это probe-действие переводится прямым test-only UPDATE в точное состояние C4 claim: `status='v_rabote'`, worker, future lease, fencing, message=`v_rabote`;
+3. регистрируется service `callback_take`, текущий manager забирает dialog;
+4. после Take проверяется, что уже начатый внешний action **не отменён** и остался `v_rabote`, а dialog уже `chelovek/peredan_cheloveku` с новой version/generation;
+5. затем вызывается обычный `zafiksirovat_rezultat_ishodyashchego` с поздним `podtverzhdeno`;
+6. проверяется, что action/message получили confirmed + внешний Telegram message ID;
+7. одновременно dialog остаётся у manager с той же post-Take version/generation, `ozhidaetsya_otvet=false`, `t0=NULL`;
+8. stale `novyy_etap` и `kod_celi` не применяются, reminders не создаются;
+9. operator mirror `bot_confirmed:...` создаётся как внешний факт, но его payload содержит `effekty_primeneny=false`;
+10. все probe rows откатываются и отдельно проверяется, что следов `db03v_*` не осталось.
+
+Изоляция от существующей test-очереди: DB-03V намеренно **не вызывает queue-wide outgoing claim**, потому что C4 claim не принимает specific action ID. Вместо этого он test-only прямым UPDATE воспроизводит точное состояние claim только для собственного действия и сразу проверяет crossing-сценарий. Это исключает захват чужой due-записи в `qbit_test`.
+
+Статический аудит v0.1:
+- permanent DDL: 0;
+- одна transaction, один SAVEPOINT/ROLLBACK/RELEASE/COMMIT;
+- transaction-control команд внутри PL/pgSQL DO нет;
+- необъявленных/неиспользуемых probe-переменных нет;
+- writes в production `qbit` отсутствуют;
+- проверки external fact / human owner / stage / goal / wait / t0 / reminders / mirror-effects присутствуют.
+
+**Не выполнено:** DB-03V ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03v_result` либо полный ERROR/CONTEXT. Только после успешного server-check можно закрыть родительский DB-03.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
