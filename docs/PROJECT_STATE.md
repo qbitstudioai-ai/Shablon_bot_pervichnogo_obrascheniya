@@ -280,21 +280,39 @@ v0.1 ранее остановился на SQL parse до выполнения 
 
 ## Текущая задача
 
-**DB-SCHEMA-01 — переименование test schema qBit для различимости проектов. Статус: в работе.**
+**DB-SCHEMA-01F — финальная проверка уже переименованной qBit schema. Статус: в работе.**
 
-Бизнес-решение Павла: вместо прежнего имени test schema использовать `qbit_bot_pervichnogo_obrascheniya`. Цель — в одном Supabase легко отличать schema разных будущих проектов qBit.
+Бизнес-решение Павла сохраняется: canonical schema этого проекта — `qbit_bot_pervichnogo_obrascheniya`; роли `qbit_test_*` в этой задаче не переименовываются.
 
-Граница задачи:
-- переименовать только schema `qbit_test → qbit_bot_pervichnogo_obrascheniya`;
-- существующие PostgreSQL-роли `qbit_test_owner/deploy/bot/sluzhebnyy/dash_read/dash_admin` **не переименовывать** в этой задаче;
-- production schema/roles, `kompaniya_001_test`, рабочий трафик и Credentials не менять;
-- обновить SQL шаблона и документацию на новое canonical schema name;
-- на живом test-контуре после `ALTER SCHEMA` пересоздать текущие SECURITY DEFINER функции с новым квалифицированным именем в body/search_path, сохранив сигнатуры и ACL;
-- доказать отсутствие schema `qbit_test`, наличие новой schema, корректный owner, функции/права, отсутствие probe-данных и неизменность production/canary.
+Что произошло с DB-SCHEMA-01:
+- v0.1 остановился на отсутствии database CREATE у owner-role;
+- v0.2 остановился на чтении postgres-owned TEMP snapshot после `SET ROLE`;
+- v0.3 дошёл до `COMMIT`, а ошибочный `pg_get_functiondef()` в **post-COMMIT финальном SELECT** мог дать `42809: "array_agg" is an aggregate function` уже после сохранения rename;
+- последующий запуск подтвердил, что source schema `qbit_test` больше не существует;
+- поэтому повторно выполнять rename теперь нельзя и не нужно.
 
-Первый запуск `DB-SCHEMA-01 v0.1` остановился на `ALTER SCHEMA` с `42501 permission denied for database postgres`: owner-role `qbit_test_owner` намеренно не имеет database-level CREATE. v0.2 прошёл дальше, но post-rename assertion остановился с `42501 permission denied for table dbschema01_schema_snapshot`: TEMP snapshots принадлежали `postgres`, а assertions выполнялись после `SET LOCAL ROLE qbit_test_owner`. Оба запуска были внутри явной транзакции и не дошли до успешного COMMIT. В v0.3 после rename и `CREATE OR REPLACE` выполняется `RESET ROLE` обратно в `postgres`, временный database CREATE сразу отзывается, и post-rename assertions читают postgres-owned TEMP snapshots уже под trusted session role. v0.3 прошёл дальше, но post-check остановился с `42809: "array_agg" is an aggregate function`: `pg_get_functiondef()` оказался вызван планировщиком на aggregate-объекте при проверке старых schema refs. Запуск не дошёл до `COMMIT`, поэтому rename/replace не считаются применёнными. В v0.4 обе проверки definition сначала MATERIALIZED-CTE отбирают только allowlisted `pg_proc.prokind='f'`, и лишь затем вызывают `pg_get_functiondef()` по этим OID. Дополнительные права на TEMP tables не выдаются; постоянные runtime-права не расширяются.
+Подготовлен `sql/DB-SCHEMA-01F_verify_renamed_schema.sql` v0.1. Это read-only verifier:
+- не выполняет ALTER/CREATE/DROP;
+- не выполняет INSERT/UPDATE/DELETE;
+- не выполняет GRANT/REVOKE;
+- требует отсутствие `qbit_test` и наличие `qbit_bot_pervichnogo_obrascheniya`;
+- проверяет owner `qbit_test_owner`;
+- проверяет, что временный database CREATE у owner-role отозван;
+- проверяет отсутствие PUBLIC schema privilege;
+- проверяет 25 таблиц;
+- проверяет ровно 28 ожидаемых `SECURITY DEFINER` функций `(p_dannye jsonb)`;
+- проверяет fixed `search_path=pg_catalog, qbit_bot_pervichnogo_obrascheniya`;
+- проверяет отсутствие `qbit_test.` внутри definitions только на allowlisted `prokind='f'`, поэтому aggregate-объекты не попадают в `pg_get_functiondef()`;
+- проверяет EXECUTE distribution: bot=17, service=10, dash_admin=1 и PUBLIC=0;
+- проверяет отсутствие прямого INSERT/UPDATE/DELETE у runtime-ролей;
+- проверяет cross-schema isolation с `kompaniya_001_test`;
+- проверяет наличие production schema `qbit` и canary schema `kompaniya_001_test`.
 
-После успешного server-check DB-SCHEMA-01 работа с текущим этапом Supabase считается завершённой: DB-01…DB-03 реализованы/проверены, а DB-04/DB-05 намеренно ещё не начинаются, потому что зависят от PRE-02. Следующая сессия — PRE-02 в n8n/OpenRouter.
+Исходные SQL DB-01…DB-03 в GitHub уже используют canonical schema `qbit_bot_pervichnogo_obrascheniya`; имена ролей `qbit_test_*` оставлены намеренно.
+
+**Следующий шаг:** Павел запускает только `DB-SCHEMA-01F_verify_renamed_schema.sql` целиком одним Run и передаёт `db_schema_01f_result` либо полный ERROR/CONTEXT. Старый `DB-SCHEMA-01_rename_qbit_schema.sql` повторно не запускать.
+
+После успешного DB-SCHEMA-01F текущая работа с Supabase считается завершённой. DB-04/DB-05 не являются незавершённой текущей работой Supabase: они намеренно заблокированы до PRE-02. Следующая сессия после verifier — PRE-02 в n8n/OpenRouter.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
