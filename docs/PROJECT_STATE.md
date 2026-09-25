@@ -291,7 +291,7 @@ v0.1 ранее остановился на SQL parse до выполнения 
 - последующий запуск подтвердил, что source schema `qbit_test` больше не существует;
 - поэтому повторно выполнять rename теперь нельзя и не нужно.
 
-Подготовлен исправленный `sql/DB-SCHEMA-01F_verify_renamed_schema.sql` v0.2. Это read-only verifier:
+Подготовлен исправленный `sql/DB-SCHEMA-01F_verify_renamed_schema.sql` v0.3. Это read-only verifier:
 - не выполняет ALTER/CREATE/DROP;
 - не выполняет INSERT/UPDATE/DELETE;
 - не выполняет GRANT/REVOKE;
@@ -306,13 +306,16 @@ v0.1 ранее остановился на SQL parse до выполнения 
 - проверяет EXECUTE distribution: bot=17, service=10, dash_admin=1 и PUBLIC=0;
 - проверяет отсутствие прямого INSERT/UPDATE/DELETE у runtime-ролей;
 - проверяет cross-schema isolation с `kompaniya_001_test`;
-- проверяет наличие production schema `qbit` и canary schema `kompaniya_001_test`.
+- требует наличие canary schema `kompaniya_001_test`;
+- **не требует** наличие production schema `qbit`: DB-01 прямо не создаёт production schema; её текущее наличие в финальном JSON только информационное.
 
 Исходные SQL DB-01…DB-03 в GitHub уже используют canonical schema `qbit_bot_pervichnogo_obrascheniya`; имена ролей `qbit_test_*` оставлены намеренно.
 
 Первый запуск verifier v0.1 корректно подтвердил уже переименованную schema, но остановился на своей неверной проверке количества функций: считал только сигнатуру `(p_dannye jsonb)` и получил 26 вместо проектных 28. Две функции имеют другие корректные сигнатуры: `zaregistrirovat_vhod_klienta(p_vhod jsonb)` и `sohranit_vlozhenie(p_dannye jsonb, p_soderzhimoe bytea)`. В v0.2 все проверки функций используют точный allowlist сигнатур.
 
-**Следующий шаг:** Павел запускает только `DB-SCHEMA-01F_verify_renamed_schema.sql` v0.2 целиком одним Run и передаёт `db_schema_01f_result` либо полный ERROR/CONTEXT. Старый `DB-SCHEMA-01_rename_qbit_schema.sql` повторно не запускать.
+Запуск v0.2 прошёл все предыдущие проверки и остановился только на ошибочной финальной предпосылке `Production schema qbit unexpectedly missing`. Это ошибка verifier: DB-01 явно создавал только test schema и canary и прямо указывает, что production schema `qbit` не создаётся. В v0.3 требование наличия `qbit` удалено; canary `kompaniya_001_test` остаётся обязательной.
+
+**Следующий шаг:** Павел запускает только `DB-SCHEMA-01F_verify_renamed_schema.sql` v0.3 целиком одним Run и передаёт `db_schema_01f_result` либо полный ERROR/CONTEXT. Старый `DB-SCHEMA-01_rename_qbit_schema.sql` повторно не запускать.
 
 После успешного DB-SCHEMA-01F текущая работа с Supabase считается завершённой. DB-04/DB-05 не являются незавершённой текущей работой Supabase: они намеренно заблокированы до PRE-02. Следующая сессия после verifier — PRE-02 в n8n/OpenRouter.
 

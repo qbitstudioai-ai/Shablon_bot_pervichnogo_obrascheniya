@@ -1,10 +1,11 @@
--- DB-SCHEMA-01F v0.2: finalize/verify already-renamed qBit project schema
+-- DB-SCHEMA-01F v0.3: finalize/verify already-renamed qBit project schema
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 --
 -- EXPECTED CURRENT STATE
 --   old schema: qbit_test                          ABSENT
 --   new schema: qbit_bot_pervichnogo_obrascheniya PRESENT
 --   roles remain named qbit_test_* by explicit project decision
+--   production schema qbit is NOT required in this test stage; DB-01 explicitly did not create it
 --
 -- PURPOSE
 --   This file does NOT rename schemas and does NOT recreate functions.
@@ -744,11 +745,6 @@ BEGIN
             'qBit runtime role unexpectedly has USAGE on kompaniya_001_test';
     END IF;
 
-    IF pg_catalog.to_regnamespace('qbit') IS NULL THEN
-        RAISE EXCEPTION
-            'Production schema qbit unexpectedly missing';
-    END IF;
-
     IF pg_catalog.to_regnamespace('kompaniya_001_test') IS NULL THEN
         RAISE EXCEPTION
             'Canary schema kompaniya_001_test unexpectedly missing';
@@ -850,12 +846,13 @@ SELECT jsonb_build_object(
         ),
     'runtime_direct_dml_denied',true,
     'execute_distribution','bot=17/service=10/dash_admin=1',
-    'production_schema_present',
+    'production_schema_qbit_present_informational',
         pg_catalog.to_regnamespace('qbit') IS NOT NULL,
+    'production_schema_qbit_required',false,
     'canary_schema_present',
         pg_catalog.to_regnamespace('kompaniya_001_test') IS NOT NULL,
     'supabase_stage_complete',true,
     'next_stage','PRE-02_n8n_openrouter',
     'result',
-    'DB-SCHEMA-01F VERIFIED: qbit_bot_pervichnogo_obrascheniya is the canonical qBit project schema; old qbit_test is absent; 25 tables and 28 SECURITY DEFINER functions use the new schema/search_path with preserved runtime isolation; temporary database CREATE is revoked; production/canary schemas remain present. Current Supabase stage is complete; proceed to PRE-02 in n8n.'
+    'DB-SCHEMA-01F VERIFIED: qbit_bot_pervichnogo_obrascheniya is the canonical qBit project schema; old qbit_test is absent; 25 tables and 28 SECURITY DEFINER functions use the new schema/search_path with preserved runtime isolation; temporary database CREATE is revoked; canary schema remains present. Production schema qbit is not required in this test stage and its current presence is reported only. Current Supabase stage is complete; proceed to PRE-02 in n8n.'
 ) AS db_schema_01f_result;
