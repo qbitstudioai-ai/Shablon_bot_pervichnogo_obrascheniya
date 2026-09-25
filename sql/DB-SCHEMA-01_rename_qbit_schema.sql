@@ -1,4 +1,4 @@
--- DB-SCHEMA-01 v0.3: rename qBit test schema for project-level clarity
+-- DB-SCHEMA-01 v0.4: rename qBit test schema for project-level clarity
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 --
 -- RENAME
@@ -10,6 +10,7 @@
 --   * Current DB-03 functions are CREATE OR REPLACE'd only because their
 --     PL/pgSQL source contains schema-qualified references and fixed search_path.
 --   * Function OIDs, owners and ACLs must remain unchanged.
+--   * pg_get_functiondef assertions first materialize only prokind='f' allowlisted project functions; aggregates cannot reach pg_get_functiondef.
 --   * qbit_test_owner receives CREATE ON DATABASE postgres only temporarily
 --     for ALTER SCHEMA RENAME; the privilege is revoked before COMMIT.
 --   * After ALTER/CREATE OR REPLACE, role is reset to postgres BEFORE
@@ -8054,6 +8055,7 @@ BEGIN
           FROM pg_catalog.pg_proc AS p
           JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace
          WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
+           AND p.prokind='f'
            AND p.proname IN (
         'zaregistrirovat_vhod_klienta',
         'sohranit_vlozhenie',
@@ -8096,11 +8098,13 @@ BEGIN
     END IF;
 
     IF EXISTS (
-        SELECT 1
-          FROM pg_catalog.pg_proc AS p
-          JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace
-         WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
-           AND p.proname IN (
+        WITH target_functions AS MATERIALIZED (
+            SELECT p.oid
+              FROM pg_catalog.pg_proc AS p
+              JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace
+             WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
+               AND p.prokind='f'
+               AND p.proname IN (
         'zaregistrirovat_vhod_klienta',
         'sohranit_vlozhenie',
         'sohranit_transkripciyu_golosa',
@@ -8129,11 +8133,14 @@ BEGIN
         'vernut_dialog_botu',
         'sozdat_ruchnoe_ishodyashchee',
         'sozdat_lichnoe_uvedomlenie'
-           )
-           AND pg_catalog.strpos(
-                pg_catalog.pg_get_functiondef(p.oid),
+               )
+        )
+        SELECT 1
+          FROM target_functions AS tf
+         WHERE pg_catalog.strpos(
+                pg_catalog.pg_get_functiondef(tf.oid),
                 'qbit_test.'
-           ) > 0
+         ) > 0
     ) THEN
         RAISE EXCEPTION 'Old schema-qualified reference remains inside function definition';
     END IF;
@@ -8339,14 +8346,49 @@ SELECT jsonb_build_object(
     ),
     'old_function_schema_refs',
     (
+        WITH target_functions AS MATERIALIZED (
+            SELECT p.oid
+              FROM pg_catalog.pg_proc AS p
+              JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace
+             WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
+               AND p.prokind='f'
+               AND p.proname IN (
+        'zaregistrirovat_vhod_klienta',
+        'sohranit_vlozhenie',
+        'sohranit_transkripciyu_golosa',
+        'sohranit_obezlichivanie',
+        'poluchit_kontekst_dialoga',
+        'sohranit_fakty_i_pamyat',
+        'proverit_limit_chastoty',
+        'zapisat_narushenie_tematiky',
+        'razblokirovat_polzovatelya',
+        'zabrat_zadanie_obrabotki',
+        'prodlit_arendu_zadaniya',
+        'zavershit_zadanie_obrabotki',
+        'sozdat_ishodyashchee_deystvie',
+        'zabrat_ishodyashchee_deystvie',
+        'zafiksirovat_rezultat_ishodyashchego',
+        'podgotovit_napominanie',
+        'zafiksirovat_poteryu_bez_otveta',
+        'zaregistrirovat_sluzhebnoe_sobytie',
+        'podtverdit_lichnyy_chat_menedzhera',
+        'zabrat_sozdanie_operator_temy',
+        'podtverdit_operator_temu',
+        'otmetit_temu_neizvestnoy',
+        'zabrat_sobytie_zerkala',
+        'zafiksirovat_rezultat_zerkala',
+        'zabrat_dialog_operatorom',
+        'vernut_dialog_botu',
+        'sozdat_ruchnoe_ishodyashchee',
+        'sozdat_lichnoe_uvedomlenie'
+               )
+        )
         SELECT count(*)
-          FROM pg_catalog.pg_proc AS p
-          JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace
-         WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
-           AND pg_catalog.strpos(
-                pg_catalog.pg_get_functiondef(p.oid),
+          FROM target_functions AS tf
+         WHERE pg_catalog.strpos(
+                pg_catalog.pg_get_functiondef(tf.oid),
                 'qbit_test.'
-           )>0
+         )>0
     ),
     'search_path_ok',
     NOT EXISTS (
