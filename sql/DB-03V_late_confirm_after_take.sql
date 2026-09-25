@@ -1,4 +1,4 @@
--- DB-03V v0.1: integration probe for late confirmed bot send after operator Take
+-- DB-03V v0.2: integration probe for late confirmed bot send after operator Take
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- TARGET: qbit_test ONLY, self-hosted PostgreSQL 17.6
 --
@@ -65,11 +65,11 @@ BEGIN
         END IF;
     END LOOP;
 
-    IF pg_catalog.position(
-        'v_action.istochnik = ''menedzher'''
-        IN pg_catalog.pg_get_functiondef(
+    IF pg_catalog.strpos(
+        pg_catalog.pg_get_functiondef(
             'qbit_test.zafiksirovat_rezultat_ishodyashchego(jsonb)'::regprocedure
-        )
+        ),
+        'v_action.istochnik = ''menedzher'''
     ) = 0 THEN
         RAISE EXCEPTION
             'DB-03D2 upgraded outgoing-result function is not installed';

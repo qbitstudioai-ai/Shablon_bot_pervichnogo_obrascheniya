@@ -260,7 +260,7 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 **DB-03V — интегральная проверка позднего bot-ответа после Take. Статус: в работе.**
 
-Подготовлен `sql/DB-03V_late_confirm_after_take.sql` v0.1 только для `qbit_test`.
+Подготовлен исправленный `sql/DB-03V_late_confirm_after_take.sql` v0.2 только для `qbit_test`.
 
 Это **не миграция схемы**: файл не создаёт и не заменяет функции/таблицы/индексы. Он выполняет один disposable probe внутри `SAVEPOINT`, затем `ROLLBACK TO SAVEPOINT`.
 
@@ -278,7 +278,9 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 Изоляция от существующей test-очереди: DB-03V намеренно **не вызывает queue-wide outgoing claim**, потому что C4 claim не принимает specific action ID. Вместо этого он test-only прямым UPDATE воспроизводит точное состояние claim только для собственного действия и сразу проверяет crossing-сценарий. Это исключает захват чужой due-записи в `qbit_test`.
 
-Статический аудит v0.1:
+Первый запуск v0.1 в Supabase Studio 25.09.2026 не прошёл SQL parse: использован недопустимый schema-qualified специальный синтаксис `pg_catalog.position(... IN ...)`. Ошибка возникла до выполнения транзакции/probe, поэтому серверные данные и схема не изменились. В v0.2 precheck использует обычную функцию `pg_catalog.strpos(string, substring)`.
+
+Статический аудит v0.2:
 - permanent DDL: 0;
 - одна transaction, один SAVEPOINT/ROLLBACK/RELEASE/COMMIT;
 - transaction-control команд внутри PL/pgSQL DO нет;
