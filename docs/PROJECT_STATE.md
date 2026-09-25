@@ -221,44 +221,54 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 **Родительский DB-03C завершён:** DB-03C1 v0.3, DB-03C2 v0.1, DB-03C3 v0.1 и DB-03C4 v0.2 применены и проверены в `qbit_test`.
 
+## Последний завершённый блок
+
+**DB-03D1 — service ingress, private chat менеджера, operator topic и mirror queue. Статус: завершено 25 сентября 2026 года.**
+
+Павел выполнил `sql/DB-03D1_service_topic_mirror.sql` v0.1 целиком в self-hosted Supabase Studio. Сервер вернул:
+- `db03d1_status = applied`;
+- `functions_ok = true`;
+- `service_execute_ok = true`;
+- `bot_service_execute_denied = true`;
+- `service_raw_select_denied = true`;
+- `topic_unique_mapping_ok = true`;
+- `mirror_unique_key_ok = true`;
+- `probe_rows_remaining = 0`;
+- результат: `DB-03D1 SQL APPLIED: service ingress/private-chat/topic claim-confirm-unknown/mirror narrow payload+media/retry-unknown verified; service raw SELECT denied; probe data removed; production untouched.`
+
 ## Текущая задача
 
-**DB-03D1 — service ingress, private chat менеджера, operator topic и mirror queue. Статус: в работе.**
+**DB-03D2 — Take/Return, ручное исходящее менеджера и private alert. Статус: в работе.**
 
-DB-03D разделён без изменения итогового контракта:
-- DB-03D1 — долговечный вход служебного Telegram, private chat allowlist, topic lifecycle и mirror queue;
-- DB-03D2 — конкурентный Take/Return, ручное исходящее менеджера и private alert.
+Подготовлен полный SQL `sql/DB-03D2_take_return_manual.sql` v0.1 только для `qbit_test`.
 
-Подготовлен полный SQL `sql/DB-03D1_service_topic_mirror.sql` v0.1 только для `qbit_test`.
+Он создаёт 4 новые `SECURITY DEFINER` функции:
+- `zabrat_dialog_operatorom(jsonb)` → только `qbit_test_sluzhebnyy`;
+- `vernut_dialog_botu(jsonb)` → только `qbit_test_sluzhebnyy`;
+- `sozdat_ruchnoe_ishodyashchee(jsonb)` → только `qbit_test_sluzhebnyy`;
+- `sozdat_lichnoe_uvedomlenie(jsonb)` → только `qbit_test_bot`.
 
-Он создаёт 7 `SECURITY DEFINER` функций, все только для `qbit_test_sluzhebnyy`:
-- `zaregistrirovat_sluzhebnoe_sobytie(jsonb)`;
-- `podtverdit_lichnyy_chat_menedzhera(jsonb)`;
-- `zabrat_sozdanie_operator_temy(jsonb)`;
-- `podtverdit_operator_temu(jsonb)`;
-- `otmetit_temu_neizvestnoy(jsonb)`;
-- `zabrat_sobytie_zerkala(jsonb)`;
-- `zafiksirovat_rezultat_zerkala(jsonb)`.
+Также controlled `CREATE OR REPLACE` обновляет две уже существующие C4-функции **без изменения сигнатур/return type**:
+- `zabrat_ishodyashchee_deystvie(jsonb)`;
+- `zafiksirovat_rezultat_ishodyashchego(jsonb)`.
 
-Ключевые правила:
-- service webhook сначала долговечно регистрируется в `sobytiya_integraciy`, затем маршрутизируется; повтор external event возвращает старую запись, same-event/different-content → conflict;
-- источник service ingress жёстко фиксируется как `telegram_service`;
-- `/start` подтверждает private chat только у заранее существующего active `telegram_user_id`; неизвестный user не создаёт manager row;
-- topic intent уже создаётся DB-03C1, D1 его не дублирует;
-- topic claim использует row lock/`SKIP LOCKED`, lease и monotonic fencing; expired `sozdaetsya` может быть reclaimed;
-- confirmed topic один раз фиксирует `dialog_id → sluzhebnyy_chat_id → message_thread_id` и привязывает накопленные group mirror events к trusted thread;
-- ambiguous `createForumTopic` переводит topic + ensure-event в `neizvestno`, пишет system warning и запрещает blind recreate;
-- mirror claim исключает `obespechit_temu`, использует lease/fencing и выдаёт только данные конкретного claimed event;
-- client text берётся из `sobytiya_zerkala_operatora.tekst`, а media — только из конкретного `vlozhenie_id` claimed event;
-- private notification target разрешается только из подтверждённого manager private chat, а не из входного текста;
-- mirror `neizvestno` terminal и не попадает обратно в due queue;
-- service role не получает общий `SELECT/INSERT/UPDATE/DELETE` по таблицам `qbit_test`.
+Ключевые правила D2:
+- Take атомарно проверяет allowed active manager + expected dialog version; row lock/version дают first-commit-wins;
+- Take переводит `bot → chelovek`, фиксирует текущего manager, увеличивает version/generation, очищает wait/t0;
+- Take отменяет reminders, internal processing jobs и только ещё не начатые `zaplanirovano/povtor` bot/system outgoing actions;
+- уже `v_rabote` внешний bot/system action не стирается: его поздний confirmed/unknown/error факт сможет сохраниться через C4, но stale effects не применятся;
+- manual outgoing разрешён только current manager из confirmed service topic и создаёт `soobshcheniya.avtor='menedzher'` + ordinary `ishodyashchie_deystviya.istochnik='menedzher'`;
+- client-bot worker забирает manager action через тот же C4 claim только пока human owner/current manager/version совпадают;
+- confirmed manager message обновляет факт доставки/last outgoing, но **не создаёт** зеркало `otvet_bota` обратно в operator topic;
+- чужой manager не может создать client outgoing;
+- Return разрешён только текущему manager, меняет `chelovek → bot`, увеличивает version/generation, очищает manager/wait и **не создаёт client outgoing action**;
+- private alert принимает manager UUID, dialog, reason/stable key, но не принимает target chat ID; D1 mirror claim разрешает chat только из confirmed manager record.
 
-SAVEPOINT-probe проверяет service ingress new/duplicate/conflict, private chat allowlist, topic first-owner/confirm/conflicting thread, initial card, narrow client text, exact media bytes, trusted private target, mirror retry→unknown terminal и topic unknown/no-blind-recreate.
+Probe проверяет confirmed bot wait/reminders → Take cancellation, второй Take со stale version, manager manual new/duplicate/foreign deny, upgraded C4 manager claim+confirmed result без bot mirror, foreign Return deny, Return без auto-message, private alert duplicate + trusted private target.
 
-Статический аудит кандидата: 7 функций, 7 compiler directives, 7 fixed `search_path`, 7 COMMENT/REVOKE/GRANT; необъявленных/неиспользуемых `v_*` нет; production/canary объекты не создаются; SAVEPOINT/rollback сохранены.
+Статический аудит: 4 new + 2 replace functions; 6 compiler directives/SECURITY DEFINER/fixed search_path; необъявленных/неиспользуемых `v_*` нет; хрупких `NOT FOUND OR record.field` и unqualified RETURNING нет; одна transaction/SAVEPOINT; production/canary объекты не создаются.
 
-**Не выполнено:** DB-03D1 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03d1_result` либо полный ERROR/CONTEXT. DB-03D2 до успешного D1 не начинается.
+**Не выполнено:** DB-03D2 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный v0.1 целиком одним Run и передаёт `db03d2_result` либо полный ERROR/CONTEXT. До успешного D2 родительские DB-03D/DB-03 не закрываются.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
