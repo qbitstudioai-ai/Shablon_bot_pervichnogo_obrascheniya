@@ -168,39 +168,32 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 Тем самым серверно проверены четыре узкие API-функции ingress/media/STT/PII, два UNIQUE-index для retry вложений, идемпотентность входа, конфликт hash, повтор external message без второго dialog/message, отмена старого ожидания, local STT/PII и нормализация RU-телефона. v0.1 и v0.2 остаются в истории как неуспешные попытки, остановленные до COMMIT; применён только v0.3.
 
+## Последний завершённый блок
+
+**DB-03C2 — контекст, память, rate limit, тематический guard и unblock. Статус: завершено 25 сентября 2026 года.**
+
+Павел выполнил `sql/DB-03C2_context_memory_guard.sql` v0.1 целиком в self-hosted Supabase Studio. Сервер вернул:
+- `db03c2_status = applied`;
+- `functions_ok = true`;
+- `bot_execute_ok = true`;
+- `admin_unblock_execute_ok = true`;
+- `service_execute_denied = true`;
+- `runtime_direct_dml = false`;
+- `probe_rows_remaining = 0`;
+- результат: `DB-03C2 SQL APPLIED: AI-safe context/memory CAS/rate-limit/thematic block/admin-unblock verified; probe data removed; production untouched.`
+
+Тем самым серверно подтверждены AI/local PII separation, CAS памяти/диалога, deidentified memory window, flood-limit отдельно от thematic counter, предупреждения/логическая блокировка, отмена wait/reminders, stale-job invalidation и idempotent административная разблокировка. Production не затронут.
+
 ## Текущая задача
 
-**DB-03C2 — контекст, память, rate limit, тематический guard и unblock. Статус: в работе.**
+**DB-03C3 — очередь обработки, аренда job и fencing/CAS завершения. Статус: не начато.**
 
-Подготовлен полный SQL `sql/DB-03C2_context_memory_guard.sql` v0.1 только для `qbit_test`.
+Нужно подготовить три test-only PostgreSQL-функции:
+- `zabrat_zadanie_obrabotki` — atomic claim due job через `FOR UPDATE SKIP LOCKED`;
+- `prodlit_arendu_zadaniya` — продление только текущему worker с актуальным ownership number;
+- `zavershit_zadanie_obrabotki` — завершение/retry/cancel/error только текущим владельцем и при expected dialog version.
 
-Он создаёт 5 `SECURITY DEFINER` функций:
-- `poluchit_kontekst_dialoga(jsonb)` — `qbit_test_bot`;
-- `sohranit_fakty_i_pamyat(jsonb)` — `qbit_test_bot`;
-- `proverit_limit_chastoty(jsonb)` — `qbit_test_bot`;
-- `zapisat_narushenie_tematiky(jsonb)` — `qbit_test_bot`;
-- `razblokirovat_polzovatelya(jsonb)` — только `qbit_test_dash_admin`.
-
-Ключевые правила v0.1:
-- AI-safe context возвращается отдельным JSON от локального protected PII;
-- context проверяет соответствие job/dialog/version и не принимает terminal job;
-- memory save использует CAS по `versiya_dialoga` и `versiya_pamyati`;
-- memory-window максимум 5 сообщений, без дублей; message ID/direction/author/type/deidentified text сверяются с БД;
-- summary отклоняется, если содержит уже известное protected PII;
-- долговечные факты сначала полностью валидируются, затем заменяют предыдущий current fact цепочкой `zamenen_faktom_id`;
-- для PII-факта AI-value не может быть scalar string/number;
-- быстрый cache памяти строится только из `znachenie_dlya_ai`;
-- rate limit считает сохранённые logical incoming messages, поэтому provider retry без второго message не увеличивает flood count;
-- rate limit не меняет `schetchik_narusheniy`;
-- thematic violation сериализуется row lock по channel identity и UNIQUE message guard;
-- trusted limit (для qBit стартово 3) включает logical block, повышает `versiya_dialoga`, сбрасывает wait и отменяет pending/in-work reminders;
-- unblock доступен только dash_admin, может только уменьшить/reset thematic counter, инвалидирует stale bot-version и пишет idempotent admin journal по operation ID.
-
-SAVEPOINT-probe проверяет success/conflict/security ветки: PII separation, raw PII reject в summary, memory/dialog CAS, duplicate provider retry, rate/thematic separation, duplicate violation, warning 1/2/3+block, отмену wait/reminder, stale job после block, явный `mozhno_ai=false` при block и повтор admin-unblock без второго journal.
-
-Статический аудит кандидата: 5 функций, 5 compiler directives, 5 фиксированных `search_path`, 5 COMMENT, 5 REVOKE/GRANT; во всех функциях нет необъявленных `v_*`; production/canary объекты не создаются; SAVEPOINT/rollback сохранены.
-
-**Не выполнено:** DB-03C2 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03c2_result` либо полный ERROR/CONTEXT.
+Обязательные свойства: один `v_rabote` job на dialog, expired lease reclaim без доверия старому worker, монотонный `nomer_vladeniya`, stale owner/version → `konflikt`, никакой длинной SQL-транзакции вокруг LLM/API. Production, workflow и Credentials не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
