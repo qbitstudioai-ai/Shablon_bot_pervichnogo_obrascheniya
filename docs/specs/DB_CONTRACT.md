@@ -1,6 +1,6 @@
 # DB-контракт шаблона
 
-Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 уже применены и проверены в test-контуре. DB-03 разбит на DB-03A…DB-03D; DB-03A, DB-03B и весь DB-03C (C1…C4) уже применены и проверены. Следующая подзадача — DB-03D.
+Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 применены и проверены в test-контуре. DB-03A, DB-03B, весь DB-03C и весь DB-03D применены и проверены. Для закрытия родительского DB-03 осталась отдельная интегральная проверка DB-03V: поздний confirmed bot-ответ после Take должен сохранить внешний факт, но не применять stale effects и не возвращать wait/reminders.
 
 ## Граница контракта
 
@@ -225,7 +225,7 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 
 ## DB-03. Надёжность, память и операторский Telegram
 
-Для реализации DB-03 делится без изменения итогового контракта: DB-03A создаёт девять core-таблиц надёжности и добавляет FK `soobshcheniya.sobytie_id`; DB-03B создаёт три операторские таблицы и добавляет FK `dialogi.tekushchiy_menedzher_id`; DB-03C реализует клиентские/очередные/исходящие функции; DB-03D — функции служебного Telegram и конкурентного ручного перехвата. DB-03D дополнительно разделён на DB-03D1 (service ingress/private chat/topic/mirror) и DB-03D2 (Take/Return/manual outgoing/private alert). Родительский DB-03 закрывается только после всех подзадач и интегральных проверок.
+Для реализации DB-03 делится без изменения итогового контракта: DB-03A создаёт девять core-таблиц надёжности и добавляет FK `soobshcheniya.sobytie_id`; DB-03B создаёт три операторские таблицы и добавляет FK `dialogi.tekushchiy_menedzher_id`; DB-03C реализует клиентские/очередные/исходящие функции; DB-03D — функции служебного Telegram и конкурентного ручного перехвата. DB-03D дополнительно разделён на DB-03D1 (service ingress/private chat/topic/mirror) и DB-03D2 (Take/Return/manual outgoing/private alert). Родительский DB-03 закрывается только после всех подзадач и интегральных проверок. После успешных DB-03A…D остаётся DB-03V — точечная проверка crossing-сценария `bot action v_rabote → Take → late confirmed`.
 
 ### `sobytiya_integraciy`
 

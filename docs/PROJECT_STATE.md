@@ -236,39 +236,41 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 - `probe_rows_remaining = 0`;
 - результат: `DB-03D1 SQL APPLIED: service ingress/private-chat/topic claim-confirm-unknown/mirror narrow payload+media/retry-unknown verified; service raw SELECT denied; probe data removed; production untouched.`
 
+## Последний завершённый блок
+
+**DB-03D2 — Take/Return, ручное исходящее менеджера и private alert. Статус: завершено 25 сентября 2026 года.**
+
+Павел выполнил `sql/DB-03D2_take_return_manual.sql` v0.1 целиком в self-hosted Supabase Studio. Сервер вернул:
+- `db03d2_status = applied`;
+- `functions_ok = true`;
+- `c4_manager_upgrade_ok = true`;
+- `service_execute_ok = true`;
+- `bot_private_alert_execute_ok = true`;
+- `cross_role_execute_denied = true`;
+- `service_raw_select_denied = true`;
+- `probe_rows_remaining = 0`;
+- результат: `DB-03D2 SQL APPLIED: atomic Take/Return/manual manager outgoing/C4 manager claim-result/private alert verified; Return creates no client auto-message; service raw SELECT denied; probe data removed; production untouched.`
+
+Тем самым:
+- DB-03C1…C4 завершены и родительский **DB-03C закрыт**;
+- DB-03D1/D2 завершены и родительский **DB-03D закрыт**;
+- DB-03A и DB-03B также ранее завершены.
+
 ## Текущая задача
 
-**DB-03D2 — Take/Return, ручное исходящее менеджера и private alert. Статус: в работе.**
+**DB-03V — интегральная проверка позднего bot-ответа после Take. Статус: не начато.**
 
-Подготовлен полный SQL `sql/DB-03D2_take_return_manual.sql` v0.1 только для `qbit_test`.
+Родительский DB-03 пока **не закрыт**. Остался один явный критерий из плана, который нельзя считать доказанным только отдельными probe:
+1. bot outgoing action уже должен быть в состоянии `v_rabote`;
+2. менеджер выполняет Take и dialog становится `vladelec='chelovek'`;
+3. затем приходит поздний внешний результат `podtverzhdeno` по уже начатой bot-отправке;
+4. confirmed-факт/внешний message ID должен сохраниться;
+5. stale зависимые effects не должны примениться;
+6. dialog должен остаться у человека;
+7. `ozhidaetsya_otvet/t0/reminders` не должны восстановиться;
+8. probe-данные после проверки удаляются/откатываются, production не затрагивается.
 
-Он создаёт 4 новые `SECURITY DEFINER` функции:
-- `zabrat_dialog_operatorom(jsonb)` → только `qbit_test_sluzhebnyy`;
-- `vernut_dialog_botu(jsonb)` → только `qbit_test_sluzhebnyy`;
-- `sozdat_ruchnoe_ishodyashchee(jsonb)` → только `qbit_test_sluzhebnyy`;
-- `sozdat_lichnoe_uvedomlenie(jsonb)` → только `qbit_test_bot`.
-
-Также controlled `CREATE OR REPLACE` обновляет две уже существующие C4-функции **без изменения сигнатур/return type**:
-- `zabrat_ishodyashchee_deystvie(jsonb)`;
-- `zafiksirovat_rezultat_ishodyashchego(jsonb)`.
-
-Ключевые правила D2:
-- Take атомарно проверяет allowed active manager + expected dialog version; row lock/version дают first-commit-wins;
-- Take переводит `bot → chelovek`, фиксирует текущего manager, увеличивает version/generation, очищает wait/t0;
-- Take отменяет reminders, internal processing jobs и только ещё не начатые `zaplanirovano/povtor` bot/system outgoing actions;
-- уже `v_rabote` внешний bot/system action не стирается: его поздний confirmed/unknown/error факт сможет сохраниться через C4, но stale effects не применятся;
-- manual outgoing разрешён только current manager из confirmed service topic и создаёт `soobshcheniya.avtor='menedzher'` + ordinary `ishodyashchie_deystviya.istochnik='menedzher'`;
-- client-bot worker забирает manager action через тот же C4 claim только пока human owner/current manager/version совпадают;
-- confirmed manager message обновляет факт доставки/last outgoing, но **не создаёт** зеркало `otvet_bota` обратно в operator topic;
-- чужой manager не может создать client outgoing;
-- Return разрешён только текущему manager, меняет `chelovek → bot`, увеличивает version/generation, очищает manager/wait и **не создаёт client outgoing action**;
-- private alert принимает manager UUID, dialog, reason/stable key, но не принимает target chat ID; D1 mirror claim разрешает chat только из confirmed manager record.
-
-Probe проверяет confirmed bot wait/reminders → Take cancellation, второй Take со stale version, manager manual new/duplicate/foreign deny, upgraded C4 manager claim+confirmed result без bot mirror, foreign Return deny, Return без auto-message, private alert duplicate + trusted private target.
-
-Статический аудит: 4 new + 2 replace functions; 6 compiler directives/SECURITY DEFINER/fixed search_path; необъявленных/неиспользуемых `v_*` нет; хрупких `NOT FOUND OR record.field` и unqualified RETURNING нет; одна transaction/SAVEPOINT; production/canary объекты не создаются.
-
-**Не выполнено:** DB-03D2 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный v0.1 целиком одним Run и передаёт `db03d2_result` либо полный ERROR/CONTEXT. До успешного D2 родительские DB-03D/DB-03 не закрываются.
+После успешного DB-03V можно закрыть родительский DB-03 и переходить дальше по зависимостям. DB-04 всё ещё зависит от runtime-подтверждения PRE-02, поэтому автоматически его не начинаем.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
