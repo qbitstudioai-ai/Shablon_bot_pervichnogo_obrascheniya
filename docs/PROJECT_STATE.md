@@ -292,6 +292,8 @@ v0.1 ранее остановился на SQL parse до выполнения 
 - на живом test-контуре после `ALTER SCHEMA` пересоздать текущие SECURITY DEFINER функции с новым квалифицированным именем в body/search_path, сохранив сигнатуры и ACL;
 - доказать отсутствие schema `qbit_test`, наличие новой schema, корректный owner, функции/права, отсутствие probe-данных и неизменность production/canary.
 
+Первый запуск `DB-SCHEMA-01 v0.1` остановился на `ALTER SCHEMA` с `42501 permission denied for database postgres`: owner-role `qbit_test_owner` намеренно не имеет database-level CREATE. Ошибка произошла внутри транзакции до rename/replace, поэтому изменения откатились. В v0.2 `postgres` временно выдаёт owner-role `CREATE ON DATABASE postgres` только внутри транзакции, после rename/function replace право отзывается и проверяется.
+
 После успешного server-check DB-SCHEMA-01 работа с текущим этапом Supabase считается завершённой: DB-01…DB-03 реализованы/проверены, а DB-04/DB-05 намеренно ещё не начинаются, потому что зависят от PRE-02. Следующая сессия — PRE-02 в n8n/OpenRouter.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска

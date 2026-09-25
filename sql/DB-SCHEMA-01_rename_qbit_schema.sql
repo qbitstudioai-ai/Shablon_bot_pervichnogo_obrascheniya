@@ -1,4 +1,4 @@
--- DB-SCHEMA-01 v0.1: rename qBit test schema for project-level clarity
+-- DB-SCHEMA-01 v0.2: rename qBit test schema for project-level clarity
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 --
 -- RENAME
@@ -10,6 +10,8 @@
 --   * Current DB-03 functions are CREATE OR REPLACE'd only because their
 --     PL/pgSQL source contains schema-qualified references and fixed search_path.
 --   * Function OIDs, owners and ACLs must remain unchanged.
+--   * qbit_test_owner receives CREATE ON DATABASE postgres only temporarily
+--     for ALTER SCHEMA RENAME; the privilege is revoked before COMMIT.
 --   * Any error before COMMIT rolls the entire rename back.
 
 BEGIN;
@@ -36,6 +38,31 @@ BEGIN
        OR NOT pg_catalog.pg_has_role(session_user,'qbit_test_owner','SET') THEN
         RAISE EXCEPTION
             'DB-SCHEMA-01 requires trusted postgres session with SET qbit_test_owner';
+    END IF;
+
+    IF current_database() <> 'postgres' THEN
+        RAISE EXCEPTION
+            'DB-SCHEMA-01 expected database postgres, actual %',
+            current_database();
+    END IF;
+
+    IF (
+        SELECT r.rolname
+          FROM pg_catalog.pg_database AS d
+          JOIN pg_catalog.pg_roles AS r ON r.oid=d.datdba
+         WHERE d.datname=current_database()
+    ) IS DISTINCT FROM session_user THEN
+        RAISE EXCEPTION
+            'DB-SCHEMA-01 requires postgres to own current database so temporary CREATE can be granted safely';
+    END IF;
+
+    IF pg_catalog.has_database_privilege(
+        'qbit_test_owner',
+        current_database(),
+        'CREATE'
+    ) THEN
+        RAISE EXCEPTION
+            'qbit_test_owner unexpectedly already has CREATE on database; stop for privilege review';
     END IF;
 
     IF pg_catalog.to_regnamespace('qbit_test') IS NULL THEN
@@ -226,8 +253,13 @@ LEFT JOIN pg_catalog.pg_namespace AS n
   ON n.nspname=x.schema_name;
 
 -- ===========================================================================
--- 1. RENAME SCHEMA
+-- 1. TEMPORARY DATABASE PRIVILEGE + RENAME SCHEMA
 -- ===========================================================================
+
+-- PostgreSQL requires the schema owner to also have CREATE on the database
+-- for ALTER SCHEMA ... RENAME. qbit_test_owner intentionally does not keep
+-- this privilege during normal runtime, so grant it only inside this migration.
+GRANT CREATE ON DATABASE postgres TO qbit_test_owner;
 
 SET LOCAL ROLE qbit_test_owner;
 
@@ -8210,6 +8242,31 @@ $dbschema01$;
 
 RESET ROLE;
 
+-- Restore the exact intended steady-state privilege boundary.
+REVOKE CREATE ON DATABASE postgres FROM qbit_test_owner;
+
+DO $dbschema01$
+BEGIN
+    IF pg_catalog.has_database_privilege(
+        'qbit_test_owner',
+        current_database(),
+        'CREATE'
+    ) THEN
+        RAISE EXCEPTION
+            'Temporary CREATE privilege on database was not revoked from qbit_test_owner';
+    END IF;
+
+    IF NOT pg_catalog.has_database_privilege(
+        session_user,
+        current_database(),
+        'CREATE'
+    ) THEN
+        RAISE EXCEPTION
+            'Trusted postgres session unexpectedly lost CREATE on database';
+    END IF;
+END
+$dbschema01$;
+
 COMMIT;
 
 -- ===========================================================================
@@ -8326,6 +8383,12 @@ SELECT jsonb_build_object(
                 @> ARRAY['search_path=pg_catalog, qbit_bot_pervichnogo_obrascheniya']::text[]
            )
     ),
+    'temporary_database_create_revoked',
+    NOT pg_catalog.has_database_privilege(
+        'qbit_test_owner',
+        current_database(),
+        'CREATE'
+    ),
     'roles_unchanged',
     EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='qbit_test_owner')
     AND EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='qbit_test_deploy')
@@ -8337,5 +8400,5 @@ SELECT jsonb_build_object(
     'production_untouched',true,
     'canary_untouched',true,
     'result',
-    'DB-SCHEMA-01 SQL APPLIED: qbit_test renamed to qbit_bot_pervichnogo_obrascheniya; 25 tables and 28 current functions preserved, function bodies/search_path updated, owners/ACL/runtime isolation preserved; production/canary untouched.'
+    'DB-SCHEMA-01 SQL APPLIED: qbit_test renamed to qbit_bot_pervichnogo_obrascheniya; 25 tables and 28 current functions preserved, function bodies/search_path updated, owners/ACL/runtime isolation preserved, temporary database CREATE revoked; production/canary untouched.'
 ) AS db_schema_01_result;

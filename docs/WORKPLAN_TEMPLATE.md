@@ -22,7 +22,7 @@ DOC-03 не требует писать SQL. Частные сведения к�
 | Статус / ID | Зависимости | Один результат и критерий |
 |---|---|---|
 | [x] PRE-01 | DOC-03, разрешение на реализацию | Проверен паспорт сервера и выбран реализуемый путь Telegram: ручной Webhook n8n с проверкой secret header, транзакционной регистрацией в PostgreSQL и Respond to Webhook только после commit; фактическое испытание с отказами остаётся RT-01 |
-| [~] DB-SCHEMA-01 | DB-03 | Переименовать test schema `qbit_test` → `qbit_bot_pervichnogo_obrascheniya`, обновить fixed search_path/qualified function bodies, сохранить роли/ACL, проверить отсутствие старой schema и неизменность production/canary; после server-check можно переходить к PRE-02/n8n |
+| [~] DB-SCHEMA-01 | DB-03 | `sql/DB-SCHEMA-01_rename_qbit_schema.sql` v0.2: переименовать `qbit_test` → `qbit_bot_pervichnogo_obrascheniya`, обновить fixed search_path/qualified function bodies, сохранить роли/ACL; v0.1 откатился на 42501 из-за отсутствия database CREATE у owner-role; v0.2 временно grant/revoke CREATE внутри одной транзакции и проверяет отсутствие старой schema, сохранность 25 tables/28 functions и неизменность production/canary; после server-check можно переходить к PRE-02/n8n |
 | [~] PRE-02 | PRE-01 | Выбран OpenRouter и зафиксирован кандидат профиля в [PROCESSING_PROFILE](specs/PROCESSING_PROFILE.md); осталось runtime-подтверждение LLM/embedding, tokenizer/parser и калибровка similarity threshold на контрольном наборе |
 | [ ] PRE-03 | PRE-01 | Определены сроки хранения, резервные копии, восстановление, внешний мониторинг, канал аварийного оповещения, ограничения затрат и нагрузка для тестов |
 
