@@ -291,7 +291,7 @@ v0.1 ранее остановился на SQL parse до выполнения 
 - последующий запуск подтвердил, что source schema `qbit_test` больше не существует;
 - поэтому повторно выполнять rename теперь нельзя и не нужно.
 
-Подготовлен исправленный `sql/DB-SCHEMA-01F_verify_renamed_schema.sql` v0.3. Это read-only verifier:
+Подготовлен fresh-path verifier `sql/DB-SCHEMA-01F_v0.4_verify_renamed_schema.sql` v0.4. Это read-only verifier:
 - не выполняет ALTER/CREATE/DROP;
 - не выполняет INSERT/UPDATE/DELETE;
 - не выполняет GRANT/REVOKE;
@@ -315,7 +315,9 @@ v0.1 ранее остановился на SQL parse до выполнения 
 
 Запуск v0.2 прошёл все предыдущие проверки и остановился только на ошибочной финальной предпосылке `Production schema qbit unexpectedly missing`. Это ошибка verifier: DB-01 явно создавал только test schema и canary и прямо указывает, что production schema `qbit` не создаётся. В v0.3 требование наличия `qbit` удалено; canary `kompaniya_001_test` остаётся обязательной.
 
-**Следующий шаг:** Павел запускает только `DB-SCHEMA-01F_verify_renamed_schema.sql` v0.3 целиком одним Run и передаёт `db_schema_01f_result` либо полный ERROR/CONTEXT. Старый `DB-SCHEMA-01_rename_qbit_schema.sql` повторно не запускать.
+Повторный запуск, который Павел считал v0.3, снова вернул тот же `CONTEXT ... inline_code_block line 721`. Сверка доказала, что это тело v0.2: в v0.2 фраза `Production schema qbit unexpectedly missing` находится в file line 749, что соответствует примерно line 721 внутри DO-блока; в сохранённом v0.3 этой фразы нет, а file line 721 относится к runtime DML check. Чтобы исключить старую вкладку/кэш/смешанный текст, создан отдельный fresh-path файл v0.4 с новым именем и итоговым полем `verifier_version=DB-SCHEMA-01F_v0.4_fresh_path`.
+
+**Следующий шаг:** Павел открывает именно новый `DB-SCHEMA-01F_v0.4_verify_renamed_schema.sql`, вставляет его целиком в новый SQL Editor query и запускает одним Run. Перед запуском первая строка должна содержать `v0.4 FRESH-PATH`. Передаёт `db_schema_01f_result` либо полный ERROR/CONTEXT. Старый `DB-SCHEMA-01_rename_qbit_schema.sql` и прежние verifier повторно не запускать.
 
 После успешного DB-SCHEMA-01F текущая работа с Supabase считается завершённой. DB-04/DB-05 не являются незавершённой текущей работой Supabase: они намеренно заблокированы до PRE-02. Следующая сессия после verifier — PRE-02 в n8n/OpenRouter.
 
