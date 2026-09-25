@@ -184,34 +184,34 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 Тем самым серверно подтверждены AI/local PII separation, CAS памяти/диалога, deidentified memory window, flood-limit отдельно от thematic counter, предупреждения/логическая блокировка, отмена wait/reminders, stale-job invalidation и idempotent административная разблокировка. Production не затронут.
 
+## Последний завершённый блок
+
+**DB-03C3 — очередь обработки, аренда job и fencing/CAS завершения. Статус: завершено 25 сентября 2026 года.**
+
+Павел выполнил `sql/DB-03C3_processing_queue.sql` v0.1 целиком в self-hosted Supabase Studio. Сервер вернул:
+- `db03c3_status = applied`;
+- `functions_ok = true`;
+- `bot_execute_ok = true`;
+- `service_execute_denied = true`;
+- `one_active_job_index_ok = true`;
+- `runtime_direct_dml = false`;
+- `probe_rows_remaining = 0`;
+- результат: `DB-03C3 SQL APPLIED: queue claim/SKIP LOCKED/lease heartbeat/fencing/reclaim/dialog-version CAS verified; probe data removed; production untouched.`
+
+Тем самым серверно подтверждены atomic queue claim, один active job на dialog, monotonic fencing number, heartbeat текущего worker, expired lease reclaim, запрет stale heartbeat/completion после нового входа, retry/reclaim и terminal success/error/cancel paths. Production не затронут.
+
 ## Текущая задача
 
-**DB-03C3 — очередь обработки, аренда job и fencing/CAS завершения. Статус: в работе.**
+**DB-03C4 — исходящие действия, подтверждение отправки, напоминания и потеря без ответа. Статус: не начато.**
 
-Подготовлен полный SQL `sql/DB-03C3_processing_queue.sql` v0.1 только для `qbit_test`.
+Нужно подготовить 5 test-only PostgreSQL-функций:
+- `sozdat_ishodyashchee_deystvie`;
+- `zabrat_ishodyashchee_deystvie`;
+- `zafiksirovat_rezultat_ishodyashchego`;
+- `podgotovit_napominanie`;
+- `zafiksirovat_poteryu_bez_otveta`.
 
-Он создаёт три `SECURITY DEFINER` функции, все только для `qbit_test_bot`:
-- `zabrat_zadanie_obrabotki(jsonb)`;
-- `prodlit_arendu_zadaniya(jsonb)`;
-- `zavershit_zadanie_obrabotki(jsonb)`.
-
-Ключевые свойства:
-- claim выбирает due `ozhidaet/povtor` либо expired `v_rabote` через `FOR UPDATE OF z,d SKIP LOCKED`;
-- row lock `dialogi` сериализует конкурирующие claims одного диалога; `uq_zadaniya_dialog_vrabote` остаётся DB-backstop;
-- каждый claim/reclaim увеличивает `popytki` и монотонный `nomer_vladeniya`;
-- expired lease может быть перехвачен новым worker; старый fencing number после этого не может heartbeat/complete;
-- pending job того же dialog не выдаётся, пока есть active `v_rabote`;
-- due stale/blocked/human/closed jobs при claim переводятся в `otmeneno`;
-- heartbeat требует live lease + worker + fencing и сверяет текущую dialog version/state;
-- completion/retry/cancel/error требует live lease + current owner/fencing + expected/current dialog version;
-- `povtor` требует future `sleduyushchiy_zapusk` и error code; `oshibka` требует error code;
-- LLM/API не держат открытую SQL-транзакцию.
-
-SAVEPOINT-probe проверяет one-active dialog, wrong/correct heartbeat, stale heartbeat/completion после нового входа, stale cleanup, expired lease reclaim, old-worker fencing, retry/reclaim, success, permanent error и explicit cancel.
-
-Статический аудит: 3 функции, 3 compiler directives, 3 фиксированных `search_path`, 3 COMMENT/REVOKE/GRANT; необъявленных/неиспользуемых `v_*` нет; `RETURNING` квалифицированы; production/canary объекты не создаются; SAVEPOINT/rollback сохранены.
-
-**Не выполнено:** DB-03C3 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03c3_result` либо полный ERROR/CONTEXT.
+Обязательные свойства: stable-key idempotency, lease/fencing исходящей очереди, `neizvestno` без blind retry, только подтверждённая отправка меняет бизнес-состояние/t0/напоминания, opt-out/block/handoff/version проверяются до отправки, reminder1/reminder2 считаются от одного t0, потеря — только после подтверждённого reminder2 и отдельного срока без нового входа. Production, workflow и Credentials не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
