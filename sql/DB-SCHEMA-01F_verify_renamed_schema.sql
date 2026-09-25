@@ -1,4 +1,4 @@
--- DB-SCHEMA-01F v0.1: finalize/verify already-renamed qBit project schema
+-- DB-SCHEMA-01F v0.2: finalize/verify already-renamed qBit project schema
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 --
 -- EXPECTED CURRENT STATE
@@ -186,7 +186,23 @@ BEGIN
           ON n.oid = p.pronamespace
         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
           AND p.prokind = 'f'
-          AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'p_dannye jsonb'
+          AND (
+                (
+                    p.proname='zaregistrirovat_vhod_klienta'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_vhod jsonb'
+                )
+                OR (
+                    p.proname='sohranit_vlozhenie'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb, p_soderzhimoe bytea'
+                )
+                OR (
+                    p.proname NOT IN (
+                        'zaregistrirovat_vhod_klienta',
+                        'sohranit_vlozhenie'
+                    )
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb'
+                )
+           )
     )
     SELECT count(*)
       INTO v_function_count
@@ -249,7 +265,23 @@ BEGIN
             ON n.oid = p.pronamespace
          WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.prokind = 'f'
-           AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'p_dannye jsonb'
+           AND (
+                (
+                    p.proname='zaregistrirovat_vhod_klienta'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_vhod jsonb'
+                )
+                OR (
+                    p.proname='sohranit_vlozhenie'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb, p_soderzhimoe bytea'
+                )
+                OR (
+                    p.proname NOT IN (
+                        'zaregistrirovat_vhod_klienta',
+                        'sohranit_vlozhenie'
+                    )
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb'
+                )
+           )
            AND p.proname IN (
                 'zaregistrirovat_vhod_klienta',
                 'sohranit_vlozhenie',
@@ -302,7 +334,23 @@ BEGIN
         ON n.oid = p.pronamespace
      WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
        AND p.prokind = 'f'
-       AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'p_dannye jsonb'
+       AND (
+                (
+                    p.proname='zaregistrirovat_vhod_klienta'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_vhod jsonb'
+                )
+                OR (
+                    p.proname='sohranit_vlozhenie'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb, p_soderzhimoe bytea'
+                )
+                OR (
+                    p.proname NOT IN (
+                        'zaregistrirovat_vhod_klienta',
+                        'sohranit_vlozhenie'
+                    )
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb'
+                )
+           )
        AND p.proname IN (
             'zaregistrirovat_vhod_klienta',
             'sohranit_vlozhenie',
@@ -355,7 +403,23 @@ BEGIN
         ON r.oid = p.proowner
      WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
        AND p.prokind = 'f'
-       AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'p_dannye jsonb'
+       AND (
+                (
+                    p.proname='zaregistrirovat_vhod_klienta'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_vhod jsonb'
+                )
+                OR (
+                    p.proname='sohranit_vlozhenie'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb, p_soderzhimoe bytea'
+                )
+                OR (
+                    p.proname NOT IN (
+                        'zaregistrirovat_vhod_klienta',
+                        'sohranit_vlozhenie'
+                    )
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb'
+                )
+           )
        AND p.proname IN (
             'zaregistrirovat_vhod_klienta',
             'sohranit_vlozhenie',
@@ -401,7 +465,23 @@ BEGIN
         ON n.oid = p.pronamespace
      WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
        AND p.prokind = 'f'
-       AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'p_dannye jsonb'
+       AND (
+                (
+                    p.proname='zaregistrirovat_vhod_klienta'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_vhod jsonb'
+                )
+                OR (
+                    p.proname='sohranit_vlozhenie'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb, p_soderzhimoe bytea'
+                )
+                OR (
+                    p.proname NOT IN (
+                        'zaregistrirovat_vhod_klienta',
+                        'sohranit_vlozhenie'
+                    )
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb'
+                )
+           )
        AND p.proname IN (
             'zaregistrirovat_vhod_klienta',
             'sohranit_vlozhenie',
@@ -447,7 +527,23 @@ BEGIN
             ON n.oid = p.pronamespace
          WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.prokind = 'f'
-           AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'p_dannye jsonb'
+           AND (
+                (
+                    p.proname='zaregistrirovat_vhod_klienta'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_vhod jsonb'
+                )
+                OR (
+                    p.proname='sohranit_vlozhenie'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb, p_soderzhimoe bytea'
+                )
+                OR (
+                    p.proname NOT IN (
+                        'zaregistrirovat_vhod_klienta',
+                        'sohranit_vlozhenie'
+                    )
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb'
+                )
+           )
            AND p.proname IN (
                 'zaregistrirovat_vhod_klienta',
                 'sohranit_vlozhenie',
@@ -504,7 +600,23 @@ BEGIN
             ON n.oid = p.pronamespace
          WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.prokind = 'f'
-           AND pg_catalog.pg_get_function_identity_arguments(p.oid) = 'p_dannye jsonb'
+           AND (
+                (
+                    p.proname='zaregistrirovat_vhod_klienta'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_vhod jsonb'
+                )
+                OR (
+                    p.proname='sohranit_vlozhenie'
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb, p_soderzhimoe bytea'
+                )
+                OR (
+                    p.proname NOT IN (
+                        'zaregistrirovat_vhod_klienta',
+                        'sohranit_vlozhenie'
+                    )
+                    AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb'
+                )
+           )
            AND p.proname IN (
                 'zaregistrirovat_vhod_klienta',
                 'sohranit_vlozhenie',
@@ -682,8 +794,23 @@ SELECT jsonb_build_object(
                 ON n.oid=p.pronamespace
              WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
                AND p.prokind='f'
-               AND pg_catalog.pg_get_function_identity_arguments(p.oid)
-                   ='p_dannye jsonb'
+               AND (
+                    (
+                        p.proname='zaregistrirovat_vhod_klienta'
+                        AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_vhod jsonb'
+                    )
+                    OR (
+                        p.proname='sohranit_vlozhenie'
+                        AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb, p_soderzhimoe bytea'
+                    )
+                    OR (
+                        p.proname NOT IN (
+                            'zaregistrirovat_vhod_klienta',
+                            'sohranit_vlozhenie'
+                        )
+                        AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb'
+                    )
+               )
                AND p.proname IN (
                     'zaregistrirovat_vhod_klienta',
                     'sohranit_vlozhenie',

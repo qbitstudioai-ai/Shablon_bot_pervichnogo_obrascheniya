@@ -291,7 +291,7 @@ v0.1 ранее остановился на SQL parse до выполнения 
 - последующий запуск подтвердил, что source schema `qbit_test` больше не существует;
 - поэтому повторно выполнять rename теперь нельзя и не нужно.
 
-Подготовлен `sql/DB-SCHEMA-01F_verify_renamed_schema.sql` v0.1. Это read-only verifier:
+Подготовлен исправленный `sql/DB-SCHEMA-01F_verify_renamed_schema.sql` v0.2. Это read-only verifier:
 - не выполняет ALTER/CREATE/DROP;
 - не выполняет INSERT/UPDATE/DELETE;
 - не выполняет GRANT/REVOKE;
@@ -300,7 +300,7 @@ v0.1 ранее остановился на SQL parse до выполнения 
 - проверяет, что временный database CREATE у owner-role отозван;
 - проверяет отсутствие PUBLIC schema privilege;
 - проверяет 25 таблиц;
-- проверяет ровно 28 ожидаемых `SECURITY DEFINER` функций `(p_dannye jsonb)`;
+- проверяет ровно 28 ожидаемых `SECURITY DEFINER` функций по точным сигнатурам: 26×`(p_dannye jsonb)`, `zaregistrirovat_vhod_klienta(p_vhod jsonb)` и `sohranit_vlozhenie(p_dannye jsonb, p_soderzhimoe bytea)`;
 - проверяет fixed `search_path=pg_catalog, qbit_bot_pervichnogo_obrascheniya`;
 - проверяет отсутствие `qbit_test.` внутри definitions только на allowlisted `prokind='f'`, поэтому aggregate-объекты не попадают в `pg_get_functiondef()`;
 - проверяет EXECUTE distribution: bot=17, service=10, dash_admin=1 и PUBLIC=0;
@@ -310,7 +310,9 @@ v0.1 ранее остановился на SQL parse до выполнения 
 
 Исходные SQL DB-01…DB-03 в GitHub уже используют canonical schema `qbit_bot_pervichnogo_obrascheniya`; имена ролей `qbit_test_*` оставлены намеренно.
 
-**Следующий шаг:** Павел запускает только `DB-SCHEMA-01F_verify_renamed_schema.sql` целиком одним Run и передаёт `db_schema_01f_result` либо полный ERROR/CONTEXT. Старый `DB-SCHEMA-01_rename_qbit_schema.sql` повторно не запускать.
+Первый запуск verifier v0.1 корректно подтвердил уже переименованную schema, но остановился на своей неверной проверке количества функций: считал только сигнатуру `(p_dannye jsonb)` и получил 26 вместо проектных 28. Две функции имеют другие корректные сигнатуры: `zaregistrirovat_vhod_klienta(p_vhod jsonb)` и `sohranit_vlozhenie(p_dannye jsonb, p_soderzhimoe bytea)`. В v0.2 все проверки функций используют точный allowlist сигнатур.
+
+**Следующий шаг:** Павел запускает только `DB-SCHEMA-01F_verify_renamed_schema.sql` v0.2 целиком одним Run и передаёт `db_schema_01f_result` либо полный ERROR/CONTEXT. Старый `DB-SCHEMA-01_rename_qbit_schema.sql` повторно не запускать.
 
 После успешного DB-SCHEMA-01F текущая работа с Supabase считается завершённой. DB-04/DB-05 не являются незавершённой текущей работой Supabase: они намеренно заблокированы до PRE-02. Следующая сессия после verifier — PRE-02 в n8n/OpenRouter.
 
