@@ -2,6 +2,8 @@
 
 Статус: нормативный контракт **DB-00 v0.1**. Он фиксирует структуру PostgreSQL, которой должны соответствовать DB-01…DB-05 и draft workflow `client_bot_template_v0.2.json` / `service_telegram_operator_v0.1.json`. DB-01 и DB-02 применены и проверены в test-контуре. DB-03A, DB-03B, весь DB-03C и весь DB-03D применены и проверены. DB-03V v0.2 также успешно проверен: crossing `bot v_rabote → Take → late confirmed` сохраняет внешний confirmed-факт, но не применяет stale effects и не возвращает wait/t0/reminders. Родительский DB-03 завершён.
 
+Для эталонной test-установки qBit canonical schema name — `qbit_bot_pervichnogo_obrascheniya`. Роли исторически остаются `qbit_test_*` до отдельной задачи переименования ролей; имя schema не выводится из текста клиента/LLM.
+
 ## Граница контракта
 
 Контракт собран по `DATA_DICTIONARY`, `RELIABILITY_AND_MEMORY`, `BOT_CORE_WORKFLOW`, `OPERATOR_HANDOFF`, `INTEGRATION_CONTRACTS`, `ACCESS_AND_ISOLATION`, `CONVERSATION_LIFECYCLE`, `KNOWLEDGE_INGESTION` и `NAMING_CONVENTIONS`.
@@ -47,7 +49,7 @@
 | `<kod>_<sreda>_dash_read` | да | сервер дашборда: только разрешённые представления/функции чтения |
 | `<kod>_<sreda>_dash_admin` | да | сервер административной части: узкие административные функции, без произвольного DDL/SQL |
 
-Для qBit: schema test — `qbit_test`, prod — `qbit`; прикладные роли — `qbit_test_bot`, `qbit_test_sluzhebnyy`, … и `qbit_prod_bot`, `qbit_prod_sluzhebnyy`, … . Production-роли/права не применяются без отдельного разрешения.
+Для qBit: schema test — `qbit_bot_pervichnogo_obrascheniya`, prod — `qbit`; прикладные роли — `qbit_test_bot`, `qbit_test_sluzhebnyy`, … и `qbit_prod_bot`, `qbit_prod_sluzhebnyy`, … . Production-роли/права не применяются без отдельного разрешения.
 
 Прикладные роли получают `USAGE` только своей schema и `EXECUTE` только перечисленных ниже функций. Прямой `SELECT/INSERT/UPDATE/DELETE` для workflow по умолчанию не выдаётся. Исключения допускаются позже только отдельным решением и тестом изоляции. Служебная роль не получает прямого чтения архива клиентских сообщений: нужный текст/медиа выдаётся ей только узкой функцией очереди зеркала.
 

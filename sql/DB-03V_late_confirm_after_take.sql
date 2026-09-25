@@ -1,6 +1,6 @@
 -- DB-03V v0.2: integration probe for late confirmed bot send after operator Take
 -- Project: Shablon_bot_pervichnogo_obrascheniya
--- TARGET: qbit_test ONLY, self-hosted PostgreSQL 17.6
+-- TARGET: qbit_bot_pervichnogo_obrascheniya ONLY, self-hosted PostgreSQL 17.6
 --
 -- PURPOSE
 --   Prove the critical crossing scenario:
@@ -15,7 +15,7 @@
 --   * All probe rows are inside SAVEPOINT and rolled back before COMMIT.
 --   * The direct UPDATE to v_rabote below intentionally simulates the exact
 --     state produced by C4 claim for THIS probe action only. It avoids consuming
---     unrelated due actions that may already exist in qbit_test.
+--     unrelated due actions that may already exist in qbit_bot_pervichnogo_obrascheniya.
 --   * Production schema qbit is never referenced for writes.
 
 BEGIN;
@@ -57,17 +57,17 @@ BEGIN
     ]
     LOOP
         IF pg_catalog.to_regprocedure(
-            pg_catalog.format('qbit_test.%s', v_required)
+            pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%s', v_required)
         ) IS NULL THEN
             RAISE EXCEPTION
-                'Required function qbit_test.% is missing',
+                'Required function qbit_bot_pervichnogo_obrascheniya.% is missing',
                 v_required;
         END IF;
     END LOOP;
 
     IF pg_catalog.strpos(
         pg_catalog.pg_get_functiondef(
-            'qbit_test.zafiksirovat_rezultat_ishodyashchego(jsonb)'::regprocedure
+            'qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(jsonb)'::regprocedure
         ),
         'v_action.istochnik = ''menedzher'''
     ) = 0 THEN
@@ -114,7 +114,7 @@ DECLARE
     v_bot_mirror_effects_applied boolean;
 BEGIN
     -- One allowed manager for this disposable Take.
-    INSERT INTO qbit_test.menedzhery_telegram AS new_manager (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram AS new_manager (
         telegram_user_id,
         otobrazhaemoe_imya,
         aktiven,
@@ -139,7 +139,7 @@ BEGIN
     -- initial processing job; Take must later cancel that internal job.
     SELECT *
       INTO v_ingress
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03v_client_ingress',
@@ -170,7 +170,7 @@ BEGIN
 
     SELECT d.*
       INTO v_dialog_before
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id = v_ingress.dialog_id
      FOR UPDATE;
 
@@ -181,7 +181,7 @@ BEGIN
     -- will expose the bug.
     SELECT *
       INTO v_action_create
-      FROM qbit_test.sozdat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id', 'db03v_bot_action_create',
             'klyuch_povtora', 'db03v_bot_action',
@@ -215,8 +215,8 @@ BEGIN
 
     -- Simulate the exact state produced by C4 claim for THIS action only.
     -- This intentionally avoids a queue-wide claim that could consume unrelated
-    -- qbit_test work.
-    UPDATE qbit_test.ishodyashchie_deystviya AS a_claim
+    -- qbit_bot_pervichnogo_obrascheniya work.
+    UPDATE qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a_claim
        SET status = 'v_rabote',
            popytki = a_claim.popytki + 1,
            vladelec_arendy = v_worker,
@@ -237,7 +237,7 @@ BEGIN
             'DB-03V could not transition probe action to v_rabote';
     END IF;
 
-    UPDATE qbit_test.soobshcheniya AS m_claim
+    UPDATE qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m_claim
        SET status_otpravki = 'v_rabote'
      WHERE m_claim.id = v_action_create.soobshchenie_id;
 
@@ -245,7 +245,7 @@ BEGIN
     -- the bot external call is still in flight.
     SELECT *
       INTO v_take_event
-      FROM qbit_test.zaregistrirovat_sluzhebnoe_sobytie(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_sluzhebnoe_sobytie(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03v_take_event',
@@ -270,7 +270,7 @@ BEGIN
 
     SELECT *
       INTO v_take
-      FROM qbit_test.zabrat_dialog_operatorom(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_dialog_operatorom(
         jsonb_build_object(
             'operaciya_id', 'db03v_take',
             'sobytie_id', v_take_event.sobytie_id,
@@ -290,17 +290,17 @@ BEGIN
 
     SELECT d.*
       INTO v_dialog_after_take
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id = v_ingress.dialog_id;
 
     SELECT a.*
       INTO v_action_after_take
-      FROM qbit_test.ishodyashchie_deystviya AS a
+      FROM qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
      WHERE a.id = v_action_create.deystvie_id;
 
     SELECT m.*
       INTO v_message_after_take
-      FROM qbit_test.soobshcheniya AS m
+      FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
      WHERE m.id = v_action_create.soobshchenie_id;
 
     -- This is the key precondition: Take must NOT erase an already-started
@@ -330,7 +330,7 @@ BEGIN
     -- External Telegram API now reports success AFTER Take.
     SELECT *
       INTO v_late_confirm
-      FROM qbit_test.zafiksirovat_rezultat_ishodyashchego(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(
         jsonb_build_object(
             'operaciya_id', 'db03v_late_confirm',
             'deystvie_id', v_action_create.deystvie_id,
@@ -344,33 +344,33 @@ BEGIN
 
     SELECT d.*
       INTO v_dialog_after_confirm
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id = v_ingress.dialog_id;
 
     SELECT a.*
       INTO v_action_after_confirm
-      FROM qbit_test.ishodyashchie_deystviya AS a
+      FROM qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
      WHERE a.id = v_action_create.deystvie_id;
 
     SELECT m.*
       INTO v_message_after_confirm
-      FROM qbit_test.soobshcheniya AS m
+      FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
      WHERE m.id = v_action_create.soobshchenie_id;
 
     SELECT count(*)
       INTO v_reminder_count
-      FROM qbit_test.napominaniya AS n
+      FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
      WHERE n.dialog_id = v_ingress.dialog_id;
 
     SELECT count(*)
       INTO v_goal_count
-      FROM qbit_test.celevye_sobytiya AS g
+      FROM qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya AS g
      WHERE g.dialog_id = v_ingress.dialog_id
        AND g.kod_celi = 'db03v_stale_goal_must_not_apply';
 
     SELECT count(*)
       INTO v_stage_event_count
-      FROM qbit_test.sobytiya_etapov AS se
+      FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov AS se
      WHERE se.dialog_id = v_ingress.dialog_id
        AND se.novyy_etap = 'db03v_stale_stage_must_not_apply';
 
@@ -383,7 +383,7 @@ BEGIN
             true
         )
       INTO v_bot_mirror_count, v_bot_mirror_effects_applied
-      FROM qbit_test.sobytiya_zerkala_operatora AS z
+      FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora AS z
      WHERE z.klyuch_idempotentnosti =
         'bot_confirmed:' || v_action_create.soobshchenie_id::text;
 
@@ -429,7 +429,7 @@ BEGIN
     -- Take must also have canceled the original processing job from ingress.
     IF EXISTS (
         SELECT 1
-          FROM qbit_test.zadaniya_obrabotki AS j
+          FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS j
          WHERE j.dialog_id = v_ingress.dialog_id
            AND j.status IN ('ozhidaet', 'povtor', 'v_rabote')
     ) THEN
@@ -450,12 +450,12 @@ DO $db03v$
 BEGIN
     IF EXISTS (
         SELECT 1
-          FROM qbit_test.menedzhery_telegram AS m
+          FROM qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram AS m
          WHERE m.telegram_user_id = 'db03v_manager'
     )
     OR EXISTS (
         SELECT 1
-          FROM qbit_test.sobytiya_integraciy AS e
+          FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy AS e
          WHERE e.akkaunt_istochnika_id IN (
             'db03v_client_bot',
             'db03v_service_bot'
@@ -463,12 +463,12 @@ BEGIN
     )
     OR EXISTS (
         SELECT 1
-          FROM qbit_test.identifikatory_kanalov AS i
+          FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
          WHERE i.akkaunt_kanala_id = 'db03v_client_bot'
     )
     OR EXISTS (
         SELECT 1
-          FROM qbit_test.ishodyashchie_deystviya AS a
+          FROM qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
          WHERE a.klyuch_povtora = 'db03v_bot_action'
     ) THEN
         RAISE EXCEPTION
@@ -488,7 +488,7 @@ COMMIT;
 SELECT jsonb_build_object(
     'db03v_status', 'verified',
     'database', current_database(),
-    'schema', 'qbit_test',
+    'schema', 'qbit_bot_pervichnogo_obrascheniya',
     'late_confirm_fact_preserved', true,
     'human_owner_preserved', true,
     'stale_effects_suppressed', true,

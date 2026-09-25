@@ -4,7 +4,7 @@
 --
 -- TARGET
 --   self-hosted Supabase / PostgreSQL 17.6
---   schema: qbit_test ONLY
+--   schema: qbit_bot_pervichnogo_obrascheniya ONLY
 --   owner:  qbit_test_owner
 --
 -- REQUIRES
@@ -85,10 +85,10 @@ BEGIN
     ]
     LOOP
         IF pg_catalog.to_regclass(
-            pg_catalog.format('qbit_test.%I', v_required_table)
+            pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I', v_required_table)
         ) IS NULL THEN
             RAISE EXCEPTION
-                'Required table qbit_test.% is missing',
+                'Required table qbit_bot_pervichnogo_obrascheniya.% is missing',
                 v_required_table;
         END IF;
     END LOOP;
@@ -104,11 +104,11 @@ BEGIN
               FROM pg_catalog.pg_proc AS p
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = p.pronamespace
-             WHERE n.nspname = 'qbit_test'
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
                AND p.proname = v_required_fn
         ) THEN
             RAISE EXCEPTION
-                'Required prior function qbit_test.% is missing',
+                'Required prior function qbit_bot_pervichnogo_obrascheniya.% is missing',
                 v_required_fn;
         END IF;
     END LOOP;
@@ -126,18 +126,18 @@ BEGIN
               FROM pg_catalog.pg_proc AS p
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = p.pronamespace
-             WHERE n.nspname = 'qbit_test'
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
                AND p.proname = v_new_fn
         ) THEN
             RAISE EXCEPTION
-                'DB-03C4 function qbit_test.% already exists; stop instead of overwriting',
+                'DB-03C4 function qbit_bot_pervichnogo_obrascheniya.% already exists; stop instead of overwriting',
                 v_new_fn;
         END IF;
     END LOOP;
 
-    IF pg_catalog.to_regclass('qbit_test.uq_ishod_klyuch_povtora') IS NULL
-       OR pg_catalog.to_regclass('qbit_test.uq_napominaniya_dialog_pok_tip') IS NULL
-       OR pg_catalog.to_regclass('qbit_test.uq_zerkalo_klyuch') IS NULL THEN
+    IF pg_catalog.to_regclass('qbit_bot_pervichnogo_obrascheniya.uq_ishod_klyuch_povtora') IS NULL
+       OR pg_catalog.to_regclass('qbit_bot_pervichnogo_obrascheniya.uq_napominaniya_dialog_pok_tip') IS NULL
+       OR pg_catalog.to_regclass('qbit_bot_pervichnogo_obrascheniya.uq_zerkalo_klyuch') IS NULL THEN
         RAISE EXCEPTION
             'Required outgoing/reminder/mirror unique indexes are missing';
     END IF;
@@ -150,7 +150,7 @@ SET LOCAL ROLE qbit_test_owner;
 -- 1. CREATE LOGICAL OUTGOING ACTION BEFORE EXTERNAL API
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.sozdat_ishodyashchee_deystvie(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -167,7 +167,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -292,14 +292,14 @@ BEGIN
 
     SELECT a.*
       INTO v_existing
-      FROM qbit_test.ishodyashchie_deystviya AS a
+      FROM qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
      WHERE a.klyuch_povtora = v_key;
 
     IF FOUND THEN
         IF v_existing.soobshchenie_id IS NOT NULL THEN
             SELECT m.*
               INTO v_existing_message
-              FROM qbit_test.soobshcheniya AS m
+              FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
              WHERE m.id = v_existing.soobshchenie_id;
         END IF;
 
@@ -348,7 +348,7 @@ BEGIN
 
     SELECT d.*
       INTO v_dialog
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id = v_dialog_id
      FOR UPDATE;
 
@@ -362,7 +362,7 @@ BEGIN
 
     SELECT i.*
       INTO v_identity
-      FROM qbit_test.identifikatory_kanalov AS i
+      FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
      WHERE i.id = v_dialog.identifikator_kanala_id
      FOR UPDATE;
 
@@ -390,7 +390,7 @@ BEGIN
     END IF;
 
     IF v_kind = 'soobshchenie' THEN
-        INSERT INTO qbit_test.soobshcheniya AS new_message (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS new_message (
             dialog_id,
             napravlenie,
             avtor,
@@ -422,7 +422,7 @@ BEGIN
         INTO v_message_id;
     END IF;
 
-    INSERT INTO qbit_test.ishodyashchie_deystviya AS new_action (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS new_action (
         dialog_id,
         soobshchenie_id,
         vid_deystviya,
@@ -468,14 +468,14 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.sozdat_ishodyashchee_deystvie(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(jsonb) IS
 'DB-03C4: сохраняет stable logical outgoing action до внешнего API; проверяет bot owner/version/block и opt-out только для initiative; waiting effects применяются только после confirmed send.';
 
 -- ===========================================================================
 -- 2. CLAIM OUTGOING ACTION WITH LEASE/FENCING
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.zabrat_ishodyashchee_deystvie(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -502,7 +502,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -562,10 +562,10 @@ BEGIN
             i.logicheski_zablokirovan,
             i.zapret_iniciativnyh_soobshcheniy
           INTO v_candidate
-          FROM qbit_test.ishodyashchie_deystviya AS a
-          JOIN qbit_test.dialogi AS d
+          FROM qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
+          JOIN qbit_bot_pervichnogo_obrascheniya.dialogi AS d
             ON d.id = a.dialog_id
-          JOIN qbit_test.identifikatory_kanalov AS i
+          JOIN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
             ON i.id = d.identifikator_kanala_id
          WHERE (
                 (
@@ -619,7 +619,7 @@ BEGIN
         END;
 
         IF v_cleanup_reason IS NOT NULL THEN
-            UPDATE qbit_test.ishodyashchie_deystviya AS a_cancel
+            UPDATE qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a_cancel
                SET status = 'otmeneno',
                    vladelec_arendy = NULL,
                    arenda_do = NULL,
@@ -629,7 +629,7 @@ BEGIN
              WHERE a_cancel.id = v_candidate.id;
 
             IF v_candidate.soobshchenie_id IS NOT NULL THEN
-                UPDATE qbit_test.soobshcheniya AS m_cancel
+                UPDATE qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m_cancel
                    SET status_otpravki = 'otmeneno'
                  WHERE m_cancel.id = v_candidate.soobshchenie_id
                    AND m_cancel.status_otpravki IN ('zaplanirovano', 'povtor', 'v_rabote');
@@ -643,7 +643,7 @@ BEGIN
             AND v_candidate.arenda_do <= v_now
         );
 
-        UPDATE qbit_test.ishodyashchie_deystviya AS a_claim
+        UPDATE qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a_claim
            SET status = 'v_rabote',
                popytki = a_claim.popytki + 1,
                vladelec_arendy = v_worker,
@@ -673,7 +673,7 @@ BEGIN
           INTO v_claimed;
 
         IF v_claimed.soobshchenie_id IS NOT NULL THEN
-            UPDATE qbit_test.soobshcheniya AS m_claim
+            UPDATE qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m_claim
                SET status_otpravki = 'v_rabote'
              WHERE m_claim.id = v_claimed.soobshchenie_id;
         END IF;
@@ -705,14 +705,14 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.zabrat_ishodyashchee_deystvie(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(jsonb) IS
 'DB-03C4: claim/reclaim outgoing actions через SKIP LOCKED, lease/fencing и final recheck dialog version/owner/block/initiative opt-out; neizvestno не claimится.';
 
 -- ===========================================================================
 -- 3. RECORD EXTERNAL RESULT; ONLY CONFIRMED APPLIES DEPENDENT EFFECTS
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.zafiksirovat_rezultat_ishodyashchego(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -731,7 +731,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -808,7 +808,7 @@ BEGIN
 
     SELECT a.*
       INTO v_action
-      FROM qbit_test.ishodyashchie_deystviya AS a
+      FROM qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
      WHERE a.id = v_action_id
      FOR UPDATE;
 
@@ -858,13 +858,13 @@ BEGIN
 
     SELECT d.*
       INTO v_dialog
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id = v_action.dialog_id
      FOR UPDATE;
 
     SELECT i.*
       INTO v_identity
-      FROM qbit_test.identifikatory_kanalov AS i
+      FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
      WHERE i.id = v_dialog.identifikator_kanala_id
      FOR UPDATE;
 
@@ -886,7 +886,7 @@ BEGIN
     -- confirmed/unknown/error are facts about an API attempt that already happened
     -- and must still be persisted even if dialog state changed meanwhile.
     IF v_status = 'povtor' AND NOT v_effects_allowed THEN
-        UPDATE qbit_test.ishodyashchie_deystviya AS a_cancel
+        UPDATE qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a_cancel
            SET status = 'otmeneno',
                vladelec_arendy = NULL,
                arenda_do = NULL,
@@ -896,7 +896,7 @@ BEGIN
          WHERE a_cancel.id = v_action_id;
 
         IF v_action.soobshchenie_id IS NOT NULL THEN
-            UPDATE qbit_test.soobshcheniya AS m_cancel
+            UPDATE qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m_cancel
                SET status_otpravki = 'otmeneno'
              WHERE m_cancel.id = v_action.soobshchenie_id;
         END IF;
@@ -911,7 +911,7 @@ BEGIN
         RETURN;
     END IF;
 
-    UPDATE qbit_test.ishodyashchie_deystviya AS a_done
+    UPDATE qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a_done
        SET status = v_status,
            vladelec_arendy = NULL,
            arenda_do = NULL,
@@ -944,7 +944,7 @@ BEGIN
      WHERE a_done.id = v_action_id;
 
     IF v_action.soobshchenie_id IS NOT NULL THEN
-        UPDATE qbit_test.soobshcheniya AS m_done
+        UPDATE qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m_done
            SET status_otpravki = v_status,
                vneshnee_soobshchenie_id = CASE
                    WHEN v_status = 'podtverzhdeno' THEN v_external_id
@@ -962,7 +962,7 @@ BEGIN
         IF (v_action.payload ? 'napominanie_id') THEN
             v_reminder_id := NULLIF(v_action.payload->>'napominanie_id', '')::uuid;
 
-            UPDATE qbit_test.napominaniya AS n_result
+            UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_result
                SET status = CASE
                    WHEN v_status = 'povtor' THEN 'v_rabote'
                    WHEN v_status = 'neizvestno' THEN 'neizvestno'
@@ -994,7 +994,7 @@ BEGIN
     IF v_action.soobshchenie_id IS NOT NULL THEN
         SELECT m.*
           INTO v_message
-          FROM qbit_test.soobshcheniya AS m
+          FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
          WHERE m.id = v_action.soobshchenie_id
          FOR UPDATE;
     END IF;
@@ -1006,7 +1006,7 @@ BEGIN
 
         SELECT n.tip
           INTO v_reminder_type
-          FROM qbit_test.napominaniya AS n
+          FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
          WHERE n.id = v_reminder_id
            AND n.dialog_id = v_action.dialog_id
          FOR UPDATE;
@@ -1018,7 +1018,7 @@ BEGIN
                 v_reminder_id;
         END IF;
 
-        UPDATE qbit_test.napominaniya AS n_confirm
+        UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_confirm
            SET status = 'podtverzhdeno',
                vremya_fakticheskoy_otpravki = v_confirm_time,
                prichina = CASE
@@ -1038,7 +1038,7 @@ BEGIN
                     v_action_id;
             END IF;
 
-            INSERT INTO qbit_test.napominaniya (
+            INSERT INTO qbit_bot_pervichnogo_obrascheniya.napominaniya (
                 dialog_id,
                 tip,
                 t0,
@@ -1084,7 +1084,7 @@ BEGIN
         IF v_effects_allowed THEN
             IF v_next_stage IS NOT NULL
                AND v_next_stage IS DISTINCT FROM v_dialog.etap THEN
-            INSERT INTO qbit_test.sobytiya_etapov (
+            INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov (
                 dialog_id,
                 staryy_etap,
                 novyy_etap,
@@ -1105,7 +1105,7 @@ BEGIN
             END IF;
 
             IF v_goal_code IS NOT NULL THEN
-            INSERT INTO qbit_test.celevye_sobytiya (
+            INSERT INTO qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya (
                 polzovatel_id,
                 dialog_id,
                 kod_celi,
@@ -1139,7 +1139,7 @@ BEGIN
 
             v_new_generation := v_dialog.pokolenie_ozhidaniya + 1;
 
-            UPDATE qbit_test.dialogi AS d_wait
+            UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi AS d_wait
                SET etap = COALESCE(v_next_stage, d_wait.etap),
                    status = 'ozhidaet_otveta',
                    poslednee_ishodyashchee_id = v_action.soobshchenie_id,
@@ -1149,7 +1149,7 @@ BEGIN
                    vremya_obnovleniya = clock_timestamp()
              WHERE d_wait.id = v_dialog.id;
 
-            INSERT INTO qbit_test.napominaniya (
+            INSERT INTO qbit_bot_pervichnogo_obrascheniya.napominaniya (
                 dialog_id,
                 tip,
                 t0,
@@ -1186,7 +1186,7 @@ BEGIN
         ELSIF v_close_result IS NOT NULL THEN
             v_new_generation := v_dialog.pokolenie_ozhidaniya + 1;
 
-            UPDATE qbit_test.dialogi AS d_close
+            UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi AS d_close
                SET etap = COALESCE(v_next_stage, d_close.etap),
                    status = 'zavershen',
                    rezultat = v_close_result,
@@ -1202,14 +1202,14 @@ BEGIN
              RETURNING d_close.versiya_dialoga
              INTO v_new_dialog_version;
 
-            UPDATE qbit_test.napominaniya AS n_close
+            UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_close
                SET status = 'otmeneno',
                    prichina = 'dialog_zavershen',
                    vremya_obnovleniya = clock_timestamp()
              WHERE n_close.dialog_id = v_dialog.id
                AND n_close.status IN ('zaplanirovano', 'v_rabote');
 
-            INSERT INTO qbit_test.sobytiya_dialogov (
+            INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov (
                 dialog_id,
                 polzovatel_id,
                 tip_sobytiya,
@@ -1230,7 +1230,7 @@ BEGIN
                 v_operaciya
             );
         ELSE
-            UPDATE qbit_test.dialogi AS d_plain
+            UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi AS d_plain
                SET etap = COALESCE(v_next_stage, d_plain.etap),
                    poslednee_ishodyashchee_id = v_action.soobshchenie_id,
                    vremya_obnovleniya = clock_timestamp()
@@ -1247,7 +1247,7 @@ BEGIN
         IF v_new_dialog_version IS NULL THEN
             SELECT d.versiya_dialoga
               INTO v_new_dialog_version
-              FROM qbit_test.dialogi AS d
+              FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
              WHERE d.id = v_dialog.id;
         END IF;
 
@@ -1259,10 +1259,10 @@ BEGIN
     IF v_action.soobshchenie_id IS NOT NULL THEN
         SELECT t.sluzhebnyy_chat_id, t.message_thread_id
           INTO v_topic_chat, v_topic_thread
-          FROM qbit_test.operator_telegram_temy AS t
+          FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy AS t
          WHERE t.dialog_id = v_dialog.id;
 
-        INSERT INTO qbit_test.sobytiya_zerkala_operatora (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
             dialog_id,
             soobshchenie_id,
             tip_sobytiya,
@@ -1305,7 +1305,7 @@ BEGIN
 
     SELECT d.t0
       INTO v_return_t0
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id = v_action.dialog_id;
 
     RETURN QUERY SELECT
@@ -1323,14 +1323,14 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.zafiksirovat_rezultat_ishodyashchego(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(jsonb) IS
 'DB-03C4: fenced external result; retry/unknown/error never apply dependent business effects; only confirmed may set message status, stage/goal/close/t0/reminders and confirmed bot mirror. Reminder confirmations never move t0.';
 
 -- ===========================================================================
 -- 4. FINAL REMINDER CHECK + CREATE OUTGOING REMINDER ACTION
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.podgotovit_napominanie(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.podgotovit_napominanie(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -1347,7 +1347,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -1400,7 +1400,7 @@ BEGIN
 
     SELECT n.*
       INTO v_reminder
-      FROM qbit_test.napominaniya AS n
+      FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
      WHERE n.id = v_reminder_id
      FOR UPDATE;
 
@@ -1442,19 +1442,19 @@ BEGIN
 
     SELECT d.*
       INTO v_dialog
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id = v_reminder.dialog_id
      FOR UPDATE;
 
     SELECT i.*
       INTO v_identity
-      FROM qbit_test.identifikatory_kanalov AS i
+      FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
      WHERE i.id = v_dialog.identifikator_kanala_id
      FOR UPDATE;
 
     SELECT m.*
       INTO v_basis
-      FROM qbit_test.soobshcheniya AS m
+      FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
      WHERE m.id = v_reminder.soobshchenie_osnovanie_id;
 
     IF v_now < v_reminder.srok THEN
@@ -1468,7 +1468,7 @@ BEGIN
     END IF;
 
     IF v_now > v_reminder.aktualno_do THEN
-        UPDATE qbit_test.napominaniya AS n_skip
+        UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_skip
            SET status = 'propushcheno',
                prichina = 'okno_isteklo',
                vremya_obnovleniya = clock_timestamp()
@@ -1486,14 +1486,14 @@ BEGIN
     IF v_reminder.tip = 'napominanie_1' THEN
         SELECT n2.srok
           INTO v_next_rem2
-          FROM qbit_test.napominaniya AS n2
+          FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n2
          WHERE n2.dialog_id = v_reminder.dialog_id
            AND n2.pokolenie_ozhidaniya = v_reminder.pokolenie_ozhidaniya
            AND n2.tip = 'napominanie_2';
 
         IF v_next_rem2 IS NOT NULL
            AND v_now >= v_next_rem2 THEN
-            UPDATE qbit_test.napominaniya AS n_skip2
+            UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_skip2
                SET status = 'propushcheno',
                    prichina = 'uzhe_nastupil_srok_napominaniya_2',
                    vremya_obnovleniya = clock_timestamp()
@@ -1519,13 +1519,13 @@ BEGIN
        OR v_basis.status_otpravki <> 'podtverzhdeno'
        OR EXISTS (
             SELECT 1
-              FROM qbit_test.soobshcheniya AS m_in
+              FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m_in
              WHERE m_in.dialog_id = v_dialog.id
                AND m_in.napravlenie = 'vhodyashchee'
                AND m_in.avtor = 'klient'
                AND m_in.vremya_priema > v_reminder.t0
        ) THEN
-        UPDATE qbit_test.napominaniya AS n_cancel
+        UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_cancel
            SET status = 'otmeneno',
                prichina = 'finalnaya_proverka_ne_proydena',
                vremya_obnovleniya = clock_timestamp()
@@ -1544,11 +1544,11 @@ BEGIN
 
     SELECT a.*
       INTO v_existing_action
-      FROM qbit_test.ishodyashchie_deystviya AS a
+      FROM qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
      WHERE a.klyuch_povtora = v_key;
 
     IF FOUND THEN
-        UPDATE qbit_test.napominaniya AS n_link
+        UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_link
            SET ishodyashchee_deystvie_id = v_existing_action.id,
                status = CASE
                    WHEN v_existing_action.status = 'podtverzhdeno' THEN 'podtverzhdeno'
@@ -1568,7 +1568,7 @@ BEGIN
         RETURN;
     END IF;
 
-    INSERT INTO qbit_test.soobshcheniya AS new_message (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS new_message (
         dialog_id,
         napravlenie,
         avtor,
@@ -1599,7 +1599,7 @@ BEGIN
     RETURNING new_message.id
     INTO v_message_id;
 
-    INSERT INTO qbit_test.ishodyashchie_deystviya AS new_action (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS new_action (
         dialog_id,
         soobshchenie_id,
         vid_deystviya,
@@ -1635,7 +1635,7 @@ BEGIN
     RETURNING new_action.id
     INTO v_action_id;
 
-    UPDATE qbit_test.napominaniya AS n_work
+    UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_work
        SET status = 'v_rabote',
            ishodyashchee_deystvie_id = v_action_id,
            vremya_obnovleniya = clock_timestamp()
@@ -1650,14 +1650,14 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.podgotovit_napominanie(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.podgotovit_napominanie(jsonb) IS
 'DB-03C4: final reminder recheck под locks; проверяет generation/t0/owner/block/opt-out/new input/window, skip reminder1 near reminder2, затем создаёт initiative outgoing action.';
 
 -- ===========================================================================
 -- 5. LOSS CHECK AFTER CONFIRMED REMINDER2
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.zafiksirovat_poteryu_bez_otveta(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zafiksirovat_poteryu_bez_otveta(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -1674,7 +1674,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -1704,7 +1704,7 @@ BEGIN
 
     SELECT n.*
       INTO v_loss
-      FROM qbit_test.napominaniya AS n
+      FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
      WHERE n.id = v_loss_id
        AND n.tip = 'proverka_poteri'
      FOR UPDATE;
@@ -1735,19 +1735,19 @@ BEGIN
 
     SELECT d.*
       INTO v_dialog
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id = v_loss.dialog_id
      FOR UPDATE;
 
     SELECT i.*
       INTO v_identity
-      FROM qbit_test.identifikatory_kanalov AS i
+      FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
      WHERE i.id = v_dialog.identifikator_kanala_id
      FOR UPDATE;
 
     SELECT n2.*
       INTO v_rem2
-      FROM qbit_test.napominaniya AS n2
+      FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n2
      WHERE n2.dialog_id = v_loss.dialog_id
        AND n2.pokolenie_ozhidaniya = v_loss.pokolenie_ozhidaniya
        AND n2.tip = 'napominanie_2';
@@ -1755,7 +1755,7 @@ BEGIN
     IF NOT FOUND
        OR v_rem2.status <> 'podtverzhdeno'
        OR v_rem2.vremya_fakticheskoy_otpravki IS NULL THEN
-        UPDATE qbit_test.napominaniya AS n_bad
+        UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_bad
            SET status = 'otmeneno',
                prichina = 'net_podtverzhdennogo_napominaniya_2',
                vremya_obnovleniya = clock_timestamp()
@@ -1779,13 +1779,13 @@ BEGIN
        OR v_identity.zapret_iniciativnyh_soobshcheniy
        OR EXISTS (
             SELECT 1
-              FROM qbit_test.soobshcheniya AS m_in
+              FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m_in
              WHERE m_in.dialog_id = v_dialog.id
                AND m_in.napravlenie = 'vhodyashchee'
                AND m_in.avtor = 'klient'
                AND m_in.vremya_priema > v_loss.t0
        ) THEN
-        UPDATE qbit_test.napominaniya AS n_cancel
+        UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_cancel
            SET status = 'otmeneno',
                prichina = 'dialog_bolshe_ne_zhdet',
                vremya_obnovleniya = clock_timestamp()
@@ -1800,7 +1800,7 @@ BEGIN
         RETURN;
     END IF;
 
-    UPDATE qbit_test.dialogi AS d_loss
+    UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi AS d_loss
        SET status = 'zavershen',
            rezultat = 'net_otveta',
            prichina_zaversheniya = 'posle_podtverzhdennogo_napominaniya_2',
@@ -1814,7 +1814,7 @@ BEGIN
      RETURNING d_loss.versiya_dialoga
      INTO v_new_version;
 
-    UPDATE qbit_test.napominaniya AS n_loss
+    UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_loss
        SET status = CASE
            WHEN n_loss.id = v_loss_id THEN 'podtverzhdeno'
            WHEN n_loss.status IN ('zaplanirovano', 'v_rabote') THEN 'otmeneno'
@@ -1829,12 +1829,12 @@ BEGIN
      WHERE n_loss.dialog_id = v_dialog.id
        AND n_loss.pokolenie_ozhidaniya = v_loss.pokolenie_ozhidaniya;
 
-    UPDATE qbit_test.polzovateli AS p_loss
+    UPDATE qbit_bot_pervichnogo_obrascheniya.polzovateli AS p_loss
        SET tekushchaya_metka = 'poteryannyy',
            vremya_obnovleniya = clock_timestamp()
      WHERE p_loss.id = v_dialog.polzovatel_id;
 
-    INSERT INTO qbit_test.sobytiya_dialogov (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov (
         dialog_id,
         polzovatel_id,
         tip_sobytiya,
@@ -1864,24 +1864,24 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.zafiksirovat_poteryu_bez_otveta(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zafiksirovat_poteryu_bez_otveta(jsonb) IS
 'DB-03C4: закрывает net_otveta только по durable loss-check после confirmed reminder2 и trusted delay, при том же generation/t0 и отсутствии более нового client input; иначе отменяет loss-check.';
 
 -- ===========================================================================
 -- 6. PRIVILEGES
 -- ===========================================================================
 
-REVOKE ALL ON FUNCTION qbit_test.sozdat_ishodyashchee_deystvie(jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION qbit_test.zabrat_ishodyashchee_deystvie(jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION qbit_test.zafiksirovat_rezultat_ishodyashchego(jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION qbit_test.podgotovit_napominanie(jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION qbit_test.zafiksirovat_poteryu_bez_otveta(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.podgotovit_napominanie(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zafiksirovat_poteryu_bez_otveta(jsonb) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION qbit_test.sozdat_ishodyashchee_deystvie(jsonb) TO qbit_test_bot;
-GRANT EXECUTE ON FUNCTION qbit_test.zabrat_ishodyashchee_deystvie(jsonb) TO qbit_test_bot;
-GRANT EXECUTE ON FUNCTION qbit_test.zafiksirovat_rezultat_ishodyashchego(jsonb) TO qbit_test_bot;
-GRANT EXECUTE ON FUNCTION qbit_test.podgotovit_napominanie(jsonb) TO qbit_test_bot;
-GRANT EXECUTE ON FUNCTION qbit_test.zafiksirovat_poteryu_bez_otveta(jsonb) TO qbit_test_bot;
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(jsonb) TO qbit_test_bot;
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(jsonb) TO qbit_test_bot;
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(jsonb) TO qbit_test_bot;
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.podgotovit_napominanie(jsonb) TO qbit_test_bot;
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zafiksirovat_poteryu_bez_otveta(jsonb) TO qbit_test_bot;
 
 -- ===========================================================================
 -- 7. STATIC SECURITY ASSERTIONS
@@ -1896,7 +1896,7 @@ BEGIN
           FROM pg_catalog.pg_proc AS p
           JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
           JOIN pg_catalog.pg_roles AS r ON r.oid = p.proowner
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'sozdat_ishodyashchee_deystvie',
                 'zabrat_ishodyashchee_deystvie',
@@ -1909,7 +1909,7 @@ BEGIN
            OR v_fn.owner_name IS DISTINCT FROM 'qbit_test_owner'
            OR NOT (
                 COALESCE(v_fn.proconfig, ARRAY[]::text[])
-                @> ARRAY['search_path=pg_catalog, qbit_test']::text[]
+                @> ARRAY['search_path=pg_catalog, qbit_bot_pervichnogo_obrascheniya']::text[]
            ) THEN
             RAISE EXCEPTION
                 'Unsafe DB-03C4 function metadata: %, owner=%, config=%',
@@ -1950,7 +1950,7 @@ BEGIN
         SELECT count(*)
           FROM pg_catalog.pg_proc AS p
           JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace
-         WHERE n.nspname='qbit_test'
+         WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'sozdat_ishodyashchee_deystvie',
                 'zabrat_ishodyashchee_deystvie',
@@ -2006,7 +2006,7 @@ DECLARE
 BEGIN
     SELECT *
       INTO rin
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c4_ingress',
@@ -2035,7 +2035,7 @@ BEGIN
     -- Unknown result must never apply waiting/t0/reminders.
     SELECT *
       INTO create1
-      FROM qbit_test.sozdat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id', 'db03c4_create_unknown',
             'klyuch_povtora', 'db03c4_out_unknown',
@@ -2061,7 +2061,7 @@ BEGIN
 
     SELECT *
       INTO create_dup
-      FROM qbit_test.sozdat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id', 'db03c4_create_unknown_dup',
             'klyuch_povtora', 'db03c4_out_unknown',
@@ -2093,7 +2093,7 @@ BEGIN
 
     SELECT *
       INTO claim1
-      FROM qbit_test.zabrat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id','db03c4_claim_unknown',
             'worker_id','out_worker_1',
@@ -2103,7 +2103,7 @@ BEGIN
 
     SELECT *
       INTO unknown1
-      FROM qbit_test.zafiksirovat_rezultat_ishodyashchego(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(
         jsonb_build_object(
             'operaciya_id','db03c4_unknown_result',
             'deystvie_id',claim1.deystvie_id,
@@ -2118,12 +2118,12 @@ BEGIN
     IF unknown1.rezultat <> 'uspeshno'
        OR unknown1.status_deystviya <> 'neizvestno'
        OR EXISTS (
-            SELECT 1 FROM qbit_test.dialogi AS d
+            SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
              WHERE d.id=rin.dialog_id
                AND (d.ozhidaetsya_otvet OR d.t0 IS NOT NULL)
        )
        OR EXISTS (
-            SELECT 1 FROM qbit_test.napominaniya AS n
+            SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
              WHERE n.dialog_id=rin.dialog_id
        ) THEN
         RAISE EXCEPTION 'DB-03C4 unknown result applied dependent effects: %', row_to_json(unknown1);
@@ -2133,7 +2133,7 @@ BEGIN
     -- confirmed delivery is stored but stale t0/reminder effects are suppressed.
     SELECT *
       INTO create_stale
-      FROM qbit_test.sozdat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id','db03c4_create_stale_confirm',
             'klyuch_povtora','db03c4_out_stale_confirm',
@@ -2156,7 +2156,7 @@ BEGIN
 
     SELECT *
       INTO claim_stale
-      FROM qbit_test.zabrat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id','db03c4_claim_stale_confirm',
             'worker_id','out_worker_stale',
@@ -2166,7 +2166,7 @@ BEGIN
 
     SELECT *
       INTO rin2
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata',1,
             'operaciya_id','db03c4_ingress_cross',
@@ -2190,7 +2190,7 @@ BEGIN
 
     SELECT *
       INTO confirm_stale
-      FROM qbit_test.zafiksirovat_rezultat_ishodyashchego(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(
         jsonb_build_object(
             'operaciya_id','db03c4_confirm_stale_after_input',
             'deystvie_id',claim_stale.deystvie_id,
@@ -2204,7 +2204,7 @@ BEGIN
 
     SELECT d.pokolenie_ozhidaniya
       INTO v_generation_before_wait
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id = rin.dialog_id;
 
     IF rin2.versiya_dialoga <> rin.versiya_dialoga + 1
@@ -2212,16 +2212,16 @@ BEGIN
        OR confirm_stale.rezultat <> 'uspeshno'
        OR confirm_stale.status_deystviya <> 'podtverzhdeno'
        OR EXISTS (
-            SELECT 1 FROM qbit_test.dialogi AS d
+            SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
              WHERE d.id=rin.dialog_id
                AND (d.ozhidaetsya_otvet OR d.t0 IS NOT NULL)
        )
        OR EXISTS (
-            SELECT 1 FROM qbit_test.napominaniya AS n
+            SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
              WHERE n.dialog_id=rin.dialog_id
        )
        OR NOT EXISTS (
-            SELECT 1 FROM qbit_test.soobshcheniya AS m
+            SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
              WHERE m.id=create_stale.soobshchenie_id
                AND m.status_otpravki='podtverzhdeno'
                AND m.vneshnee_soobshchenie_id='db03c4_ext_stale_real_send'
@@ -2235,7 +2235,7 @@ BEGIN
     -- Confirmed main message: retry once, then confirm and create t0/reminders.
     SELECT *
       INTO create2
-      FROM qbit_test.sozdat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id', 'db03c4_create_wait',
             'klyuch_povtora', 'db03c4_out_wait',
@@ -2262,7 +2262,7 @@ BEGIN
 
     SELECT *
       INTO claim2
-      FROM qbit_test.zabrat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id','db03c4_claim_wait_1',
             'worker_id','out_worker_2',
@@ -2272,7 +2272,7 @@ BEGIN
 
     SELECT *
       INTO retry2
-      FROM qbit_test.zafiksirovat_rezultat_ishodyashchego(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(
         jsonb_build_object(
             'operaciya_id','db03c4_retry_wait',
             'deystvie_id',claim2.deystvie_id,
@@ -2289,14 +2289,14 @@ BEGIN
         RAISE EXCEPTION 'DB-03C4 retry result failed: %', row_to_json(retry2);
     END IF;
 
-    UPDATE qbit_test.ishodyashchie_deystviya AS a_probe
+    UPDATE qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a_probe
        SET sleduyushchiy_zapusk=clock_timestamp()-interval '1 second',
            povtor_posle=clock_timestamp()-interval '1 second'
      WHERE a_probe.id=create2.deystvie_id;
 
     SELECT *
       INTO claim2b
-      FROM qbit_test.zabrat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id','db03c4_claim_wait_2',
             'worker_id','out_worker_3',
@@ -2306,7 +2306,7 @@ BEGIN
 
     SELECT *
       INTO confirm2
-      FROM qbit_test.zafiksirovat_rezultat_ishodyashchego(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(
         jsonb_build_object(
             'operaciya_id','db03c4_confirm_wait',
             'deystvie_id',claim2b.deystvie_id,
@@ -2320,17 +2320,17 @@ BEGIN
 
     SELECT d.t0,d.pokolenie_ozhidaniya
       INTO v_t0,v_generation
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.id=rin.dialog_id;
 
     SELECT n.id INTO rem1
-      FROM qbit_test.napominaniya AS n
+      FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
      WHERE n.dialog_id=rin.dialog_id
        AND n.pokolenie_ozhidaniya=v_generation
        AND n.tip='napominanie_1';
 
     SELECT n.id INTO rem2
-      FROM qbit_test.napominaniya AS n
+      FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
      WHERE n.dialog_id=rin.dialog_id
        AND n.pokolenie_ozhidaniya=v_generation
        AND n.tip='napominanie_2';
@@ -2343,7 +2343,7 @@ BEGIN
        OR rem1 IS NULL
        OR rem2 IS NULL
        OR NOT EXISTS (
-            SELECT 1 FROM qbit_test.sobytiya_zerkala_operatora AS z
+            SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora AS z
              WHERE z.soobshchenie_id=create2.soobshchenie_id
                AND z.tip_sobytiya='otvet_bota'
        ) THEN
@@ -2353,13 +2353,13 @@ BEGIN
     END IF;
 
     -- Reminder1 confirmed: t0 must stay unchanged.
-    UPDATE qbit_test.napominaniya AS n_probe
+    UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_probe
        SET srok=clock_timestamp()-interval '1 second',
            aktualno_do=clock_timestamp()+interval '1 hour'
      WHERE n_probe.id=rem1;
 
     SELECT * INTO prep1
-      FROM qbit_test.podgotovit_napominanie(
+      FROM qbit_bot_pervichnogo_obrascheniya.podgotovit_napominanie(
         jsonb_build_object(
             'operaciya_id','db03c4_prepare_rem1',
             'napominanie_id',rem1,
@@ -2371,7 +2371,7 @@ BEGIN
       );
 
     SELECT * INTO claim_rem1
-      FROM qbit_test.zabrat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id','db03c4_claim_rem1',
             'worker_id','out_worker_r1',
@@ -2380,7 +2380,7 @@ BEGIN
       );
 
     SELECT * INTO confirm_rem1
-      FROM qbit_test.zafiksirovat_rezultat_ishodyashchego(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(
         jsonb_build_object(
             'operaciya_id','db03c4_confirm_rem1',
             'deystvie_id',claim_rem1.deystvie_id,
@@ -2395,12 +2395,12 @@ BEGIN
     IF prep1.reshenie <> 'otpravit'
        OR confirm_rem1.rezultat <> 'uspeshno'
        OR EXISTS (
-            SELECT 1 FROM qbit_test.dialogi AS d
+            SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
              WHERE d.id=rin.dialog_id
                AND d.t0 IS DISTINCT FROM v_t0
        )
        OR NOT EXISTS (
-            SELECT 1 FROM qbit_test.sobytiya_zerkala_operatora AS z
+            SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora AS z
              WHERE z.soobshchenie_id=prep1.soobshchenie_id
                AND z.tip_sobytiya='otvet_bota'
        ) THEN
@@ -2408,13 +2408,13 @@ BEGIN
     END IF;
 
     -- Reminder2 confirmed creates durable loss-check based on actual send time.
-    UPDATE qbit_test.napominaniya AS n_probe2
+    UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_probe2
        SET srok=clock_timestamp()-interval '1 second',
            aktualno_do=clock_timestamp()+interval '1 hour'
      WHERE n_probe2.id=rem2;
 
     SELECT * INTO prep2
-      FROM qbit_test.podgotovit_napominanie(
+      FROM qbit_bot_pervichnogo_obrascheniya.podgotovit_napominanie(
         jsonb_build_object(
             'operaciya_id','db03c4_prepare_rem2',
             'napominanie_id',rem2,
@@ -2426,7 +2426,7 @@ BEGIN
       );
 
     SELECT * INTO claim_rem2
-      FROM qbit_test.zabrat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id','db03c4_claim_rem2',
             'worker_id','out_worker_r2',
@@ -2435,7 +2435,7 @@ BEGIN
       );
 
     SELECT * INTO confirm_rem2
-      FROM qbit_test.zafiksirovat_rezultat_ishodyashchego(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(
         jsonb_build_object(
             'operaciya_id','db03c4_confirm_rem2',
             'deystvie_id',claim_rem2.deystvie_id,
@@ -2448,7 +2448,7 @@ BEGIN
       );
 
     SELECT n.id INTO loss_id
-      FROM qbit_test.napominaniya AS n
+      FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
      WHERE n.dialog_id=rin.dialog_id
        AND n.pokolenie_ozhidaniya=v_generation
        AND n.tip='proverka_poteri';
@@ -2460,7 +2460,7 @@ BEGIN
     END IF;
 
     SELECT * INTO loss_early
-      FROM qbit_test.zafiksirovat_poteryu_bez_otveta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_poteryu_bez_otveta(
         jsonb_build_object(
             'operaciya_id','db03c4_loss_early',
             'napominanie_id',loss_id,
@@ -2473,12 +2473,12 @@ BEGIN
         RAISE EXCEPTION 'DB-03C4 early loss was not postponed: %',row_to_json(loss_early);
     END IF;
 
-    UPDATE qbit_test.napominaniya AS n_lossprobe
+    UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_lossprobe
        SET srok=clock_timestamp()-interval '1 second'
      WHERE n_lossprobe.id=loss_id;
 
     SELECT * INTO loss_ok
-      FROM qbit_test.zafiksirovat_poteryu_bez_otveta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_poteryu_bez_otveta(
         jsonb_build_object(
             'operaciya_id','db03c4_loss_ok',
             'napominanie_id',loss_id,
@@ -2495,7 +2495,7 @@ BEGIN
     -- New dialog after loss: confirmed non-waiting close path.
     SELECT *
       INTO rin
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata',1,
             'operaciya_id','db03c4_ingress_return',
@@ -2518,7 +2518,7 @@ BEGIN
       );
 
     SELECT * INTO create_close
-      FROM qbit_test.sozdat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id','db03c4_create_close',
             'klyuch_povtora','db03c4_out_close',
@@ -2539,7 +2539,7 @@ BEGIN
       );
 
     SELECT * INTO claim_close
-      FROM qbit_test.zabrat_ishodyashchee_deystvie(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(
         jsonb_build_object(
             'operaciya_id','db03c4_claim_close',
             'worker_id','out_worker_close',
@@ -2548,7 +2548,7 @@ BEGIN
       );
 
     SELECT * INTO confirm_close
-      FROM qbit_test.zafiksirovat_rezultat_ishodyashchego(
+      FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(
         jsonb_build_object(
             'operaciya_id','db03c4_confirm_close',
             'deystvie_id',claim_close.deystvie_id,
@@ -2562,7 +2562,7 @@ BEGIN
 
     IF confirm_close.rezultat <> 'uspeshno'
        OR NOT EXISTS (
-            SELECT 1 FROM qbit_test.dialogi AS d
+            SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
              WHERE d.id=rin.dialog_id
                AND d.status='zavershen'
                AND d.rezultat='konsultaciya_zavershena'
@@ -2588,7 +2588,7 @@ DECLARE
 BEGIN
     IF EXISTS (
         SELECT 1
-          FROM qbit_test.identifikatory_kanalov AS i
+          FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
          WHERE i.akkaunt_kanala_id='db03c4_client_bot'
             OR i.vneshniy_polzovatel_id='db03c4_user'
     ) THEN
@@ -2605,7 +2605,7 @@ BEGIN
             SELECT c.oid,c.relname
               FROM pg_catalog.pg_class AS c
               JOIN pg_catalog.pg_namespace AS n ON n.oid=c.relnamespace
-             WHERE n.nspname='qbit_test'
+             WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
                AND c.relkind='r'
         LOOP
             IF pg_catalog.has_table_privilege(v_role,v_table.oid,'SELECT')
@@ -2613,7 +2613,7 @@ BEGIN
             OR pg_catalog.has_table_privilege(v_role,v_table.oid,'UPDATE')
             OR pg_catalog.has_table_privilege(v_role,v_table.oid,'DELETE') THEN
                 RAISE EXCEPTION
-                    'Runtime role % unexpectedly has direct DML on qbit_test.%',
+                    'Runtime role % unexpectedly has direct DML on qbit_bot_pervichnogo_obrascheniya.%',
                     v_role,v_table.relname;
             END IF;
         END LOOP;
@@ -2632,13 +2632,13 @@ COMMIT;
 SELECT jsonb_build_object(
     'db03c4_status','applied',
     'database',current_database(),
-    'schema','qbit_test',
+    'schema','qbit_bot_pervichnogo_obrascheniya',
     'functions_ok',
     (
         SELECT count(*)=5
           FROM pg_catalog.pg_proc AS p
           JOIN pg_catalog.pg_namespace AS n ON n.oid=p.pronamespace
-         WHERE n.nspname='qbit_test'
+         WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'sozdat_ishodyashchee_deystvie',
                 'zabrat_ishodyashchee_deystvie',
@@ -2650,32 +2650,32 @@ SELECT jsonb_build_object(
     ),
     'bot_execute_ok',
     pg_catalog.has_function_privilege(
-        'qbit_test_bot','qbit_test.sozdat_ishodyashchee_deystvie(jsonb)','EXECUTE'
+        'qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(jsonb)','EXECUTE'
     )
     AND pg_catalog.has_function_privilege(
-        'qbit_test_bot','qbit_test.zabrat_ishodyashchee_deystvie(jsonb)','EXECUTE'
+        'qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie(jsonb)','EXECUTE'
     )
     AND pg_catalog.has_function_privilege(
-        'qbit_test_bot','qbit_test.zafiksirovat_rezultat_ishodyashchego(jsonb)','EXECUTE'
+        'qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego(jsonb)','EXECUTE'
     )
     AND pg_catalog.has_function_privilege(
-        'qbit_test_bot','qbit_test.podgotovit_napominanie(jsonb)','EXECUTE'
+        'qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.podgotovit_napominanie(jsonb)','EXECUTE'
     )
     AND pg_catalog.has_function_privilege(
-        'qbit_test_bot','qbit_test.zafiksirovat_poteryu_bez_otveta(jsonb)','EXECUTE'
+        'qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.zafiksirovat_poteryu_bez_otveta(jsonb)','EXECUTE'
     ),
     'service_execute_denied',
     NOT pg_catalog.has_function_privilege(
-        'qbit_test_sluzhebnyy','qbit_test.sozdat_ishodyashchee_deystvie(jsonb)','EXECUTE'
+        'qbit_test_sluzhebnyy','qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie(jsonb)','EXECUTE'
     ),
     'outgoing_unique_key_ok',
-    pg_catalog.to_regclass('qbit_test.uq_ishod_klyuch_povtora') IS NOT NULL,
+    pg_catalog.to_regclass('qbit_bot_pervichnogo_obrascheniya.uq_ishod_klyuch_povtora') IS NOT NULL,
     'reminder_unique_generation_ok',
-    pg_catalog.to_regclass('qbit_test.uq_napominaniya_dialog_pok_tip') IS NOT NULL,
+    pg_catalog.to_regclass('qbit_bot_pervichnogo_obrascheniya.uq_napominaniya_dialog_pok_tip') IS NOT NULL,
     'probe_rows_remaining',
     (
         SELECT count(*)
-          FROM qbit_test.identifikatory_kanalov AS i
+          FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
          WHERE i.akkaunt_kanala_id='db03c4_client_bot'
             OR i.vneshniy_polzovatel_id='db03c4_user'
     ),

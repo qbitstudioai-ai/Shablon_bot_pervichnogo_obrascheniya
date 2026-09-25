@@ -4,7 +4,7 @@
 --
 -- TARGET
 --   self-hosted Supabase / PostgreSQL 17.6
---   schema: qbit_test ONLY
+--   schema: qbit_bot_pervichnogo_obrascheniya ONLY
 --   owner:  qbit_test_owner
 --
 -- REQUIRES
@@ -72,9 +72,9 @@ BEGIN
           FROM pg_catalog.pg_namespace AS n
           JOIN pg_catalog.pg_roles AS r
             ON r.oid = n.nspowner
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
     ) IS DISTINCT FROM 'qbit_test_owner' THEN
-        RAISE EXCEPTION 'qbit_test is not owned by qbit_test_owner';
+        RAISE EXCEPTION 'qbit_bot_pervichnogo_obrascheniya is not owned by qbit_test_owner';
     END IF;
 
     FOREACH v_required IN ARRAY ARRAY[
@@ -91,10 +91,10 @@ BEGIN
     ]
     LOOP
         IF pg_catalog.to_regclass(
-            pg_catalog.format('qbit_test.%I', v_required)
+            pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I', v_required)
         ) IS NULL THEN
             RAISE EXCEPTION
-                'Required table qbit_test.% is missing',
+                'Required table qbit_bot_pervichnogo_obrascheniya.% is missing',
                 v_required;
         END IF;
     END LOOP;
@@ -106,7 +106,7 @@ BEGIN
             ON rel.oid = con.conrelid
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = rel.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND rel.relname = 'soobshcheniya'
            AND con.conname = 'fk_soobshcheniya_sobytie_integracii'
            AND con.contype = 'f'
@@ -123,10 +123,10 @@ BEGIN
     ]
     LOOP
         IF pg_catalog.to_regclass(
-            pg_catalog.format('qbit_test.%I', v_new_table)
+            pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I', v_new_table)
         ) IS NOT NULL THEN
             RAISE EXCEPTION
-                'DB-03B object qbit_test.% already exists; stop instead of overwriting',
+                'DB-03B object qbit_bot_pervichnogo_obrascheniya.% already exists; stop instead of overwriting',
                 v_new_table;
         END IF;
     END LOOP;
@@ -138,7 +138,7 @@ BEGIN
             ON rel.oid = con.conrelid
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = rel.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND rel.relname = 'dialogi'
            AND con.conname = 'fk_dialogi_tekushchiy_menedzher'
     ) THEN
@@ -154,7 +154,7 @@ $db03b$;
 
 SET LOCAL ROLE qbit_test_owner;
 
-CREATE TABLE qbit_test.menedzhery_telegram (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     telegram_user_id text NOT NULL,
     private_chat_id text,
@@ -193,23 +193,23 @@ CREATE TABLE qbit_test.menedzhery_telegram (
 );
 
 CREATE UNIQUE INDEX uq_menedzhery_tg_user
-    ON qbit_test.menedzhery_telegram (telegram_user_id);
+    ON qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram (telegram_user_id);
 
 CREATE UNIQUE INDEX uq_menedzhery_private_chat
-    ON qbit_test.menedzhery_telegram (private_chat_id)
+    ON qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram (private_chat_id)
     WHERE private_chat_id IS NOT NULL;
 
 CREATE INDEX ix_menedzhery_aktivnye
-    ON qbit_test.menedzhery_telegram (
+    ON qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram (
         prioritet_naznacheniya,
         id
     )
     WHERE aktiven = true;
 
 
-CREATE TABLE qbit_test.operator_telegram_temy (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy (
     dialog_id uuid PRIMARY KEY
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     sluzhebnyy_chat_id text NOT NULL,
     message_thread_id text,
     vneshniy_id_kartochki text,
@@ -284,38 +284,38 @@ CREATE TABLE qbit_test.operator_telegram_temy (
 );
 
 CREATE UNIQUE INDEX uq_operator_tema_chat_thread
-    ON qbit_test.operator_telegram_temy (
+    ON qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy (
         sluzhebnyy_chat_id,
         message_thread_id
     )
     WHERE message_thread_id IS NOT NULL;
 
 CREATE INDEX ix_operator_tema_status
-    ON qbit_test.operator_telegram_temy (
+    ON qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy (
         status,
         sleduyushchiy_zapusk
     );
 
 CREATE INDEX ix_operator_tema_arenda
-    ON qbit_test.operator_telegram_temy (arenda_do)
+    ON qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy (arenda_do)
     WHERE status = 'sozdaetsya';
 
 
-CREATE TABLE qbit_test.sobytiya_zerkala_operatora (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     dialog_id uuid NOT NULL
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     soobshchenie_id uuid
-        REFERENCES qbit_test.soobshcheniya(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id),
     vlozhenie_id uuid
-        REFERENCES qbit_test.vlozheniya_soobshcheniy(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy(id),
     tip_sobytiya text NOT NULL,
     klyuch_idempotentnosti text NOT NULL,
     prioritet integer NOT NULL DEFAULT 0,
     cel_chat_id text,
     cel_thread_id text,
     cel_menedzher_id uuid
-        REFERENCES qbit_test.menedzhery_telegram(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram(id),
     bezopasnaya_podpis_klienta text,
     tekst text,
     payload jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -411,10 +411,10 @@ CREATE TABLE qbit_test.sobytiya_zerkala_operatora (
 );
 
 CREATE UNIQUE INDEX uq_zerkalo_klyuch
-    ON qbit_test.sobytiya_zerkala_operatora (klyuch_idempotentnosti);
+    ON qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (klyuch_idempotentnosti);
 
 CREATE INDEX ix_zerkalo_gotovy
-    ON qbit_test.sobytiya_zerkala_operatora (
+    ON qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
         prioritet DESC,
         sleduyushchiy_zapusk,
         vremya_sozdaniya
@@ -422,100 +422,100 @@ CREATE INDEX ix_zerkalo_gotovy
     WHERE status IN ('zaplanirovano', 'povtor');
 
 CREATE INDEX ix_zerkalo_dialog
-    ON qbit_test.sobytiya_zerkala_operatora (
+    ON qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
         dialog_id,
         vremya_sozdaniya
     );
 
 CREATE INDEX ix_zerkalo_arenda
-    ON qbit_test.sobytiya_zerkala_operatora (arenda_do)
+    ON qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (arenda_do)
     WHERE status = 'v_rabote';
 
 -- Complete the second DB-02 forward reference.
-ALTER TABLE qbit_test.dialogi
+ALTER TABLE qbit_bot_pervichnogo_obrascheniya.dialogi
     ADD CONSTRAINT fk_dialogi_tekushchiy_menedzher
     FOREIGN KEY (tekushchiy_menedzher_id)
-    REFERENCES qbit_test.menedzhery_telegram(id);
+    REFERENCES qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram(id);
 
 -- ===========================================================================
 -- 2. COMMENTS
 -- ===========================================================================
 
-COMMENT ON TABLE qbit_test.menedzhery_telegram IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram IS
 'Разрешённые менеджеры служебного Telegram с подтверждённым private chat и правами Take/Return.';
 
-COMMENT ON TABLE qbit_test.operator_telegram_temy IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy IS
 'Долговечная связь одного клиентского диалога с одной темой закрытой служебной Telegram forum-группы.';
 
-COMMENT ON TABLE qbit_test.sobytiya_zerkala_operatora IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora IS
 'Долговечная очередь зеркала и операторских уведомлений со стабильным ключом, lease и внешним message ID.';
 
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.id IS 'Внутренний UUID менеджера.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.telegram_user_id IS 'Разрешённый Telegram user ID менеджера; не берётся из клиентского текста.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.private_chat_id IS 'Private chat ID со служебным ботом после подтверждённого /start.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.private_chat_podtverzhden IS 'Подтверждён ли private chat служебным webhook.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.vremya_podtverzhdeniya IS 'Время подтверждения private chat.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.otobrazhaemoe_imya IS 'Безопасное отображаемое имя менеджера.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.aktiven IS 'Можно ли использовать менеджера в текущей конфигурации.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.mozhet_zabirat IS 'Разрешено ли менеджеру атомарно забирать диалог.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.mozhet_vozvrashchat IS 'Разрешено ли менеджеру явно возвращать диалог боту.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.lichnye_uvedomleniya IS 'Разрешены ли личные служебные уведомления этому менеджеру.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.prioritet_naznacheniya IS 'Меньшее значение означает более высокий приоритет назначения.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.vremya_sozdaniya IS 'Время создания записи менеджера.';
-COMMENT ON COLUMN qbit_test.menedzhery_telegram.vremya_obnovleniya IS 'Время последнего изменения записи менеджера.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.id IS 'Внутренний UUID менеджера.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.telegram_user_id IS 'Разрешённый Telegram user ID менеджера; не берётся из клиентского текста.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.private_chat_id IS 'Private chat ID со служебным ботом после подтверждённого /start.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.private_chat_podtverzhden IS 'Подтверждён ли private chat служебным webhook.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.vremya_podtverzhdeniya IS 'Время подтверждения private chat.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.otobrazhaemoe_imya IS 'Безопасное отображаемое имя менеджера.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.aktiven IS 'Можно ли использовать менеджера в текущей конфигурации.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.mozhet_zabirat IS 'Разрешено ли менеджеру атомарно забирать диалог.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.mozhet_vozvrashchat IS 'Разрешено ли менеджеру явно возвращать диалог боту.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.lichnye_uvedomleniya IS 'Разрешены ли личные служебные уведомления этому менеджеру.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.prioritet_naznacheniya IS 'Меньшее значение означает более высокий приоритет назначения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.vremya_sozdaniya IS 'Время создания записи менеджера.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram.vremya_obnovleniya IS 'Время последнего изменения записи менеджера.';
 
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.dialog_id IS 'Диалог; одновременно PK и FK, поэтому один диалог имеет максимум одну операторскую тему.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.sluzhebnyy_chat_id IS 'Доверенный ID закрытой служебной forum-группы.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.message_thread_id IS 'Telegram message_thread_id подтверждённо созданной темы.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.vneshniy_id_kartochki IS 'Telegram message ID карточки темы при наличии.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.status IS 'nuzhno_sozdat, sozdaetsya, gotova, neizvestno, oshibka или zakryta.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.operaciya_sozdaniya_id IS 'Стабильный ID конкретной попытки создания forum topic.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.popytki IS 'Количество начатых попыток создания/сверки темы.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.sleduyushchiy_zapusk IS 'Не обрабатывать тему раньше этого времени.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.vladelec_arendy IS 'Worker, владеющий текущей арендой создания/сверки.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.arenda_do IS 'Срок текущей аренды.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.nomer_vladeniya IS 'Fencing номер владения для stale-worker защиты.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.vremya_sozdaniya IS 'Время создания intent-записи темы.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.vremya_podtverzhdeniya IS 'Время подтверждения реального message_thread_id.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.vremya_posledney_sinhronizacii IS 'Время последней надёжной сверки состояния темы.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.kod_oshibki IS 'Безопасный код ошибки.';
-COMMENT ON COLUMN qbit_test.operator_telegram_temy.opisanie_oshibki IS 'Безопасное описание ошибки без токенов/секретов.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.dialog_id IS 'Диалог; одновременно PK и FK, поэтому один диалог имеет максимум одну операторскую тему.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.sluzhebnyy_chat_id IS 'Доверенный ID закрытой служебной forum-группы.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.message_thread_id IS 'Telegram message_thread_id подтверждённо созданной темы.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.vneshniy_id_kartochki IS 'Telegram message ID карточки темы при наличии.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.status IS 'nuzhno_sozdat, sozdaetsya, gotova, neizvestno, oshibka или zakryta.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.operaciya_sozdaniya_id IS 'Стабильный ID конкретной попытки создания forum topic.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.popytki IS 'Количество начатых попыток создания/сверки темы.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.sleduyushchiy_zapusk IS 'Не обрабатывать тему раньше этого времени.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.vladelec_arendy IS 'Worker, владеющий текущей арендой создания/сверки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.arenda_do IS 'Срок текущей аренды.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.nomer_vladeniya IS 'Fencing номер владения для stale-worker защиты.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.vremya_sozdaniya IS 'Время создания intent-записи темы.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.vremya_podtverzhdeniya IS 'Время подтверждения реального message_thread_id.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.vremya_posledney_sinhronizacii IS 'Время последней надёжной сверки состояния темы.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.kod_oshibki IS 'Безопасный код ошибки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy.opisanie_oshibki IS 'Безопасное описание ошибки без токенов/секретов.';
 
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.id IS 'UUID события операторского зеркала.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.dialog_id IS 'Клиентский диалог события.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.soobshchenie_id IS 'Логическое сообщение при зеркалировании текста/медиа.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.vlozhenie_id IS 'Локально сохранённое вложение для media_klienta.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.tip_sobytiya IS 'Тип: тема, client/bot text, media, handoff, Take/Return, private alert или карточка.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.klyuch_idempotentnosti IS 'Стабильный ключ, не допускающий повтор одного зеркального действия.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.prioritet IS 'Приоритет обработки; handoff/private alert может иметь повышенное значение.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.cel_chat_id IS 'Доверенный целевой chat ID при групповой/личной отправке.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.cel_thread_id IS 'Целевой message_thread_id темы при наличии.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.cel_menedzher_id IS 'Разрешённый менеджер для личного уведомления.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.bezopasnaya_podpis_klienta IS 'Безопасная подпись клиента для операторского интерфейса.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.tekst IS 'Текст зеркального/служебного сообщения, разрешённый для конкретного event.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.payload IS 'Узкий безопасный JSON payload события.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.status IS 'zaplanirovano, v_rabote, podtverzhdeno, povtor, neizvestno, otmeneno или oshibka.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.popytki IS 'Количество начатых попыток обработки.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.sleduyushchiy_zapusk IS 'Не обрабатывать раньше этого времени.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.vladelec_arendy IS 'Worker-владелец аренды.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.arenda_do IS 'Срок текущей аренды.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.nomer_vladeniya IS 'Fencing номер владения.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.vneshniy_message_id IS 'Подтверждённый Telegram message ID зеркальной отправки.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.vremya_podtverzhdeniya IS 'Время подтверждения Telegram-результата.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.kod_oshibki IS 'Безопасный код ошибки.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.opisanie_oshibki IS 'Безопасное описание ошибки.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.vremya_sozdaniya IS 'Время создания события зеркала.';
-COMMENT ON COLUMN qbit_test.sobytiya_zerkala_operatora.vremya_obnovleniya IS 'Время последнего изменения события зеркала.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.id IS 'UUID события операторского зеркала.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.dialog_id IS 'Клиентский диалог события.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.soobshchenie_id IS 'Логическое сообщение при зеркалировании текста/медиа.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.vlozhenie_id IS 'Локально сохранённое вложение для media_klienta.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.tip_sobytiya IS 'Тип: тема, client/bot text, media, handoff, Take/Return, private alert или карточка.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.klyuch_idempotentnosti IS 'Стабильный ключ, не допускающий повтор одного зеркального действия.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.prioritet IS 'Приоритет обработки; handoff/private alert может иметь повышенное значение.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.cel_chat_id IS 'Доверенный целевой chat ID при групповой/личной отправке.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.cel_thread_id IS 'Целевой message_thread_id темы при наличии.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.cel_menedzher_id IS 'Разрешённый менеджер для личного уведомления.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.bezopasnaya_podpis_klienta IS 'Безопасная подпись клиента для операторского интерфейса.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.tekst IS 'Текст зеркального/служебного сообщения, разрешённый для конкретного event.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.payload IS 'Узкий безопасный JSON payload события.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.status IS 'zaplanirovano, v_rabote, podtverzhdeno, povtor, neizvestno, otmeneno или oshibka.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.popytki IS 'Количество начатых попыток обработки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.sleduyushchiy_zapusk IS 'Не обрабатывать раньше этого времени.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.vladelec_arendy IS 'Worker-владелец аренды.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.arenda_do IS 'Срок текущей аренды.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.nomer_vladeniya IS 'Fencing номер владения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.vneshniy_message_id IS 'Подтверждённый Telegram message ID зеркальной отправки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.vremya_podtverzhdeniya IS 'Время подтверждения Telegram-результата.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.kod_oshibki IS 'Безопасный код ошибки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.opisanie_oshibki IS 'Безопасное описание ошибки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.vremya_sozdaniya IS 'Время создания события зеркала.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora.vremya_obnovleniya IS 'Время последнего изменения события зеркала.';
 
 COMMENT ON CONSTRAINT fk_dialogi_tekushchiy_menedzher
-    ON qbit_test.dialogi IS
+    ON qbit_bot_pervichnogo_obrascheniya.dialogi IS
 'DB-03B: при vladelec=chelovek текущий UUID обязан ссылаться на разрешённого Telegram-менеджера.';
 
 -- ===========================================================================
 -- 3. ACCESS: DEFAULT-DENY
 -- ===========================================================================
 
-REVOKE ALL ON ALL TABLES IN SCHEMA qbit_test FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA qbit_bot_pervichnogo_obrascheniya FROM PUBLIC;
 
 DO $db03b$
 DECLARE
@@ -529,7 +529,7 @@ BEGIN
     ]
     LOOP
         EXECUTE pg_catalog.format(
-            'REVOKE ALL ON ALL TABLES IN SCHEMA qbit_test FROM %I',
+            'REVOKE ALL ON ALL TABLES IN SCHEMA qbit_bot_pervichnogo_obrascheniya FROM %I',
             v_role
         );
     END LOOP;
@@ -550,7 +550,7 @@ BEGIN
       FROM pg_catalog.pg_class AS c
       JOIN pg_catalog.pg_namespace AS n
         ON n.oid = c.relnamespace
-     WHERE n.nspname = 'qbit_test'
+     WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
        AND c.relkind = 'r'
        AND c.relname IN (
             'menedzhery_telegram',
@@ -569,7 +569,7 @@ BEGIN
       FROM pg_catalog.pg_class AS i
       JOIN pg_catalog.pg_namespace AS n
         ON n.oid = i.relnamespace
-     WHERE n.nspname = 'qbit_test'
+     WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
        AND i.relkind = 'i'
        AND i.relname IN (
             'uq_menedzhery_tg_user',
@@ -597,7 +597,7 @@ BEGIN
             ON rel.oid = con.conrelid
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = rel.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND rel.relname = 'dialogi'
            AND con.conname = 'fk_dialogi_tekushchiy_menedzher'
            AND con.contype = 'f'
@@ -612,7 +612,7 @@ BEGIN
           FROM pg_catalog.pg_class AS c
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = c.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND c.relkind = 'r'
            AND c.relname IN (
                 'menedzhery_telegram',
@@ -633,7 +633,7 @@ BEGIN
             ON a.attrelid = c.oid
            AND a.attnum > 0
            AND a.attisdropped = false
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND c.relkind = 'r'
            AND c.relname IN (
                 'menedzhery_telegram',
@@ -653,7 +653,7 @@ $db03b$;
 
 SAVEPOINT db03b_probe;
 
-INSERT INTO qbit_test.menedzhery_telegram (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram (
     id,
     telegram_user_id,
     private_chat_id,
@@ -680,7 +680,7 @@ VALUES (
     10
 );
 
-INSERT INTO qbit_test.polzovateli (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.polzovateli (
     id,
     vremya_pervogo_obrashcheniya,
     vremya_poslednego_obrashcheniya,
@@ -695,7 +695,7 @@ VALUES (
     true
 );
 
-INSERT INTO qbit_test.identifikatory_kanalov (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov (
     id,
     polzovatel_id,
     kanal,
@@ -712,7 +712,7 @@ VALUES (
     'db03b_chat_1'
 );
 
-INSERT INTO qbit_test.dialogi (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.dialogi (
     id,
     polzovatel_id,
     identifikator_kanala_id,
@@ -733,7 +733,7 @@ VALUES (
     'db03b_probe'
 );
 
-INSERT INTO qbit_test.dialogi (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.dialogi (
     id,
     polzovatel_id,
     identifikator_kanala_id,
@@ -754,7 +754,7 @@ VALUES (
     'db03b_probe'
 );
 
-INSERT INTO qbit_test.soobshcheniya (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
     id,
     dialog_id,
     napravlenie,
@@ -777,7 +777,7 @@ VALUES (
     '2026-09-24 16:00:01+00'
 );
 
-INSERT INTO qbit_test.operator_telegram_temy (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy (
     dialog_id,
     sluzhebnyy_chat_id,
     message_thread_id,
@@ -800,7 +800,7 @@ VALUES (
     '2026-09-24 16:00:02+00'
 );
 
-INSERT INTO qbit_test.sobytiya_zerkala_operatora (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
     id,
     dialog_id,
     soobshchenie_id,
@@ -830,7 +830,7 @@ VALUES (
 );
 
 -- Valid handoff reference: DB CHECK + new FK must both pass.
-UPDATE qbit_test.dialogi
+UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi
    SET vladelec = 'chelovek',
        tekushchiy_menedzher_id = '00000000-0000-4000-8000-000000000321',
        status = 'peredan_cheloveku',
@@ -841,7 +841,7 @@ DO $db03b$
 BEGIN
     -- Telegram user ID is unique.
     BEGIN
-        INSERT INTO qbit_test.menedzhery_telegram (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram (
             telegram_user_id,
             otobrazhaemoe_imya
         )
@@ -858,7 +858,7 @@ BEGIN
 
     -- Confirmed private chat must be coherent.
     BEGIN
-        INSERT INTO qbit_test.menedzhery_telegram (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram (
             telegram_user_id,
             private_chat_podtverzhden,
             otobrazhaemoe_imya
@@ -877,7 +877,7 @@ BEGIN
 
     -- Private chat belongs to one allowed manager.
     BEGIN
-        INSERT INTO qbit_test.menedzhery_telegram (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram (
             telegram_user_id,
             private_chat_id,
             private_chat_podtverzhden,
@@ -900,7 +900,7 @@ BEGIN
 
     -- A human-owned dialog cannot point to an unknown manager.
     BEGIN
-        UPDATE qbit_test.dialogi
+        UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi
            SET tekushchiy_menedzher_id =
                '00000000-0000-4000-8000-000000009999'
          WHERE id =
@@ -914,7 +914,7 @@ BEGIN
 
     -- A ready topic requires a confirmed thread ID/time.
     BEGIN
-        INSERT INTO qbit_test.operator_telegram_temy (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy (
             dialog_id,
             sluzhebnyy_chat_id,
             status
@@ -933,7 +933,7 @@ BEGIN
 
     -- The same service chat + thread cannot belong to a second dialog.
     BEGIN
-        INSERT INTO qbit_test.operator_telegram_temy (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy (
             dialog_id,
             sluzhebnyy_chat_id,
             message_thread_id,
@@ -958,7 +958,7 @@ BEGIN
 
     -- Mirror stable key is unique.
     BEGIN
-        INSERT INTO qbit_test.sobytiya_zerkala_operatora (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
             dialog_id,
             soobshchenie_id,
             tip_sobytiya,
@@ -981,7 +981,7 @@ BEGIN
 
     -- v_rabote mirror requires a lease.
     BEGIN
-        INSERT INTO qbit_test.sobytiya_zerkala_operatora (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
             dialog_id,
             tip_sobytiya,
             klyuch_idempotentnosti,
@@ -1002,7 +1002,7 @@ BEGIN
 
     -- Media mirror requires both message and attachment.
     BEGIN
-        INSERT INTO qbit_test.sobytiya_zerkala_operatora (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
             dialog_id,
             soobshchenie_id,
             tip_sobytiya,
@@ -1025,7 +1025,7 @@ BEGIN
 
     -- Private alert requires an allowed manager target.
     BEGIN
-        INSERT INTO qbit_test.sobytiya_zerkala_operatora (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
             dialog_id,
             tip_sobytiya,
             klyuch_idempotentnosti,
@@ -1054,13 +1054,13 @@ BEGIN
       INTO v_bad
       FROM (
             SELECT 'menedzhery_telegram' AS t, count(*) AS c
-              FROM qbit_test.menedzhery_telegram
+              FROM qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram
             UNION ALL
             SELECT 'operator_telegram_temy', count(*)
-              FROM qbit_test.operator_telegram_temy
+              FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy
             UNION ALL
             SELECT 'sobytiya_zerkala_operatora', count(*)
-              FROM qbit_test.sobytiya_zerkala_operatora
+              FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora
       ) AS x
      WHERE x.c <> 1;
 
@@ -1091,7 +1091,7 @@ BEGIN
           FROM pg_catalog.pg_class AS c
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = c.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND c.relkind = 'r'
            AND c.relname IN (
                 'menedzhery_telegram',
@@ -1108,16 +1108,16 @@ BEGIN
 
         IF v_owner IS DISTINCT FROM 'qbit_test_owner' THEN
             RAISE EXCEPTION
-                'DB-03B table qbit_test.% has wrong owner %',
+                'DB-03B table qbit_bot_pervichnogo_obrascheniya.% has wrong owner %',
                 v_table.relname,
                 v_owner;
         END IF;
     END LOOP;
 
     SELECT
-          (SELECT count(*) FROM qbit_test.menedzhery_telegram)
-        + (SELECT count(*) FROM qbit_test.operator_telegram_temy)
-        + (SELECT count(*) FROM qbit_test.sobytiya_zerkala_operatora)
+          (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora)
       INTO v_probe_rows;
 
     IF v_probe_rows <> 0 THEN
@@ -1138,7 +1138,7 @@ BEGIN
               FROM pg_catalog.pg_class AS c
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = c.relnamespace
-             WHERE n.nspname = 'qbit_test'
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
                AND c.relkind = 'r'
                AND c.relname IN (
                     'menedzhery_telegram',
@@ -1151,7 +1151,7 @@ BEGIN
             OR pg_catalog.has_table_privilege(v_role, v_table.oid, 'UPDATE')
             OR pg_catalog.has_table_privilege(v_role, v_table.oid, 'DELETE') THEN
                 RAISE EXCEPTION
-                    'Runtime role % has direct DML on qbit_test.%',
+                    'Runtime role % has direct DML on qbit_bot_pervichnogo_obrascheniya.%',
                     v_role,
                     v_table.relname;
             END IF;
@@ -1191,14 +1191,14 @@ SELECT jsonb_build_object(
     'database',
     current_database(),
     'schema',
-    'qbit_test',
+    'qbit_bot_pervichnogo_obrascheniya',
     'owner',
     (
         SELECT r.rolname
           FROM pg_catalog.pg_namespace AS n
           JOIN pg_catalog.pg_roles AS r
             ON r.oid = n.nspowner
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
     ),
     'tables_ok',
     (
@@ -1206,7 +1206,7 @@ SELECT jsonb_build_object(
           FROM pg_catalog.pg_class AS c
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = c.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND c.relkind = 'r'
            AND c.relname IN (
                 'menedzhery_telegram',
@@ -1220,7 +1220,7 @@ SELECT jsonb_build_object(
           FROM pg_catalog.pg_class AS i
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = i.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND i.relkind = 'i'
            AND i.relname IN (
                 'uq_menedzhery_tg_user',
@@ -1243,16 +1243,16 @@ SELECT jsonb_build_object(
             ON rel.oid = con.conrelid
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = rel.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND rel.relname = 'dialogi'
            AND con.conname = 'fk_dialogi_tekushchiy_menedzher'
            AND con.contype = 'f'
            AND con.convalidated = true
     ),
     'probe_rows_remaining',
-      (SELECT count(*) FROM qbit_test.menedzhery_telegram)
-    + (SELECT count(*) FROM qbit_test.operator_telegram_temy)
-    + (SELECT count(*) FROM qbit_test.sobytiya_zerkala_operatora),
+      (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.menedzhery_telegram)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora),
     'runtime_direct_dml',
     false,
     'isolation_canary_untouched',

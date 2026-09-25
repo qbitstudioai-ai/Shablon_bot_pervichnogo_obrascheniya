@@ -4,7 +4,7 @@
 --
 -- TARGET
 --   self-hosted Supabase / PostgreSQL 17.6
---   schema: qbit_test ONLY
+--   schema: qbit_bot_pervichnogo_obrascheniya ONLY
 --   owner:  qbit_test_owner
 --
 -- REQUIRES
@@ -80,16 +80,16 @@ BEGIN
     ]
     LOOP
         IF pg_catalog.to_regclass(
-            pg_catalog.format('qbit_test.%I', v_required_table)
+            pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I', v_required_table)
         ) IS NULL THEN
             RAISE EXCEPTION
-                'Required table qbit_test.% is missing',
+                'Required table qbit_bot_pervichnogo_obrascheniya.% is missing',
                 v_required_table;
         END IF;
     END LOOP;
 
     IF pg_catalog.to_regclass(
-        'qbit_test.uq_zadaniya_dialog_vrabote'
+        'qbit_bot_pervichnogo_obrascheniya.uq_zadaniya_dialog_vrabote'
     ) IS NULL THEN
         RAISE EXCEPTION
             'Required unique one-active-job index is missing';
@@ -108,11 +108,11 @@ BEGIN
               FROM pg_catalog.pg_proc AS p
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = p.pronamespace
-             WHERE n.nspname = 'qbit_test'
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
                AND p.proname = v_required_fn
         ) THEN
             RAISE EXCEPTION
-                'Required prior function qbit_test.% is missing',
+                'Required prior function qbit_bot_pervichnogo_obrascheniya.% is missing',
                 v_required_fn;
         END IF;
     END LOOP;
@@ -128,11 +128,11 @@ BEGIN
               FROM pg_catalog.pg_proc AS p
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = p.pronamespace
-             WHERE n.nspname = 'qbit_test'
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
                AND p.proname = v_new_fn
         ) THEN
             RAISE EXCEPTION
-                'DB-03C3 function qbit_test.% already exists; stop instead of overwriting',
+                'DB-03C3 function qbit_bot_pervichnogo_obrascheniya.% already exists; stop instead of overwriting',
                 v_new_fn;
         END IF;
     END LOOP;
@@ -145,7 +145,7 @@ SET LOCAL ROLE qbit_test_owner;
 -- 1. ATOMIC CLAIM / EXPIRED-LEASE RECLAIM
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.zabrat_zadanie_obrabotki(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -170,7 +170,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -237,10 +237,10 @@ BEGIN
             d.status AS dialog_status,
             i.logicheski_zablokirovan AS identity_blocked
           INTO v_candidate
-          FROM qbit_test.zadaniya_obrabotki AS z
-          JOIN qbit_test.dialogi AS d
+          FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
+          JOIN qbit_bot_pervichnogo_obrascheniya.dialogi AS d
             ON d.id = z.dialog_id
-          JOIN qbit_test.identifikatory_kanalov AS i
+          JOIN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
             ON i.id = d.identifikator_kanala_id
          WHERE (
                 (
@@ -248,7 +248,7 @@ BEGIN
                     AND z.sleduyushchiy_zapusk <= v_now
                     AND NOT EXISTS (
                         SELECT 1
-                          FROM qbit_test.zadaniya_obrabotki AS active_job
+                          FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS active_job
                          WHERE active_job.dialog_id = z.dialog_id
                            AND active_job.status = 'v_rabote'
                     )
@@ -294,7 +294,7 @@ BEGIN
         END;
 
         IF v_cleanup_reason IS NOT NULL THEN
-            UPDATE qbit_test.zadaniya_obrabotki AS z_cancel
+            UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z_cancel
                SET status = 'otmeneno',
                    vladelec_arendy = NULL,
                    arenda_do = NULL,
@@ -310,7 +310,7 @@ BEGIN
             AND v_candidate.arenda_do <= v_now
         );
 
-        UPDATE qbit_test.zadaniya_obrabotki AS z_claim
+        UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z_claim
            SET status = 'v_rabote',
                popytki = z_claim.popytki + 1,
                vladelec_arendy = v_worker,
@@ -369,14 +369,14 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.zabrat_zadanie_obrabotki(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(jsonb) IS
 'DB-03C3: atomic due-job claim via job+dialog row locks and SKIP LOCKED; reclaims expired lease with monotonic fencing number; cleans stale/blocked/human/closed due jobs before claim.';
 
 -- ===========================================================================
 -- 2. LEASE HEARTBEAT
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.prodlit_arendu_zadaniya(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -394,7 +394,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -437,7 +437,7 @@ BEGIN
 
     SELECT z.*
       INTO v_job
-      FROM qbit_test.zadaniya_obrabotki AS z
+      FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
      WHERE z.id = v_job_id
      FOR UPDATE;
 
@@ -483,8 +483,8 @@ BEGIN
         v_dialog_owner,
         v_dialog_status,
         v_identity_blocked
-      FROM qbit_test.dialogi AS d
-      JOIN qbit_test.identifikatory_kanalov AS i
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+      JOIN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
         ON i.id = d.identifikator_kanala_id
      WHERE d.id = v_job.dialog_id
      FOR UPDATE OF d;
@@ -517,7 +517,7 @@ BEGIN
         v_now + make_interval(secs => v_lease_seconds)
     );
 
-    UPDATE qbit_test.zadaniya_obrabotki AS z_upd
+    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z_upd
        SET arenda_do = v_new_lease,
            vremya_obnovleniya = clock_timestamp()
      WHERE z_upd.id = v_job_id;
@@ -531,14 +531,14 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.prodlit_arendu_zadaniya(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya(jsonb) IS
 'DB-03C3: heartbeat продлевает только живую аренду текущего worker с совпадающим monotonic fencing number; истёкшая/перехваченная аренда получает konflikt.';
 
 -- ===========================================================================
 -- 3. FENCED COMPLETION / RETRY / CANCEL / ERROR
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.zavershit_zadanie_obrabotki(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -558,7 +558,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -622,7 +622,7 @@ BEGIN
 
     SELECT z.*
       INTO v_job
-      FROM qbit_test.zadaniya_obrabotki AS z
+      FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
      WHERE z.id = v_job_id
      FOR UPDATE;
 
@@ -670,8 +670,8 @@ BEGIN
         v_dialog_owner,
         v_dialog_status,
         v_identity_blocked
-      FROM qbit_test.dialogi AS d
-      JOIN qbit_test.identifikatory_kanalov AS i
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+      JOIN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
         ON i.id = d.identifikator_kanala_id
      WHERE d.id = v_job.dialog_id
      FOR UPDATE OF d;
@@ -712,7 +712,7 @@ BEGIN
         RETURN;
     END IF;
 
-    UPDATE qbit_test.zadaniya_obrabotki AS z_done
+    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z_done
        SET status = v_target_status,
            sleduyushchiy_zapusk = CASE
                WHEN v_target_status = 'povtor' THEN v_retry_at
@@ -760,22 +760,22 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.zavershit_zadanie_obrabotki(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(jsonb) IS
 'DB-03C3: fenced completion/retry/cancel/error требует live lease, current worker, ownership number и совпадающую dialog version; stale worker/version получает konflikt без записи результата.';
 
 -- ===========================================================================
 -- 4. PRIVILEGES
 -- ===========================================================================
 
-REVOKE ALL ON FUNCTION qbit_test.zabrat_zadanie_obrabotki(jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION qbit_test.prodlit_arendu_zadaniya(jsonb) FROM PUBLIC;
-REVOKE ALL ON FUNCTION qbit_test.zavershit_zadanie_obrabotki(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(jsonb) FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION qbit_test.zabrat_zadanie_obrabotki(jsonb)
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(jsonb)
 TO qbit_test_bot;
-GRANT EXECUTE ON FUNCTION qbit_test.prodlit_arendu_zadaniya(jsonb)
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya(jsonb)
 TO qbit_test_bot;
-GRANT EXECUTE ON FUNCTION qbit_test.zavershit_zadanie_obrabotki(jsonb)
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(jsonb)
 TO qbit_test_bot;
 
 -- ===========================================================================
@@ -798,7 +798,7 @@ BEGIN
             ON n.oid = p.pronamespace
           JOIN pg_catalog.pg_roles AS r
             ON r.oid = p.proowner
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'zabrat_zadanie_obrabotki',
                 'prodlit_arendu_zadaniya',
@@ -820,7 +820,7 @@ BEGIN
 
         IF NOT (
             COALESCE(v_fn.proconfig, ARRAY[]::text[])
-            @> ARRAY['search_path=pg_catalog, qbit_test']::text[]
+            @> ARRAY['search_path=pg_catalog, qbit_bot_pervichnogo_obrascheniya']::text[]
         ) THEN
             RAISE EXCEPTION
                 'Function % has unsafe search_path %',
@@ -877,7 +877,7 @@ BEGIN
           FROM pg_catalog.pg_proc AS p
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = p.pronamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'zabrat_zadanie_obrabotki',
                 'prodlit_arendu_zadaniya',
@@ -927,7 +927,7 @@ BEGIN
     -- Message 1 / job version 1.
     SELECT *
       INTO r1
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c3_ingress_1',
@@ -958,7 +958,7 @@ BEGIN
 
     SELECT *
       INTO c1
-      FROM qbit_test.zabrat_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_claim_a',
             'worker_id', 'worker_a',
@@ -979,7 +979,7 @@ BEGIN
     -- No second worker may get another active job for this dialog.
     SELECT *
       INTO c_none
-      FROM qbit_test.zabrat_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_claim_while_active',
             'worker_id', 'worker_b',
@@ -995,7 +995,7 @@ BEGIN
 
     SELECT *
       INTO hb_wrong
-      FROM qbit_test.prodlit_arendu_zadaniya(
+      FROM qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya(
         jsonb_build_object(
             'operaciya_id', 'db03c3_hb_wrong',
             'zadanie_id', c1.zadanie_id,
@@ -1014,7 +1014,7 @@ BEGIN
 
     SELECT *
       INTO hb_ok
-      FROM qbit_test.prodlit_arendu_zadaniya(
+      FROM qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya(
         jsonb_build_object(
             'operaciya_id', 'db03c3_hb_ok',
             'zadanie_id', c1.zadanie_id,
@@ -1036,7 +1036,7 @@ BEGIN
     -- second job is pending but cannot be claimed while job1 lease is active.
     SELECT *
       INTO r2
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c3_ingress_2',
@@ -1067,7 +1067,7 @@ BEGIN
 
     SELECT *
       INTO hb_stale_dialog
-      FROM qbit_test.prodlit_arendu_zadaniya(
+      FROM qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya(
         jsonb_build_object(
             'operaciya_id', 'db03c3_hb_stale_dialog',
             'zadanie_id', c1.zadanie_id,
@@ -1086,7 +1086,7 @@ BEGIN
 
     SELECT *
       INTO c_none
-      FROM qbit_test.zabrat_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_claim_pending_same_dialog',
             'worker_id', 'worker_b',
@@ -1103,7 +1103,7 @@ BEGIN
     -- Worker A still owns a live lease but its dialog version is stale.
     SELECT *
       INTO stale_finish
-      FROM qbit_test.zavershit_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_finish_stale_dialog',
             'zadanie_id', c1.zadanie_id,
@@ -1123,13 +1123,13 @@ BEGIN
     END IF;
 
     -- Simulate lease expiry. Next claim must cancel stale job1 and claim job2.
-    UPDATE qbit_test.zadaniya_obrabotki AS z_probe
+    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z_probe
        SET arenda_do = clock_timestamp() - interval '1 second'
      WHERE z_probe.id = c1.zadanie_id;
 
     SELECT *
       INTO c2
-      FROM qbit_test.zabrat_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_claim_b',
             'worker_id', 'worker_b',
@@ -1139,7 +1139,7 @@ BEGIN
 
     SELECT z.status, z.kod_oshibki
       INTO v_r1_status, v_r1_code
-      FROM qbit_test.zadaniya_obrabotki AS z
+      FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
      WHERE z.id = r1.zadanie_id;
 
     IF c2.rezultat <> 'uspeshno'
@@ -1156,13 +1156,13 @@ BEGIN
     END IF;
 
     -- Expired current-version job2 is reclaimed as the SAME job with fencing+1.
-    UPDATE qbit_test.zadaniya_obrabotki AS z_probe
+    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z_probe
        SET arenda_do = clock_timestamp() - interval '1 second'
      WHERE z_probe.id = c2.zadanie_id;
 
     SELECT *
       INTO c3
-      FROM qbit_test.zabrat_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_claim_c_reclaim',
             'worker_id', 'worker_c',
@@ -1183,7 +1183,7 @@ BEGIN
 
     SELECT *
       INTO hb_stale
-      FROM qbit_test.prodlit_arendu_zadaniya(
+      FROM qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya(
         jsonb_build_object(
             'operaciya_id', 'db03c3_hb_stale_after_reclaim',
             'zadanie_id', c2.zadanie_id,
@@ -1195,7 +1195,7 @@ BEGIN
 
     SELECT *
       INTO finish_stale_owner
-      FROM qbit_test.zavershit_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_finish_stale_owner',
             'zadanie_id', c2.zadanie_id,
@@ -1219,7 +1219,7 @@ BEGIN
     -- Current owner schedules a safe retry.
     SELECT *
       INTO retry_done
-      FROM qbit_test.zavershit_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_retry',
             'zadanie_id', c3.zadanie_id,
@@ -1241,13 +1241,13 @@ BEGIN
     END IF;
 
     -- Make the retry due, claim again: same job, ownership=3, attempts=3.
-    UPDATE qbit_test.zadaniya_obrabotki AS z_probe
+    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z_probe
        SET sleduyushchiy_zapusk = clock_timestamp() - interval '1 second'
      WHERE z_probe.id = c3.zadanie_id;
 
     SELECT *
       INTO c4
-      FROM qbit_test.zabrat_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_claim_d_retry',
             'worker_id', 'worker_d',
@@ -1267,7 +1267,7 @@ BEGIN
 
     SELECT *
       INTO done_ok
-      FROM qbit_test.zavershit_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_done',
             'zadanie_id', c4.zadanie_id,
@@ -1282,7 +1282,7 @@ BEGIN
        OR done_ok.status_zadaniya <> 'zaversheno'
        OR EXISTS (
             SELECT 1
-              FROM qbit_test.zadaniya_obrabotki AS z
+              FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
              WHERE z.id = c4.zadanie_id
                AND (
                     z.vladelec_arendy IS NOT NULL
@@ -1298,7 +1298,7 @@ BEGIN
     -- Version 3: permanent error path.
     SELECT *
       INTO r3
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c3_ingress_3',
@@ -1322,7 +1322,7 @@ BEGIN
 
     SELECT *
       INTO c5
-      FROM qbit_test.zabrat_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_claim_e',
             'worker_id', 'worker_e',
@@ -1332,7 +1332,7 @@ BEGIN
 
     SELECT *
       INTO err_ok
-      FROM qbit_test.zavershit_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_error',
             'zadanie_id', c5.zadanie_id,
@@ -1359,7 +1359,7 @@ BEGIN
     -- Version 4: explicit cancel path.
     SELECT *
       INTO r4
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c3_ingress_4',
@@ -1383,7 +1383,7 @@ BEGIN
 
     SELECT *
       INTO c6
-      FROM qbit_test.zabrat_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_claim_f',
             'worker_id', 'worker_f',
@@ -1393,7 +1393,7 @@ BEGIN
 
     SELECT *
       INTO cancel_ok
-      FROM qbit_test.zavershit_zadanie_obrabotki(
+      FROM qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(
         jsonb_build_object(
             'operaciya_id', 'db03c3_cancel',
             'zadanie_id', c6.zadanie_id,
@@ -1433,7 +1433,7 @@ DECLARE
 BEGIN
     IF EXISTS (
         SELECT 1
-          FROM qbit_test.identifikatory_kanalov AS i
+          FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
          WHERE i.akkaunt_kanala_id = 'db03c3_client_bot'
             OR i.vneshniy_polzovatel_id = 'db03c3_user'
     ) THEN
@@ -1452,7 +1452,7 @@ BEGIN
               FROM pg_catalog.pg_class AS c
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = c.relnamespace
-             WHERE n.nspname = 'qbit_test'
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
                AND c.relkind = 'r'
         LOOP
             IF pg_catalog.has_table_privilege(v_role, v_table.oid, 'SELECT')
@@ -1460,7 +1460,7 @@ BEGIN
             OR pg_catalog.has_table_privilege(v_role, v_table.oid, 'UPDATE')
             OR pg_catalog.has_table_privilege(v_role, v_table.oid, 'DELETE') THEN
                 RAISE EXCEPTION
-                    'Runtime role % unexpectedly has direct DML on qbit_test.%',
+                    'Runtime role % unexpectedly has direct DML on qbit_bot_pervichnogo_obrascheniya.%',
                     v_role,
                     v_table.relname;
             END IF;
@@ -1483,14 +1483,14 @@ SELECT jsonb_build_object(
     'database',
     current_database(),
     'schema',
-    'qbit_test',
+    'qbit_bot_pervichnogo_obrascheniya',
     'functions_ok',
     (
         SELECT count(*) = 3
           FROM pg_catalog.pg_proc AS p
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = p.pronamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'zabrat_zadanie_obrabotki',
                 'prodlit_arendu_zadaniya',
@@ -1501,31 +1501,31 @@ SELECT jsonb_build_object(
     'bot_execute_ok',
     pg_catalog.has_function_privilege(
         'qbit_test_bot',
-        'qbit_test.zabrat_zadanie_obrabotki(jsonb)',
+        'qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(jsonb)',
         'EXECUTE'
     )
     AND pg_catalog.has_function_privilege(
         'qbit_test_bot',
-        'qbit_test.prodlit_arendu_zadaniya(jsonb)',
+        'qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya(jsonb)',
         'EXECUTE'
     )
     AND pg_catalog.has_function_privilege(
         'qbit_test_bot',
-        'qbit_test.zavershit_zadanie_obrabotki(jsonb)',
+        'qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(jsonb)',
         'EXECUTE'
     ),
     'service_execute_denied',
     NOT pg_catalog.has_function_privilege(
         'qbit_test_sluzhebnyy',
-        'qbit_test.zabrat_zadanie_obrabotki(jsonb)',
+        'qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(jsonb)',
         'EXECUTE'
     ),
     'one_active_job_index_ok',
-    pg_catalog.to_regclass('qbit_test.uq_zadaniya_dialog_vrabote') IS NOT NULL,
+    pg_catalog.to_regclass('qbit_bot_pervichnogo_obrascheniya.uq_zadaniya_dialog_vrabote') IS NOT NULL,
     'probe_rows_remaining',
     (
         SELECT count(*)
-          FROM qbit_test.identifikatory_kanalov AS i
+          FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
          WHERE i.akkaunt_kanala_id = 'db03c3_client_bot'
             OR i.vneshniy_polzovatel_id = 'db03c3_user'
     ),

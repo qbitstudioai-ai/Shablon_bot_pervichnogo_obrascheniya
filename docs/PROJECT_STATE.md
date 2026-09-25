@@ -77,7 +77,7 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 Файл `sql/DB-01_test_schemas_roles.sql` v0.3 успешно выполнен Павлом в self-hosted Supabase Studio на базе PostgreSQL 17.6. До запуска read-only диагностикой подтверждены фактические права среды: session/current user `postgres`, `rolsuper=false`, `rolcreaterole=true`, `rolcreatedb=true`, CREATE на текущей БД=true, CREATE для PUBLIC в schema `public`=false, `vector=0.8.2`.
 
 На сервере созданы только test-объекты DB-01:
-- schema `qbit_test`, владелец `qbit_test_owner`;
+- schema `qbit_bot_pervichnogo_obrascheniya`, владелец `qbit_test_owner`;
 - schema `kompaniya_001_test`, владелец `kompaniya_001_test_owner`;
 - по 6 ограниченных ролей на каждую schema: `owner`, `deploy`, `bot`, `sluzhebnyy`, `dash_read`, `dash_admin`.
 
@@ -110,7 +110,7 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 - `isolation_canary_untouched = true`;
 - результат: `DB-02 SQL APPLIED: 13 tables, links/comments/duplicate guard verified; probe data removed; production untouched.`
 
-На сервере теперь существуют 13 таблиц DB-02 в `qbit_test`, 37 контрактных индексов, FK/CHECK/UNIQUE и русские COMMENT. Одноразовые probe-данные удалены откатом SAVEPOINT. Production и `kompaniya_001_test` не изменялись.
+На сервере теперь существуют 13 таблиц DB-02 в `qbit_bot_pervichnogo_obrascheniya`, 37 контрактных индексов, FK/CHECK/UNIQUE и русские COMMENT. Одноразовые probe-данные удалены откатом SAVEPOINT. Production и `kompaniya_001_test` не изменялись.
 
 Две forward-связи остаются обязательной частью DB-03:
 - `dialogi.tekushchiy_menedzher_id → menedzhery_telegram.id`;
@@ -219,7 +219,7 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 Неуспешные ранние запуски v0.1 были остановлены внутри SAVEPOINT-probe до `COMMIT` и откатились. Применена только v0.2. Production не затронут.
 
-**Родительский DB-03C завершён:** DB-03C1 v0.3, DB-03C2 v0.1, DB-03C3 v0.1 и DB-03C4 v0.2 применены и проверены в `qbit_test`.
+**Родительский DB-03C завершён:** DB-03C1 v0.3, DB-03C2 v0.1, DB-03C3 v0.1 и DB-03C4 v0.2 применены и проверены в `qbit_bot_pervichnogo_obrascheniya`.
 
 ## Последний завершённый блок
 
@@ -276,31 +276,23 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 v0.1 ранее остановился на SQL parse до выполнения probe из-за недопустимого `pg_catalog.position(... IN ...)`; применений на сервере не было. В v0.2 использован `pg_catalog.strpos`.
 
-**Родительский DB-03 завершён:** DB-03A, DB-03B, весь DB-03C, весь DB-03D и интегральный DB-03V применены/проверены в `qbit_test`. Production не затронут.
+**Родительский DB-03 завершён:** DB-03A, DB-03B, весь DB-03C, весь DB-03D и интегральный DB-03V применены/проверены в `qbit_bot_pervichnogo_obrascheniya`. Production не затронут.
 
 ## Текущая задача
 
-**PRE-02 — runtime-подтверждение профиля обработки. Статус: в работе.**
+**DB-SCHEMA-01 — переименование test schema qBit для различимости проектов. Статус: в работе.**
 
-Провайдер и кандидаты уже зафиксированы в `docs/specs/PROCESSING_PROFILE.md`:
-- OpenRouter — единый внешний AI-шлюз;
-- LLM: `deepseek/deepseek-v4.1-flash`;
-- embeddings: `qwen/qwen3-embedding-8b`, целевая размерность 1024;
-- резерв embeddings: `qwen/qwen3-embedding-0.6b` native 1024;
-- similarity: cosine;
-- Markdown parser: `markdown-it 15.0.2`;
-- YAML parser: `yaml 2.9.1`;
-- tokenizer runtime: `@huggingface/transformers 4.3.0`, tokenizer `Qwen/Qwen3-Embedding-8B`.
+Бизнес-решение Павла: вместо прежнего имени test schema использовать `qbit_bot_pervichnogo_obrascheniya`. Цель — в одном Supabase легко отличать schema разных будущих проектов qBit.
 
-Осталось фактически подтвердить:
-1. test-вызов LLM из российского n8n через OpenRouter;
-2. embedding 8B с `dimensions=1024` и длиной ответа ровно 1024;
-3. tokenizer/parser в self-hosted runtime;
-4. контрольный набор и similarity threshold в диапазоне 0.45–0.85 шаг 0.05.
+Граница задачи:
+- переименовать только schema `qbit_test → qbit_bot_pervichnogo_obrascheniya`;
+- существующие PostgreSQL-роли `qbit_test_owner/deploy/bot/sluzhebnyy/dash_read/dash_admin` **не переименовывать** в этой задаче;
+- production schema/roles, `kompaniya_001_test`, рабочий трафик и Credentials не менять;
+- обновить SQL шаблона и документацию на новое canonical schema name;
+- на живом test-контуре после `ALTER SCHEMA` пересоздать текущие SECURITY DEFINER функции с новым квалифицированным именем в body/search_path, сохранив сигнатуры и ACL;
+- доказать отсутствие schema `qbit_test`, наличие новой schema, корректный owner, функции/права, отсутствие probe-данных и неизменность production/canary.
 
-Секреты OpenRouter в GitHub/чат не передавать: test credentials подключаются через безопасный интерфейс n8n. Если 8B через OpenRouter не подтверждает стабильный `dimensions=1024`, используется зафиксированный резерв 0.6B; профили векторов не смешиваются.
-
-**Следующий шаг:** выполнить PRE-02 runtime-проверки. DB-04 до закрытия PRE-02 не начинать. RT-01 после DB-03 уже имеет выполненные зависимости, но параллельно не запускается.
+После успешного server-check DB-SCHEMA-01 работа с текущим этапом Supabase считается завершённой: DB-01…DB-03 реализованы/проверены, а DB-04/DB-05 намеренно ещё не начинаются, потому что зависят от PRE-02. Следующая сессия — PRE-02 в n8n/OpenRouter.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

@@ -13,7 +13,7 @@
 --
 -- PURPOSE
 --   Create ONLY two isolated TEST schemas:
---     1) qbit_test
+--     1) qbit_bot_pervichnogo_obrascheniya
 --     2) kompaniya_001_test (fictional isolation canary)
 --   and their restricted PostgreSQL roles.
 --
@@ -267,7 +267,7 @@ GRANT kompaniya_001_test_owner TO kompaniya_001_test_deploy
 -- 2. CREATE / VALIDATE TEST SCHEMAS
 -- ===========================================================================
 
-CREATE SCHEMA IF NOT EXISTS qbit_test
+CREATE SCHEMA IF NOT EXISTS qbit_bot_pervichnogo_obrascheniya
     AUTHORIZATION qbit_test_owner;
 
 CREATE SCHEMA IF NOT EXISTS kompaniya_001_test
@@ -282,11 +282,11 @@ BEGIN
       FROM pg_catalog.pg_namespace AS n
       JOIN pg_catalog.pg_roles AS r
         ON r.oid = n.nspowner
-     WHERE n.nspname = 'qbit_test';
+     WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya';
 
     IF v_owner IS DISTINCT FROM 'qbit_test_owner' THEN
         RAISE EXCEPTION
-            'qbit_test owner mismatch: expected qbit_test_owner, actual %',
+            'qbit_bot_pervichnogo_obrascheniya owner mismatch: expected qbit_test_owner, actual %',
             COALESCE(v_owner, '<missing>');
     END IF;
 
@@ -311,12 +311,12 @@ $db01$;
 
 SET LOCAL ROLE qbit_test_owner;
 
-COMMENT ON SCHEMA qbit_test IS
+COMMENT ON SCHEMA qbit_bot_pervichnogo_obrascheniya IS
 'Тестовая schema первой эталонной установки qBit. Production-данные здесь запрещены.';
 
-REVOKE ALL ON SCHEMA qbit_test FROM PUBLIC;
+REVOKE ALL ON SCHEMA qbit_bot_pervichnogo_obrascheniya FROM PUBLIC;
 
-GRANT USAGE ON SCHEMA qbit_test
+GRANT USAGE ON SCHEMA qbit_bot_pervichnogo_obrascheniya
     TO qbit_test_bot,
        qbit_test_sluzhebnyy,
        qbit_test_dash_read,
@@ -324,7 +324,7 @@ GRANT USAGE ON SCHEMA qbit_test
 
 -- No qBit deploy/runtime access to the fictional company schema is granted anywhere.
 -- Remove accidental foreign grants if DB-01 is re-run.
-REVOKE ALL ON SCHEMA qbit_test
+REVOKE ALL ON SCHEMA qbit_bot_pervichnogo_obrascheniya
     FROM kompaniya_001_test_deploy,
          kompaniya_001_test_bot,
          kompaniya_001_test_sluzhebnyy,
@@ -348,7 +348,7 @@ BEGIN
              WHERE rolname = v_shared_role
         ) THEN
             EXECUTE pg_catalog.format(
-                'REVOKE ALL ON SCHEMA qbit_test FROM %I',
+                'REVOKE ALL ON SCHEMA qbit_bot_pervichnogo_obrascheniya FROM %I',
                 v_shared_role
             );
         END IF;
@@ -357,9 +357,9 @@ END
 $db01$;
 
 -- Existing objects (normally none at DB-01) are kept default-deny for PUBLIC.
-REVOKE ALL ON ALL TABLES IN SCHEMA qbit_test FROM PUBLIC;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA qbit_test FROM PUBLIC;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA qbit_test FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA qbit_bot_pervichnogo_obrascheniya FROM PUBLIC;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA qbit_bot_pervichnogo_obrascheniya FROM PUBLIC;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA qbit_bot_pervichnogo_obrascheniya FROM PUBLIC;
 
 -- PostgreSQL grants PUBLIC EXECUTE on new functions and PUBLIC USAGE on new types
 -- by global default. These owner-wide defaults intentionally omit IN SCHEMA.
@@ -457,11 +457,11 @@ BEGIN
         SELECT *
           FROM (
                 VALUES
-                    ('qbit_test_deploy', 'qbit_test'),
-                    ('qbit_test_bot', 'qbit_test'),
-                    ('qbit_test_sluzhebnyy', 'qbit_test'),
-                    ('qbit_test_dash_read', 'qbit_test'),
-                    ('qbit_test_dash_admin', 'qbit_test'),
+                    ('qbit_test_deploy', 'qbit_bot_pervichnogo_obrascheniya'),
+                    ('qbit_test_bot', 'qbit_bot_pervichnogo_obrascheniya'),
+                    ('qbit_test_sluzhebnyy', 'qbit_bot_pervichnogo_obrascheniya'),
+                    ('qbit_test_dash_read', 'qbit_bot_pervichnogo_obrascheniya'),
+                    ('qbit_test_dash_admin', 'qbit_bot_pervichnogo_obrascheniya'),
 
                     ('kompaniya_001_test_deploy', 'kompaniya_001_test'),
                     ('kompaniya_001_test_bot', 'kompaniya_001_test'),
@@ -485,7 +485,7 @@ $db01$;
 -- ===========================================================================
 
 COMMENT ON ROLE qbit_test_owner IS
-'DB-01: NOLOGIN owner объектов qbit_test.';
+'DB-01: NOLOGIN owner объектов qbit_bot_pervichnogo_obrascheniya.';
 
 COMMENT ON ROLE qbit_test_deploy IS
 'DB-01: test deployment role qBit; explicit SET ROLE to qbit_test_owner.';
@@ -528,11 +528,11 @@ COMMENT ON ROLE kompaniya_001_test_dash_admin IS
 
 SET LOCAL ROLE qbit_test_owner;
 
-CREATE TABLE qbit_test.db01_probe_table (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.db01_probe_table (
     id integer NOT NULL
 );
 
-CREATE FUNCTION qbit_test.db01_probe_function()
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.db01_probe_function()
 RETURNS integer
 LANGUAGE sql
 IMMUTABLE
@@ -632,21 +632,21 @@ BEGIN
     LOOP
         IF NOT pg_catalog.has_schema_privilege(
             v_role,
-            'qbit_test',
+            'qbit_bot_pervichnogo_obrascheniya',
             'USAGE'
         ) THEN
             RAISE EXCEPTION
-                '% lacks USAGE on qbit_test',
+                '% lacks USAGE on qbit_bot_pervichnogo_obrascheniya',
                 v_role;
         END IF;
 
         IF pg_catalog.has_schema_privilege(
             v_role,
-            'qbit_test',
+            'qbit_bot_pervichnogo_obrascheniya',
             'CREATE'
         ) THEN
             RAISE EXCEPTION
-                '% unexpectedly has CREATE on qbit_test',
+                '% unexpectedly has CREATE on qbit_bot_pervichnogo_obrascheniya',
                 v_role;
         END IF;
 
@@ -667,36 +667,36 @@ BEGIN
 
         IF pg_catalog.has_table_privilege(
             v_role,
-            'qbit_test.db01_probe_table',
+            'qbit_bot_pervichnogo_obrascheniya.db01_probe_table',
             'SELECT'
         )
         OR pg_catalog.has_table_privilege(
             v_role,
-            'qbit_test.db01_probe_table',
+            'qbit_bot_pervichnogo_obrascheniya.db01_probe_table',
             'INSERT'
         )
         OR pg_catalog.has_table_privilege(
             v_role,
-            'qbit_test.db01_probe_table',
+            'qbit_bot_pervichnogo_obrascheniya.db01_probe_table',
             'UPDATE'
         )
         OR pg_catalog.has_table_privilege(
             v_role,
-            'qbit_test.db01_probe_table',
+            'qbit_bot_pervichnogo_obrascheniya.db01_probe_table',
             'DELETE'
         ) THEN
             RAISE EXCEPTION
-                '% unexpectedly has direct DML on qbit_test probe table',
+                '% unexpectedly has direct DML on qbit_bot_pervichnogo_obrascheniya probe table',
                 v_role;
         END IF;
 
         IF pg_catalog.has_function_privilege(
             v_role,
-            'qbit_test.db01_probe_function()',
+            'qbit_bot_pervichnogo_obrascheniya.db01_probe_function()',
             'EXECUTE'
         ) THEN
             RAISE EXCEPTION
-                '% unexpectedly has default EXECUTE on qbit_test probe function',
+                '% unexpectedly has default EXECUTE on qbit_bot_pervichnogo_obrascheniya probe function',
                 v_role;
         END IF;
 
@@ -746,16 +746,16 @@ BEGIN
 
         IF pg_catalog.has_schema_privilege(
             v_role,
-            'qbit_test',
+            'qbit_bot_pervichnogo_obrascheniya',
             'USAGE'
         )
         OR pg_catalog.has_schema_privilege(
             v_role,
-            'qbit_test',
+            'qbit_bot_pervichnogo_obrascheniya',
             'CREATE'
         ) THEN
             RAISE EXCEPTION
-                '% can access foreign schema qbit_test',
+                '% can access foreign schema qbit_bot_pervichnogo_obrascheniya',
                 v_role;
         END IF;
 
@@ -825,12 +825,12 @@ BEGIN
         ) THEN
             IF pg_catalog.has_schema_privilege(
                 v_shared_role,
-                'qbit_test',
+                'qbit_bot_pervichnogo_obrascheniya',
                 'USAGE'
             )
             OR pg_catalog.has_schema_privilege(
                 v_shared_role,
-                'qbit_test',
+                'qbit_bot_pervichnogo_obrascheniya',
                 'CREATE'
             )
             OR pg_catalog.has_schema_privilege(
@@ -860,7 +860,7 @@ BEGIN
                   pg_catalog.acldefault('n', n.nspowner)
               )
           ) AS a
-         WHERE n.nspname IN ('qbit_test', 'kompaniya_001_test')
+         WHERE n.nspname IN ('qbit_bot_pervichnogo_obrascheniya', 'kompaniya_001_test')
            AND a.grantee = 0
            AND a.privilege_type IN ('USAGE', 'CREATE')
     ) THEN
@@ -873,8 +873,8 @@ $db01$;
 -- Remove disposable probes before COMMIT.
 SET LOCAL ROLE qbit_test_owner;
 
-DROP FUNCTION qbit_test.db01_probe_function();
-DROP TABLE qbit_test.db01_probe_table;
+DROP FUNCTION qbit_bot_pervichnogo_obrascheniya.db01_probe_function();
+DROP TABLE qbit_bot_pervichnogo_obrascheniya.db01_probe_table;
 
 RESET ROLE;
 
@@ -937,7 +937,7 @@ BEGIN
     )
     OR pg_catalog.has_schema_privilege(
         'kompaniya_001_test_bot',
-        'qbit_test',
+        'qbit_bot_pervichnogo_obrascheniya',
         'USAGE'
     ) THEN
         RAISE EXCEPTION
@@ -979,7 +979,7 @@ SELECT
               JOIN pg_catalog.pg_roles AS r
                 ON r.oid = n.nspowner
              WHERE n.nspname IN (
-                 'qbit_test',
+                 'qbit_bot_pervichnogo_obrascheniya',
                  'kompaniya_001_test'
              )
         ),
@@ -1011,7 +1011,7 @@ SELECT
         'fictional_bot_foreign_usage',
         pg_catalog.has_schema_privilege(
             'kompaniya_001_test_bot',
-            'qbit_test',
+            'qbit_bot_pervichnogo_obrascheniya',
             'USAGE'
         ),
         'probe_objects_remaining',
@@ -1021,7 +1021,7 @@ SELECT
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = c.relnamespace
              WHERE n.nspname IN (
-                 'qbit_test',
+                 'qbit_bot_pervichnogo_obrascheniya',
                  'kompaniya_001_test'
              )
                AND c.relname = 'db01_probe_table'
@@ -1032,7 +1032,7 @@ SELECT
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = p.pronamespace
              WHERE n.nspname IN (
-                 'qbit_test',
+                 'qbit_bot_pervichnogo_obrascheniya',
                  'kompaniya_001_test'
              )
                AND p.proname = 'db01_probe_function'

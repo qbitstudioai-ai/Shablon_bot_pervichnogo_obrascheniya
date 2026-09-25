@@ -4,7 +4,7 @@
 --
 -- TARGET
 --   self-hosted Supabase / PostgreSQL 17.6
---   schema: qbit_test ONLY
+--   schema: qbit_bot_pervichnogo_obrascheniya ONLY
 --   owner:  qbit_test_owner
 --
 -- REQUIRES
@@ -23,7 +23,7 @@
 --
 -- SECURITY
 --   * Functions are owned by qbit_test_owner.
---   * search_path is fixed to pg_catalog, qbit_test.
+--   * search_path is fixed to pg_catalog, qbit_bot_pervichnogo_obrascheniya.
 --   * PUBLIC has no EXECUTE.
 --   * EXECUTE is granted only to qbit_test_bot.
 --   * qbit_test_bot still has no direct table DML.
@@ -93,10 +93,10 @@ BEGIN
     ]
     LOOP
         IF pg_catalog.to_regclass(
-            pg_catalog.format('qbit_test.%I', v_required)
+            pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I', v_required)
         ) IS NULL THEN
             RAISE EXCEPTION
-                'Required table qbit_test.% is missing',
+                'Required table qbit_bot_pervichnogo_obrascheniya.% is missing',
                 v_required;
         END IF;
     END LOOP;
@@ -108,7 +108,7 @@ BEGIN
             ON rel.oid = con.conrelid
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = rel.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND rel.relname = 'soobshcheniya'
            AND con.conname = 'fk_soobshcheniya_sobytie_integracii'
            AND con.contype = 'f'
@@ -130,20 +130,20 @@ BEGIN
               FROM pg_catalog.pg_proc AS p
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = p.pronamespace
-             WHERE n.nspname = 'qbit_test'
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
                AND p.proname = v_fn
         ) THEN
             RAISE EXCEPTION
-                'DB-03C1 function qbit_test.% already exists; stop instead of overwriting',
+                'DB-03C1 function qbit_bot_pervichnogo_obrascheniya.% already exists; stop instead of overwriting',
                 v_fn;
         END IF;
     END LOOP;
 
     IF pg_catalog.to_regclass(
-        'qbit_test.uq_vlozheniya_msg_file_id'
+        'qbit_bot_pervichnogo_obrascheniya.uq_vlozheniya_msg_file_id'
     ) IS NOT NULL
     OR pg_catalog.to_regclass(
-        'qbit_test.uq_vlozheniya_msg_file_unique'
+        'qbit_bot_pervichnogo_obrascheniya.uq_vlozheniya_msg_file_unique'
     ) IS NOT NULL THEN
         RAISE EXCEPTION
             'DB-03C1 attachment idempotency index already exists';
@@ -158,30 +158,30 @@ $db03c1$;
 SET LOCAL ROLE qbit_test_owner;
 
 CREATE UNIQUE INDEX uq_vlozheniya_msg_file_id
-    ON qbit_test.vlozheniya_soobshcheniy (
+    ON qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy (
         soobshchenie_id,
         vneshniy_file_id
     )
     WHERE vneshniy_file_id IS NOT NULL;
 
 CREATE UNIQUE INDEX uq_vlozheniya_msg_file_unique
-    ON qbit_test.vlozheniya_soobshcheniy (
+    ON qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy (
         soobshchenie_id,
         vneshniy_file_unique_id
     )
     WHERE vneshniy_file_unique_id IS NOT NULL;
 
-COMMENT ON INDEX qbit_test.uq_vlozheniya_msg_file_id IS
+COMMENT ON INDEX qbit_bot_pervichnogo_obrascheniya.uq_vlozheniya_msg_file_id IS
 'DB-03C1: один provider file_id внутри одного логического сообщения сохраняется только один раз.';
 
-COMMENT ON INDEX qbit_test.uq_vlozheniya_msg_file_unique IS
+COMMENT ON INDEX qbit_bot_pervichnogo_obrascheniya.uq_vlozheniya_msg_file_unique IS
 'DB-03C1: один provider file_unique_id внутри одного логического сообщения сохраняется только один раз.';
 
 -- ===========================================================================
 -- 2. REGISTER CLIENT INGRESS
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.zaregistrirovat_vhod_klienta(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
     p_vhod jsonb
 )
 RETURNS TABLE (
@@ -199,7 +199,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -310,7 +310,7 @@ BEGIN
 
     -- Persist the integration event first. ON CONFLICT waits for a concurrent
     -- transaction and then allows us to compare its committed hash.
-    INSERT INTO qbit_test.sobytiya_integraciy (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy (
         versiya_formata,
         operaciya_id,
         istochnik,
@@ -347,7 +347,7 @@ BEGIN
     IF v_event_id IS NULL THEN
         SELECT e.*
           INTO v_existing_event
-          FROM qbit_test.sobytiya_integraciy AS e
+          FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy AS e
          WHERE e.klyuch_idempotentnosti = v_klyuch_idempotentnosti
             OR (
                 e.istochnik = v_kanal
@@ -396,10 +396,10 @@ BEGIN
                 d.polzovatel_id,
                 d.identifikator_kanala_id
               INTO v_existing_message
-              FROM qbit_test.identifikatory_kanalov AS i
-              JOIN qbit_test.dialogi AS d
+              FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
+              JOIN qbit_bot_pervichnogo_obrascheniya.dialogi AS d
                 ON d.identifikator_kanala_id = i.id
-              JOIN qbit_test.soobshcheniya AS m
+              JOIN qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
                 ON m.dialog_id = d.id
              WHERE i.kanal = v_kanal
                AND i.akkaunt_kanala_id = v_akkaunt
@@ -411,8 +411,8 @@ BEGIN
             IF FOUND THEN
                 SELECT z.id, z.versiya_dialoga
                   INTO v_existing_job
-                  FROM qbit_test.zadaniya_obrabotki AS z
-                  JOIN qbit_test.soobshcheniya AS original_message
+                  FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
+                  JOIN qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS original_message
                     ON original_message.sobytie_id = z.sobytie_id
                  WHERE original_message.id = v_existing_message.message_id
                  ORDER BY z.vremya_sozdaniya
@@ -438,8 +438,8 @@ BEGIN
             d.polzovatel_id,
             d.identifikator_kanala_id
           INTO v_existing_message
-          FROM qbit_test.soobshcheniya AS m
-          JOIN qbit_test.dialogi AS d
+          FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
+          JOIN qbit_bot_pervichnogo_obrascheniya.dialogi AS d
             ON d.id = m.dialog_id
          WHERE m.sobytie_id = v_existing_event.id
          ORDER BY m.vremya_sozdaniya
@@ -456,7 +456,7 @@ BEGIN
 
         SELECT z.id, z.versiya_dialoga
           INTO v_existing_job
-          FROM qbit_test.zadaniya_obrabotki AS z
+          FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
          WHERE z.sobytie_id = v_existing_event.id
            AND z.dialog_id = v_existing_message.dialog_id
          ORDER BY z.vremya_sozdaniya
@@ -487,14 +487,14 @@ BEGIN
 
     SELECT i.*
       INTO v_identity
-      FROM qbit_test.identifikatory_kanalov AS i
+      FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
      WHERE i.kanal = v_kanal
        AND i.akkaunt_kanala_id = v_akkaunt
        AND i.vneshniy_polzovatel_id = v_vnesh_polz
      FOR UPDATE;
 
     IF NOT FOUND THEN
-        INSERT INTO qbit_test.polzovateli (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.polzovateli (
             vremya_pervogo_obrashcheniya,
             vremya_poslednego_obrashcheniya,
             pervyy_kanal
@@ -506,7 +506,7 @@ BEGIN
         )
         RETURNING id INTO v_user_id;
 
-        INSERT INTO qbit_test.identifikatory_kanalov (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov (
             polzovatel_id,
             kanal,
             akkaunt_kanala_id,
@@ -539,8 +539,8 @@ BEGIN
                 m.tekst_ishodnyy,
                 m.sobytie_id
               INTO v_existing_message
-              FROM qbit_test.dialogi AS d
-              JOIN qbit_test.soobshcheniya AS m
+              FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+              JOIN qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
                 ON m.dialog_id = d.id
              WHERE d.identifikator_kanala_id = v_identity_id
                AND m.vneshnee_soobshchenie_id = v_vnesh_soobshchenie
@@ -548,7 +548,7 @@ BEGIN
              LIMIT 1;
 
             IF FOUND THEN
-                UPDATE qbit_test.sobytiya_integraciy
+                UPDATE qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy
                    SET status = CASE
                        WHEN v_existing_message.vid = v_tip_soobshcheniya
                         AND v_existing_message.tekst_ishodnyy IS NOT DISTINCT FROM v_tekst
@@ -576,7 +576,7 @@ BEGIN
 
                 SELECT z.id, z.versiya_dialoga
                   INTO v_existing_job
-                  FROM qbit_test.zadaniya_obrabotki AS z
+                  FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
                  WHERE z.sobytie_id = v_existing_message.sobytie_id
                  ORDER BY z.vremya_sozdaniya
                  LIMIT 1;
@@ -591,13 +591,13 @@ BEGIN
             END IF;
         END IF;
 
-        UPDATE qbit_test.polzovateli AS p_upd
+        UPDATE qbit_bot_pervichnogo_obrascheniya.polzovateli AS p_upd
            SET vremya_poslednego_obrashcheniya =
                    GREATEST(p_upd.vremya_poslednego_obrashcheniya, v_vremya_priema),
                vremya_obnovleniya = clock_timestamp()
          WHERE p_upd.id = v_user_id;
 
-        UPDATE qbit_test.identifikatory_kanalov
+        UPDATE qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov
            SET vneshniy_dialog_id = v_vnesh_dialog,
                vremya_obnovleniya = clock_timestamp()
          WHERE id = v_identity_id;
@@ -605,7 +605,7 @@ BEGIN
 
     SELECT d.*
       INTO v_dialog
-      FROM qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
      WHERE d.identifikator_kanala_id = v_identity_id
        AND d.status <> 'zavershen'
      ORDER BY d.vremya_nachala DESC
@@ -615,12 +615,12 @@ BEGIN
     IF NOT FOUND THEN
         SELECT d.id
           INTO v_previous_dialog_id
-          FROM qbit_test.dialogi AS d
+          FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
          WHERE d.identifikator_kanala_id = v_identity_id
          ORDER BY d.vremya_nachala DESC
          LIMIT 1;
 
-        INSERT INTO qbit_test.dialogi AS new_dialog (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.dialogi AS new_dialog (
             polzovatel_id,
             identifikator_kanala_id,
             predydushchiy_dialog_id,
@@ -655,7 +655,7 @@ BEGIN
 
         v_is_new_dialog := true;
 
-        INSERT INTO qbit_test.sobytiya_dialogov (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov (
             dialog_id,
             polzovatel_id,
             tip_sobytiya,
@@ -678,12 +678,12 @@ BEGIN
         -- Existing dialog must already belong to the same trusted service group.
         SELECT t.*
           INTO v_topic
-          FROM qbit_test.operator_telegram_temy AS t
+          FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy AS t
          WHERE t.dialog_id = v_dialog_id;
 
         IF FOUND
            AND v_topic.sluzhebnyy_chat_id IS DISTINCT FROM v_sluzhebnyy_chat THEN
-            UPDATE qbit_test.sobytiya_integraciy
+            UPDATE qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy
                SET status = 'konflikt',
                    kod_oshibki = 'service_chat_changed'
              WHERE id = v_event_id;
@@ -697,7 +697,7 @@ BEGIN
             RETURN;
         END IF;
 
-        UPDATE qbit_test.dialogi AS d_upd
+        UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi AS d_upd
            SET versiya_dialoga = d_upd.versiya_dialoga + 1,
                ozhidaetsya_otvet = false,
                t0 = NULL,
@@ -713,7 +713,7 @@ BEGIN
          RETURNING d_upd.versiya_dialoga
          INTO v_dialog_version;
 
-        UPDATE qbit_test.napominaniya
+        UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya
            SET status = 'otmeneno',
                prichina = 'novyy_vhod',
                vremya_obnovleniya = clock_timestamp()
@@ -721,7 +721,7 @@ BEGIN
            AND status IN ('zaplanirovano', 'v_rabote');
     END IF;
 
-    INSERT INTO qbit_test.soobshcheniya (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
         dialog_id,
         sobytie_id,
         napravlenie,
@@ -748,12 +748,12 @@ BEGIN
     RETURNING id
     INTO v_message_id;
 
-    UPDATE qbit_test.dialogi
+    UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi
        SET poslednee_vhodyashchee_id = v_message_id,
            vremya_obnovleniya = clock_timestamp()
      WHERE id = v_dialog_id;
 
-    INSERT INTO qbit_test.zadaniya_obrabotki (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki (
         dialog_id,
         sobytie_id,
         tip_zadaniya,
@@ -781,7 +781,7 @@ BEGIN
 
     -- Every dialog has a durable topic intent. Existing mapping is never
     -- silently moved to another service group.
-    INSERT INTO qbit_test.operator_telegram_temy (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy (
         dialog_id,
         sluzhebnyy_chat_id,
         status
@@ -798,11 +798,11 @@ BEGIN
 
     SELECT t.*
       INTO v_topic
-      FROM qbit_test.operator_telegram_temy AS t
+      FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy AS t
      WHERE t.dialog_id = v_dialog_id;
 
     IF v_topic_created THEN
-        INSERT INTO qbit_test.sobytiya_zerkala_operatora (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
             dialog_id,
             tip_sobytiya,
             klyuch_idempotentnosti,
@@ -829,7 +829,7 @@ BEGIN
     END IF;
 
     IF v_tip_soobshcheniya = 'text' THEN
-        INSERT INTO qbit_test.sobytiya_zerkala_operatora (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
             dialog_id,
             soobshchenie_id,
             tip_sobytiya,
@@ -861,7 +861,7 @@ BEGIN
         ON CONFLICT (klyuch_idempotentnosti) DO NOTHING;
     END IF;
 
-    UPDATE qbit_test.sobytiya_integraciy
+    UPDATE qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy
        SET status = 'zaregistrirovano',
            kod_oshibki = NULL
      WHERE id = v_event_id;
@@ -874,14 +874,14 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.zaregistrirovat_vhod_klienta(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(jsonb) IS
 'DB-03C1: атомарно регистрирует client ingress v1: event → identity/user → dialog/message → processing job, отменяет старое ожидание и создаёт topic/text mirror intent.';
 
 -- ===========================================================================
 -- 3. SAVE ATTACHMENT
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.sohranit_vlozhenie(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.sohranit_vlozhenie(
     p_dannye jsonb,
     p_soderzhimoe bytea DEFAULT NULL
 )
@@ -897,7 +897,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -975,7 +975,7 @@ BEGIN
 
     SELECT m.*
       INTO v_message
-      FROM qbit_test.soobshcheniya AS m
+      FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
      WHERE m.id = v_message_id
      FOR UPDATE;
 
@@ -1044,7 +1044,7 @@ BEGIN
 
     SELECT a.*
       INTO v_existing
-      FROM qbit_test.vlozheniya_soobshcheniy AS a
+      FROM qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy AS a
      WHERE a.soobshchenie_id = v_message_id
        AND (
             (v_file_id IS NOT NULL AND a.vneshniy_file_id = v_file_id)
@@ -1075,7 +1075,7 @@ BEGIN
         RETURN;
     END IF;
 
-    INSERT INTO qbit_test.vlozheniya_soobshcheniy (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy (
         soobshchenie_id,
         tip_vlozheniya,
         vneshniy_file_id,
@@ -1123,10 +1123,10 @@ BEGIN
           INTO
             v_topic_chat,
             v_topic_thread
-          FROM qbit_test.operator_telegram_temy AS t
+          FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy AS t
          WHERE t.dialog_id = v_message.dialog_id;
 
-        INSERT INTO qbit_test.sobytiya_zerkala_operatora (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
             dialog_id,
             soobshchenie_id,
             vlozhenie_id,
@@ -1166,14 +1166,14 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.sohranit_vlozhenie(jsonb, bytea) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sohranit_vlozhenie(jsonb, bytea) IS
 'DB-03C1: сохраняет проверенные metadata/bytes вложения с лимитом и idempotency по message+provider file ID; voice/photo/video создают media mirror intent.';
 
 -- ===========================================================================
 -- 4. SAVE LOCAL VOICE TRANSCRIPTION
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.sohranit_transkripciyu_golosa(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.sohranit_transkripciyu_golosa(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -1188,7 +1188,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -1237,7 +1237,7 @@ BEGIN
 
     SELECT m.*
       INTO v_message
-      FROM qbit_test.soobshcheniya AS m
+      FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
      WHERE m.id = v_message_id
      FOR UPDATE;
 
@@ -1261,12 +1261,12 @@ BEGIN
 
     SELECT t.*
       INTO v_existing
-      FROM qbit_test.transkripcii_golosa AS t
+      FROM qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa AS t
      WHERE t.soobshchenie_id = v_message_id
      FOR UPDATE;
 
     IF NOT FOUND THEN
-        INSERT INTO qbit_test.transkripcii_golosa (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa (
             soobshchenie_id,
             status,
             tekst_transkripcii,
@@ -1339,7 +1339,7 @@ BEGIN
         RETURN;
     END IF;
 
-    UPDATE qbit_test.transkripcii_golosa AS t_upd
+    UPDATE qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa AS t_upd
        SET status = v_status,
            tekst_transkripcii = v_raw,
            tekst_obezlichennyy = v_deid,
@@ -1360,14 +1360,14 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.sohranit_transkripciyu_golosa(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sohranit_transkripciyu_golosa(jsonb) IS
 'DB-03C1: сохраняет только локальный STT state/raw/deidentified transcript; ошибки STT не меняют thematic violation counter.';
 
 -- ===========================================================================
 -- 5. SAVE DEIDENTIFICATION / LOCAL PII MAP
 -- ===========================================================================
 
-CREATE FUNCTION qbit_test.sohranit_obezlichivanie(
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie(
     p_dannye jsonb
 )
 RETURNS TABLE (
@@ -1382,7 +1382,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = pg_catalog, qbit_test
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 #variable_conflict use_column
 DECLARE
@@ -1422,8 +1422,8 @@ BEGIN
 
     SELECT m.*, d.polzovatel_id
       INTO v_message
-      FROM qbit_test.soobshcheniya AS m
-      JOIN qbit_test.dialogi AS d
+      FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
+      JOIN qbit_bot_pervichnogo_obrascheniya.dialogi AS d
         ON d.id = m.dialog_id
      WHERE m.id = v_message_id
      FOR UPDATE OF m;
@@ -1531,7 +1531,7 @@ BEGIN
 
         SELECT p.*
           INTO v_existing
-          FROM qbit_test.sootvetstviya_pii AS p
+          FROM qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii AS p
          WHERE p.dialog_id = v_message.dialog_id
            AND p.psevdometka = v_placeholder
          FOR UPDATE;
@@ -1616,12 +1616,12 @@ BEGIN
 
         SELECT p.*
           INTO v_existing
-          FROM qbit_test.sootvetstviya_pii AS p
+          FROM qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii AS p
          WHERE p.dialog_id = v_message.dialog_id
            AND p.psevdometka = v_placeholder;
 
         IF NOT FOUND THEN
-            INSERT INTO qbit_test.sootvetstviya_pii (
+            INSERT INTO qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii (
                 dialog_id,
                 polzovatel_id,
                 soobshchenie_id,
@@ -1648,7 +1648,7 @@ BEGIN
     END LOOP;
 
     IF v_message.tekst_obezlichennyy IS NULL THEN
-        UPDATE qbit_test.soobshcheniya
+        UPDATE qbit_bot_pervichnogo_obrascheniya.soobshcheniya
            SET tekst_obezlichennyy = v_deid
          WHERE id = v_message_id;
         v_all_same := false;
@@ -1670,7 +1670,7 @@ BEGIN
 END
 $fn$;
 
-COMMENT ON FUNCTION qbit_test.sohranit_obezlichivanie(jsonb) IS
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie(jsonb) IS
 'DB-03C1: атомарно сохраняет обезличенный текст и локальную reverse-map PII; найденный телефон канонизирует по доверенному region_telefona или явному normalized value, поэтому разные визуальные форматы одного номера совпадают.';
 
 -- ===========================================================================
@@ -1678,35 +1678,35 @@ COMMENT ON FUNCTION qbit_test.sohranit_obezlichivanie(jsonb) IS
 -- ===========================================================================
 
 REVOKE ALL ON FUNCTION
-    qbit_test.zaregistrirovat_vhod_klienta(jsonb)
+    qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(jsonb)
 FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION
-    qbit_test.sohranit_vlozhenie(jsonb, bytea)
+    qbit_bot_pervichnogo_obrascheniya.sohranit_vlozhenie(jsonb, bytea)
 FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION
-    qbit_test.sohranit_transkripciyu_golosa(jsonb)
+    qbit_bot_pervichnogo_obrascheniya.sohranit_transkripciyu_golosa(jsonb)
 FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION
-    qbit_test.sohranit_obezlichivanie(jsonb)
+    qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie(jsonb)
 FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION
-    qbit_test.zaregistrirovat_vhod_klienta(jsonb)
+    qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(jsonb)
 TO qbit_test_bot;
 
 GRANT EXECUTE ON FUNCTION
-    qbit_test.sohranit_vlozhenie(jsonb, bytea)
+    qbit_bot_pervichnogo_obrascheniya.sohranit_vlozhenie(jsonb, bytea)
 TO qbit_test_bot;
 
 GRANT EXECUTE ON FUNCTION
-    qbit_test.sohranit_transkripciyu_golosa(jsonb)
+    qbit_bot_pervichnogo_obrascheniya.sohranit_transkripciyu_golosa(jsonb)
 TO qbit_test_bot;
 
 GRANT EXECUTE ON FUNCTION
-    qbit_test.sohranit_obezlichivanie(jsonb)
+    qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie(jsonb)
 TO qbit_test_bot;
 
 -- ===========================================================================
@@ -1729,7 +1729,7 @@ BEGIN
             ON n.oid = p.pronamespace
           JOIN pg_catalog.pg_roles AS r
             ON r.oid = p.proowner
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'zaregistrirovat_vhod_klienta',
                 'sohranit_vlozhenie',
@@ -1752,7 +1752,7 @@ BEGIN
 
         IF NOT (
             COALESCE(v_fn.proconfig, ARRAY[]::text[])
-            @> ARRAY['search_path=pg_catalog, qbit_test']::text[]
+            @> ARRAY['search_path=pg_catalog, qbit_bot_pervichnogo_obrascheniya']::text[]
         ) THEN
             RAISE EXCEPTION
                 'Function % has unsafe search_path config %',
@@ -1809,7 +1809,7 @@ BEGIN
           FROM pg_catalog.pg_proc AS p
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = p.pronamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'zaregistrirovat_vhod_klienta',
                 'sohranit_vlozhenie',
@@ -1851,7 +1851,7 @@ DECLARE
 BEGIN
     SELECT *
       INTO r1
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c1_ingress_1',
@@ -1890,7 +1890,7 @@ BEGIN
 
     SELECT *
       INTO rdup
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c1_ingress_1_retry',
@@ -1926,7 +1926,7 @@ BEGIN
 
     SELECT *
       INTO rconf
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c1_ingress_1_conflict',
@@ -1958,7 +1958,7 @@ BEGIN
     -- Different provider event ID but same external message ID: no second message/version bump.
     SELECT *
       INTO rconf
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c1_duplicate_provider_event',
@@ -1990,7 +1990,7 @@ BEGIN
 
     SELECT *
       INTO rconf
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c1_duplicate_provider_event_retry',
@@ -2021,7 +2021,7 @@ BEGIN
     END IF;
 
     -- The same old external message must remain duplicate even if its dialog is closed.
-    UPDATE qbit_test.dialogi
+    UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi
        SET status = 'zavershen',
            vremya_zaversheniya = '2026-09-24T17:00:03+00',
            rezultat = 'konsultaciya_zavershena'
@@ -2029,7 +2029,7 @@ BEGIN
 
     SELECT *
       INTO rconf
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c1_closed_dialog_duplicate',
@@ -2055,7 +2055,7 @@ BEGIN
        OR rconf.dialog_id IS DISTINCT FROM r1.dialog_id
        OR (
             SELECT count(*)
-              FROM qbit_test.dialogi
+              FROM qbit_bot_pervichnogo_obrascheniya.dialogi
              WHERE identifikator_kanala_id = r1.identifikator_kanala_id
        ) <> 1 THEN
         RAISE EXCEPTION
@@ -2063,21 +2063,21 @@ BEGIN
             row_to_json(rconf);
     END IF;
 
-    UPDATE qbit_test.dialogi
+    UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi
        SET status = 'aktivnyy',
            vremya_zaversheniya = NULL,
            rezultat = NULL
      WHERE id = r1.dialog_id;
 
     -- Simulate an active waiting state that the next client input must cancel.
-    UPDATE qbit_test.dialogi
+    UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi
        SET status = 'ozhidaet_otveta',
            ozhidaetsya_otvet = true,
            t0 = '2026-09-24T17:00:02+00',
            pokolenie_ozhidaniya = 1
      WHERE id = r1.dialog_id;
 
-    INSERT INTO qbit_test.soobshcheniya (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
         id,
         dialog_id,
         napravlenie,
@@ -2102,7 +2102,7 @@ BEGIN
         true
     );
 
-    INSERT INTO qbit_test.napominaniya (
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.napominaniya (
         dialog_id,
         tip,
         t0,
@@ -2126,7 +2126,7 @@ BEGIN
 
     SELECT *
       INTO r2
-      FROM qbit_test.zaregistrirovat_vhod_klienta(
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
         jsonb_build_object(
             'versiya_formata', 1,
             'operaciya_id', 'db03c1_ingress_2',
@@ -2160,7 +2160,7 @@ BEGIN
 
     IF EXISTS (
         SELECT 1
-          FROM qbit_test.dialogi AS d
+          FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
          WHERE d.id = r1.dialog_id
            AND (
                 d.ozhidaetsya_otvet = true
@@ -2175,7 +2175,7 @@ BEGIN
 
     IF NOT EXISTS (
         SELECT 1
-          FROM qbit_test.napominaniya AS n
+          FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
          WHERE n.id = v_old_reminder
            AND n.status = 'otmeneno'
            AND n.prichina = 'novyy_vhod'
@@ -2186,7 +2186,7 @@ BEGIN
 
     SELECT *
       INTO ratt
-      FROM qbit_test.sohranit_vlozhenie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_vlozhenie(
         jsonb_build_object(
             'operaciya_id', 'db03c1_attachment_1',
             'soobshchenie_id', r2.soobshchenie_id,
@@ -2214,7 +2214,7 @@ BEGIN
 
     SELECT *
       INTO rattdup
-      FROM qbit_test.sohranit_vlozhenie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_vlozhenie(
         jsonb_build_object(
             'operaciya_id', 'db03c1_attachment_1_retry',
             'soobshchenie_id', r2.soobshchenie_id,
@@ -2241,7 +2241,7 @@ BEGIN
 
     SELECT *
       INTO rattconf
-      FROM qbit_test.sohranit_vlozhenie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_vlozhenie(
         jsonb_build_object(
             'operaciya_id', 'db03c1_attachment_conflict',
             'soobshchenie_id', r2.soobshchenie_id,
@@ -2267,11 +2267,11 @@ BEGIN
 
     SELECT count(*)
       INTO v_before_violations
-      FROM qbit_test.narusheniya_tematiky;
+      FROM qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky;
 
     SELECT *
       INTO rstt
-      FROM qbit_test.sohranit_transkripciyu_golosa(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_transkripciyu_golosa(
         jsonb_build_object(
             'operaciya_id', 'db03c1_stt_1',
             'soobshchenie_id', r2.soobshchenie_id,
@@ -2295,7 +2295,7 @@ BEGIN
 
     SELECT *
       INTO rsttdup
-      FROM qbit_test.sohranit_transkripciyu_golosa(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_transkripciyu_golosa(
         jsonb_build_object(
             'operaciya_id', 'db03c1_stt_1_retry',
             'soobshchenie_id', r2.soobshchenie_id,
@@ -2318,7 +2318,7 @@ BEGIN
 
     SELECT *
       INTO rsttconf
-      FROM qbit_test.sohranit_transkripciyu_golosa(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_transkripciyu_golosa(
         jsonb_build_object(
             'operaciya_id', 'db03c1_stt_conflict',
             'soobshchenie_id', r2.soobshchenie_id,
@@ -2339,7 +2339,7 @@ BEGIN
 
     SELECT count(*)
       INTO v_after_violations
-      FROM qbit_test.narusheniya_tematiky;
+      FROM qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky;
 
     IF v_after_violations <> v_before_violations THEN
         RAISE EXCEPTION
@@ -2348,7 +2348,7 @@ BEGIN
 
     SELECT *
       INTO rpii
-      FROM qbit_test.sohranit_obezlichivanie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie(
         jsonb_build_object(
             'operaciya_id', 'db03c1_pii_1',
             'soobshchenie_id', r1.soobshchenie_id,
@@ -2374,7 +2374,7 @@ BEGIN
 
     IF NOT EXISTS (
         SELECT 1
-          FROM qbit_test.sootvetstviya_pii AS p
+          FROM qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii AS p
          WHERE p.dialog_id = r1.dialog_id
            AND p.psevdometka = '<TELEFON_1>'
            AND p.znachenie_zashchishchennoe = '+79611234567'
@@ -2386,7 +2386,7 @@ BEGIN
     -- Same phone without punctuation must resolve to the same protected value.
     SELECT *
       INTO rpiidup
-      FROM qbit_test.sohranit_obezlichivanie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie(
         jsonb_build_object(
             'operaciya_id', 'db03c1_pii_1_retry_digits',
             'soobshchenie_id', r1.soobshchenie_id,
@@ -2412,7 +2412,7 @@ BEGIN
     -- Same phone in +7/spaces format must also be identical.
     SELECT *
       INTO rpiidup2
-      FROM qbit_test.sohranit_obezlichivanie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie(
         jsonb_build_object(
             'operaciya_id', 'db03c1_pii_1_retry_plus7',
             'soobshchenie_id', r1.soobshchenie_id,
@@ -2438,7 +2438,7 @@ BEGIN
     -- A genuinely different phone under the same placeholder must conflict.
     SELECT *
       INTO rpiiconf
-      FROM qbit_test.sohranit_obezlichivanie(
+      FROM qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie(
         jsonb_build_object(
             'operaciya_id', 'db03c1_pii_conflict',
             'soobshchenie_id', r1.soobshchenie_id,
@@ -2463,7 +2463,7 @@ BEGIN
 
     IF (
         SELECT count(*)
-          FROM qbit_test.sobytiya_zerkala_operatora
+          FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora
          WHERE dialog_id = r1.dialog_id
     ) <> 3 THEN
         RAISE EXCEPTION
@@ -2486,18 +2486,18 @@ DECLARE
     v_probe_rows bigint;
 BEGIN
     SELECT
-          (SELECT count(*) FROM qbit_test.polzovateli)
-        + (SELECT count(*) FROM qbit_test.identifikatory_kanalov)
-        + (SELECT count(*) FROM qbit_test.dialogi)
-        + (SELECT count(*) FROM qbit_test.soobshcheniya)
-        + (SELECT count(*) FROM qbit_test.vlozheniya_soobshcheniy)
-        + (SELECT count(*) FROM qbit_test.transkripcii_golosa)
-        + (SELECT count(*) FROM qbit_test.sootvetstviya_pii)
-        + (SELECT count(*) FROM qbit_test.sobytiya_integraciy)
-        + (SELECT count(*) FROM qbit_test.zadaniya_obrabotki)
-        + (SELECT count(*) FROM qbit_test.napominaniya)
-        + (SELECT count(*) FROM qbit_test.operator_telegram_temy)
-        + (SELECT count(*) FROM qbit_test.sobytiya_zerkala_operatora)
+          (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.polzovateli)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.dialogi)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.napominaniya)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora)
       INTO v_probe_rows;
 
     IF v_probe_rows <> 0 THEN
@@ -2515,7 +2515,7 @@ BEGIN
               FROM pg_catalog.pg_class AS c
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = c.relnamespace
-             WHERE n.nspname = 'qbit_test'
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
                AND c.relkind = 'r'
         LOOP
             IF pg_catalog.has_table_privilege(v_role, v_table.oid, 'SELECT')
@@ -2523,7 +2523,7 @@ BEGIN
             OR pg_catalog.has_table_privilege(v_role, v_table.oid, 'UPDATE')
             OR pg_catalog.has_table_privilege(v_role, v_table.oid, 'DELETE') THEN
                 RAISE EXCEPTION
-                    'qbit_test_bot unexpectedly has direct DML on qbit_test.%',
+                    'qbit_test_bot unexpectedly has direct DML on qbit_bot_pervichnogo_obrascheniya.%',
                     v_table.relname;
             END IF;
         END LOOP;
@@ -2545,14 +2545,14 @@ SELECT jsonb_build_object(
     'database',
     current_database(),
     'schema',
-    'qbit_test',
+    'qbit_bot_pervichnogo_obrascheniya',
     'functions_ok',
     (
         SELECT count(*) = 4
           FROM pg_catalog.pg_proc AS p
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = p.pronamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'zaregistrirovat_vhod_klienta',
                 'sohranit_vlozhenie',
@@ -2562,48 +2562,48 @@ SELECT jsonb_build_object(
            AND p.prosecdef = true
     ),
     'attachment_idempotency_indexes_ok',
-    pg_catalog.to_regclass('qbit_test.uq_vlozheniya_msg_file_id') IS NOT NULL
-    AND pg_catalog.to_regclass('qbit_test.uq_vlozheniya_msg_file_unique') IS NOT NULL,
+    pg_catalog.to_regclass('qbit_bot_pervichnogo_obrascheniya.uq_vlozheniya_msg_file_id') IS NOT NULL
+    AND pg_catalog.to_regclass('qbit_bot_pervichnogo_obrascheniya.uq_vlozheniya_msg_file_unique') IS NOT NULL,
     'bot_execute_ok',
     pg_catalog.has_function_privilege(
         'qbit_test_bot',
-        'qbit_test.zaregistrirovat_vhod_klienta(jsonb)',
+        'qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(jsonb)',
         'EXECUTE'
     )
     AND pg_catalog.has_function_privilege(
         'qbit_test_bot',
-        'qbit_test.sohranit_vlozhenie(jsonb,bytea)',
+        'qbit_bot_pervichnogo_obrascheniya.sohranit_vlozhenie(jsonb,bytea)',
         'EXECUTE'
     )
     AND pg_catalog.has_function_privilege(
         'qbit_test_bot',
-        'qbit_test.sohranit_transkripciyu_golosa(jsonb)',
+        'qbit_bot_pervichnogo_obrascheniya.sohranit_transkripciyu_golosa(jsonb)',
         'EXECUTE'
     )
     AND pg_catalog.has_function_privilege(
         'qbit_test_bot',
-        'qbit_test.sohranit_obezlichivanie(jsonb)',
+        'qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie(jsonb)',
         'EXECUTE'
     ),
     'service_execute_denied',
     NOT pg_catalog.has_function_privilege(
         'qbit_test_sluzhebnyy',
-        'qbit_test.zaregistrirovat_vhod_klienta(jsonb)',
+        'qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(jsonb)',
         'EXECUTE'
     ),
     'probe_rows_remaining',
-      (SELECT count(*) FROM qbit_test.polzovateli)
-    + (SELECT count(*) FROM qbit_test.identifikatory_kanalov)
-    + (SELECT count(*) FROM qbit_test.dialogi)
-    + (SELECT count(*) FROM qbit_test.soobshcheniya)
-    + (SELECT count(*) FROM qbit_test.vlozheniya_soobshcheniy)
-    + (SELECT count(*) FROM qbit_test.transkripcii_golosa)
-    + (SELECT count(*) FROM qbit_test.sootvetstviya_pii)
-    + (SELECT count(*) FROM qbit_test.sobytiya_integraciy)
-    + (SELECT count(*) FROM qbit_test.zadaniya_obrabotki)
-    + (SELECT count(*) FROM qbit_test.napominaniya)
-    + (SELECT count(*) FROM qbit_test.operator_telegram_temy)
-    + (SELECT count(*) FROM qbit_test.sobytiya_zerkala_operatora),
+      (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.polzovateli)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.dialogi)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.napominaniya)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy)
+    + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora),
     'runtime_direct_dml',
     false,
     'result',

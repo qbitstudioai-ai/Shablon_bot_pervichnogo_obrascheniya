@@ -4,7 +4,7 @@
 --
 -- TARGET
 --   self-hosted Supabase / PostgreSQL 17.6
---   schema: qbit_test ONLY
+--   schema: qbit_bot_pervichnogo_obrascheniya ONLY
 --   owner:  qbit_test_owner
 --
 -- REQUIRES
@@ -67,9 +67,9 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1
           FROM pg_catalog.pg_namespace
-         WHERE nspname = 'qbit_test'
+         WHERE nspname = 'qbit_bot_pervichnogo_obrascheniya'
     ) THEN
-        RAISE EXCEPTION 'Required schema qbit_test does not exist; DB-01 is not applied';
+        RAISE EXCEPTION 'Required schema qbit_bot_pervichnogo_obrascheniya does not exist; DB-01 is not applied';
     END IF;
 
     IF NOT EXISTS (
@@ -101,9 +101,9 @@ BEGIN
           FROM pg_catalog.pg_namespace AS n
           JOIN pg_catalog.pg_roles AS r
             ON r.oid = n.nspowner
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
     ) IS DISTINCT FROM 'qbit_test_owner' THEN
-        RAISE EXCEPTION 'qbit_test is not owned by qbit_test_owner';
+        RAISE EXCEPTION 'qbit_bot_pervichnogo_obrascheniya is not owned by qbit_test_owner';
     END IF;
 
     FOREACH v_table IN ARRAY ARRAY[
@@ -123,10 +123,10 @@ BEGIN
     ]
     LOOP
         IF pg_catalog.to_regclass(
-            pg_catalog.format('qbit_test.%I', v_table)
+            pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I', v_table)
         ) IS NOT NULL THEN
             RAISE EXCEPTION
-                'DB-02 object qbit_test.% already exists; stop instead of overwriting',
+                'DB-02 object qbit_bot_pervichnogo_obrascheniya.% already exists; stop instead of overwriting',
                 v_table;
         END IF;
     END LOOP;
@@ -139,7 +139,7 @@ $db02$;
 
 SET LOCAL ROLE qbit_test_owner;
 
-CREATE TABLE qbit_test.polzovateli (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.polzovateli (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     vremya_pervogo_obrashcheniya timestamptz NOT NULL,
     vremya_poslednego_obrashcheniya timestamptz NOT NULL,
@@ -175,19 +175,19 @@ CREATE TABLE qbit_test.polzovateli (
 );
 
 CREATE INDEX ix_polzovateli_pervoe
-    ON qbit_test.polzovateli (vremya_pervogo_obrashcheniya);
+    ON qbit_bot_pervichnogo_obrascheniya.polzovateli (vremya_pervogo_obrashcheniya);
 
 CREATE INDEX ix_polzovateli_poslednee
-    ON qbit_test.polzovateli (vremya_poslednego_obrashcheniya);
+    ON qbit_bot_pervichnogo_obrascheniya.polzovateli (vremya_poslednego_obrashcheniya);
 
 CREATE INDEX ix_polzovateli_metka
-    ON qbit_test.polzovateli (tekushchaya_metka);
+    ON qbit_bot_pervichnogo_obrascheniya.polzovateli (tekushchaya_metka);
 
 
-CREATE TABLE qbit_test.identifikatory_kanalov (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     polzovatel_id uuid NOT NULL
-        REFERENCES qbit_test.polzovateli(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.polzovateli(id),
     kanal text NOT NULL,
     akkaunt_kanala_id text NOT NULL,
     vneshniy_polzovatel_id text NOT NULL,
@@ -236,35 +236,35 @@ CREATE TABLE qbit_test.identifikatory_kanalov (
 );
 
 CREATE UNIQUE INDEX uq_idkanal_kanal_akkaunt_polz
-    ON qbit_test.identifikatory_kanalov (
+    ON qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov (
         kanal,
         akkaunt_kanala_id,
         vneshniy_polzovatel_id
     );
 
 CREATE INDEX ix_idkanal_vnesh_dialog
-    ON qbit_test.identifikatory_kanalov (
+    ON qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov (
         kanal,
         akkaunt_kanala_id,
         vneshniy_dialog_id
     );
 
 CREATE INDEX ix_idkanal_polz
-    ON qbit_test.identifikatory_kanalov (polzovatel_id);
+    ON qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov (polzovatel_id);
 
 CREATE INDEX ix_idkanal_blok
-    ON qbit_test.identifikatory_kanalov (vremya_blokirovki)
+    ON qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov (vremya_blokirovki)
     WHERE logicheski_zablokirovan = true;
 
 
-CREATE TABLE qbit_test.dialogi (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.dialogi (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     polzovatel_id uuid NOT NULL
-        REFERENCES qbit_test.polzovateli(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.polzovateli(id),
     identifikator_kanala_id uuid NOT NULL
-        REFERENCES qbit_test.identifikatory_kanalov(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov(id),
     predydushchiy_dialog_id uuid
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     vremya_nachala timestamptz NOT NULL,
     vremya_zaversheniya timestamptz,
     etap text NOT NULL,
@@ -333,27 +333,27 @@ CREATE TABLE qbit_test.dialogi (
 );
 
 CREATE INDEX ix_dialogi_polz_nachalo
-    ON qbit_test.dialogi (polzovatel_id, vremya_nachala DESC);
+    ON qbit_bot_pervichnogo_obrascheniya.dialogi (polzovatel_id, vremya_nachala DESC);
 
 CREATE INDEX ix_dialogi_idkanal_status
-    ON qbit_test.dialogi (identifikator_kanala_id, status);
+    ON qbit_bot_pervichnogo_obrascheniya.dialogi (identifikator_kanala_id, status);
 
 CREATE INDEX ix_dialogi_menedzher
-    ON qbit_test.dialogi (
+    ON qbit_bot_pervichnogo_obrascheniya.dialogi (
         tekushchiy_menedzher_id,
         vremya_obnovleniya
     )
     WHERE vladelec = 'chelovek';
 
 CREATE INDEX ix_dialogi_ozhidanie
-    ON qbit_test.dialogi (t0, pokolenie_ozhidaniya)
+    ON qbit_bot_pervichnogo_obrascheniya.dialogi (t0, pokolenie_ozhidaniya)
     WHERE ozhidaetsya_otvet = true;
 
 
-CREATE TABLE qbit_test.soobshcheniya (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     dialog_id uuid NOT NULL
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     sobytie_id uuid,
     napravlenie text NOT NULL,
     avtor text NOT NULL,
@@ -362,9 +362,9 @@ CREATE TABLE qbit_test.soobshcheniya (
     tekst_obezlichennyy text,
     vneshnee_soobshchenie_id text,
     otvet_na_id uuid
-        REFERENCES qbit_test.soobshcheniya(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id),
     redakciya_dlya_id uuid
-        REFERENCES qbit_test.soobshcheniya(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id),
     vremya_istochnika timestamptz,
     vremya_priema timestamptz NOT NULL,
     vremya_otpravki timestamptz,
@@ -423,41 +423,41 @@ CREATE TABLE qbit_test.soobshcheniya (
 );
 
 CREATE INDEX ix_soobshcheniya_dialog_vremya
-    ON qbit_test.soobshcheniya (
+    ON qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
         dialog_id,
         vremya_priema,
         id
     );
 
 CREATE INDEX ix_soobshcheniya_sobytie
-    ON qbit_test.soobshcheniya (sobytie_id);
+    ON qbit_bot_pervichnogo_obrascheniya.soobshcheniya (sobytie_id);
 
 CREATE UNIQUE INDEX ix_soobshcheniya_vnesh
-    ON qbit_test.soobshcheniya (
+    ON qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
         dialog_id,
         vneshnee_soobshchenie_id
     )
     WHERE vneshnee_soobshchenie_id IS NOT NULL;
 
 CREATE INDEX ix_soobshcheniya_redakciya
-    ON qbit_test.soobshcheniya (redakciya_dlya_id);
+    ON qbit_bot_pervichnogo_obrascheniya.soobshcheniya (redakciya_dlya_id);
 
 -- Circular DB-02 references become possible only after soobshcheniya exists.
-ALTER TABLE qbit_test.dialogi
+ALTER TABLE qbit_bot_pervichnogo_obrascheniya.dialogi
     ADD CONSTRAINT fk_dialogi_poslednee_vhodyashchee
     FOREIGN KEY (poslednee_vhodyashchee_id)
-    REFERENCES qbit_test.soobshcheniya(id);
+    REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id);
 
-ALTER TABLE qbit_test.dialogi
+ALTER TABLE qbit_bot_pervichnogo_obrascheniya.dialogi
     ADD CONSTRAINT fk_dialogi_poslednee_ishodyashchee
     FOREIGN KEY (poslednee_ishodyashchee_id)
-    REFERENCES qbit_test.soobshcheniya(id);
+    REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id);
 
 
-CREATE TABLE qbit_test.vlozheniya_soobshcheniy (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     soobshchenie_id uuid NOT NULL
-        REFERENCES qbit_test.soobshcheniya(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id),
     tip_vlozheniya text NOT NULL,
     vneshniy_file_id text,
     vneshniy_file_unique_id text,
@@ -511,21 +511,21 @@ CREATE TABLE qbit_test.vlozheniya_soobshcheniy (
 );
 
 CREATE INDEX ix_vlozheniya_soobshchenie
-    ON qbit_test.vlozheniya_soobshcheniy (soobshchenie_id);
+    ON qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy (soobshchenie_id);
 
 CREATE INDEX ix_vlozheniya_file_unique
-    ON qbit_test.vlozheniya_soobshcheniy (vneshniy_file_unique_id)
+    ON qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy (vneshniy_file_unique_id)
     WHERE vneshniy_file_unique_id IS NOT NULL;
 
 CREATE INDEX ix_vlozheniya_sha256
-    ON qbit_test.vlozheniya_soobshcheniy (sha256)
+    ON qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy (sha256)
     WHERE sha256 IS NOT NULL;
 
 
-CREATE TABLE qbit_test.transkripcii_golosa (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     soobshchenie_id uuid NOT NULL
-        REFERENCES qbit_test.soobshcheniya(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id),
     status text NOT NULL,
     tekst_transkripcii text,
     tekst_obezlichennyy text,
@@ -569,18 +569,18 @@ CREATE TABLE qbit_test.transkripcii_golosa (
 );
 
 CREATE UNIQUE INDEX uq_transkripcii_soobshchenie
-    ON qbit_test.transkripcii_golosa (soobshchenie_id);
+    ON qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa (soobshchenie_id);
 
 CREATE INDEX ix_transkripcii_status
-    ON qbit_test.transkripcii_golosa (status, vremya_obnovleniya);
+    ON qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa (status, vremya_obnovleniya);
 
 
-CREATE TABLE qbit_test.fakty_dialoga (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.fakty_dialoga (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     dialog_id uuid NOT NULL
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     polzovatel_id uuid NOT NULL
-        REFERENCES qbit_test.polzovateli(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.polzovateli(id),
     kod_polya text NOT NULL,
     znachenie_zashchishchennoe jsonb,
     znachenie_dlya_ai jsonb,
@@ -588,11 +588,11 @@ CREATE TABLE qbit_test.fakty_dialoga (
     podtverzhden boolean NOT NULL DEFAULT false,
     istochnik text NOT NULL,
     soobshchenie_dokazatelstvo_id uuid
-        REFERENCES qbit_test.soobshcheniya(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id),
     vremya_fakta timestamptz NOT NULL,
     deystvitelno_do timestamptz,
     zamenen_faktom_id uuid
-        REFERENCES qbit_test.fakty_dialoga(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.fakty_dialoga(id),
     vremya_sozdaniya timestamptz NOT NULL DEFAULT clock_timestamp(),
 
     CONSTRAINT ck_fakty_kod
@@ -612,35 +612,35 @@ CREATE TABLE qbit_test.fakty_dialoga (
 );
 
 CREATE INDEX ix_fakty_dialog_kod
-    ON qbit_test.fakty_dialoga (
+    ON qbit_bot_pervichnogo_obrascheniya.fakty_dialoga (
         dialog_id,
         kod_polya,
         vremya_fakta DESC
     );
 
 CREATE INDEX ix_fakty_polz_kod
-    ON qbit_test.fakty_dialoga (
+    ON qbit_bot_pervichnogo_obrascheniya.fakty_dialoga (
         polzovatel_id,
         kod_polya,
         vremya_fakta DESC
     );
 
 CREATE INDEX ix_fakty_dokazatelstvo
-    ON qbit_test.fakty_dialoga (soobshchenie_dokazatelstvo_id);
+    ON qbit_bot_pervichnogo_obrascheniya.fakty_dialoga (soobshchenie_dokazatelstvo_id);
 
 CREATE INDEX ix_fakty_tekushchie
-    ON qbit_test.fakty_dialoga (dialog_id, kod_polya)
+    ON qbit_bot_pervichnogo_obrascheniya.fakty_dialoga (dialog_id, kod_polya)
     WHERE zamenen_faktom_id IS NULL;
 
 
-CREATE TABLE qbit_test.sootvetstviya_pii (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     dialog_id uuid NOT NULL
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     polzovatel_id uuid NOT NULL
-        REFERENCES qbit_test.polzovateli(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.polzovateli(id),
     soobshchenie_id uuid NOT NULL
-        REFERENCES qbit_test.soobshcheniya(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id),
     tip_pii text NOT NULL,
     psevdometka text NOT NULL,
     znachenie_zashchishchennoe text NOT NULL,
@@ -662,27 +662,27 @@ CREATE TABLE qbit_test.sootvetstviya_pii (
 );
 
 CREATE UNIQUE INDEX uq_pii_dialog_metka
-    ON qbit_test.sootvetstviya_pii (dialog_id, psevdometka);
+    ON qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii (dialog_id, psevdometka);
 
 CREATE INDEX ix_pii_soobshchenie
-    ON qbit_test.sootvetstviya_pii (soobshchenie_id);
+    ON qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii (soobshchenie_id);
 
 CREATE INDEX ix_pii_hash
-    ON qbit_test.sootvetstviya_pii (
+    ON qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii (
         tip_pii,
         hash_normalizovannogo_znacheniya
     )
     WHERE hash_normalizovannogo_znacheniya IS NOT NULL;
 
 
-CREATE TABLE qbit_test.narusheniya_tematiky (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     identifikator_kanala_id uuid NOT NULL
-        REFERENCES qbit_test.identifikatory_kanalov(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov(id),
     dialog_id uuid NOT NULL
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     soobshchenie_id uuid NOT NULL
-        REFERENCES qbit_test.soobshcheniya(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id),
     klassifikaciya text NOT NULL,
     nomer_narusheniya integer NOT NULL,
     istochnik text NOT NULL,
@@ -710,28 +710,28 @@ CREATE TABLE qbit_test.narusheniya_tematiky (
 );
 
 CREATE INDEX ix_narusheniya_idkanal_vremya
-    ON qbit_test.narusheniya_tematiky (
+    ON qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky (
         identifikator_kanala_id,
         vremya_sobytiya DESC
     );
 
 CREATE UNIQUE INDEX uq_narusheniya_soobshchenie
-    ON qbit_test.narusheniya_tematiky (soobshchenie_id);
+    ON qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky (soobshchenie_id);
 
 
-CREATE TABLE qbit_test.sobytiya_dialogov (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     dialog_id uuid NOT NULL
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     polzovatel_id uuid NOT NULL
-        REFERENCES qbit_test.polzovateli(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.polzovateli(id),
     tip_sobytiya text NOT NULL,
     vremya_sobytiya timestamptz NOT NULL,
     vremya_zapisi timestamptz NOT NULL DEFAULT clock_timestamp(),
     prichina text,
     rezultat text,
     predydushchaya_poterya_id uuid
-        REFERENCES qbit_test.sobytiya_dialogov(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov(id),
     istochnik text NOT NULL,
     trassirovka_id text,
 
@@ -747,22 +747,22 @@ CREATE TABLE qbit_test.sobytiya_dialogov (
 );
 
 CREATE INDEX ix_sobdialog_dialog_vremya
-    ON qbit_test.sobytiya_dialogov (
+    ON qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov (
         dialog_id,
         vremya_sobytiya DESC
     );
 
 CREATE INDEX ix_sobdialog_polz_tip
-    ON qbit_test.sobytiya_dialogov (
+    ON qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov (
         polzovatel_id,
         tip_sobytiya
     );
 
 
-CREATE TABLE qbit_test.sobytiya_etapov (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     dialog_id uuid NOT NULL
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     staryy_etap text,
     novyy_etap text NOT NULL,
     vremya_sobytiya timestamptz NOT NULL,
@@ -770,7 +770,7 @@ CREATE TABLE qbit_test.sobytiya_etapov (
     istochnik text NOT NULL,
     uverennost numeric,
     soobshchenie_dokazatelstvo_id uuid
-        REFERENCES qbit_test.soobshcheniya(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.soobshcheniya(id),
 
     CONSTRAINT ck_sobetap_staryy
         CHECK (
@@ -789,18 +789,18 @@ CREATE TABLE qbit_test.sobytiya_etapov (
 );
 
 CREATE INDEX ix_sobetap_dialog_vremya
-    ON qbit_test.sobytiya_etapov (
+    ON qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov (
         dialog_id,
         vremya_sobytiya
     );
 
 
-CREATE TABLE qbit_test.celevye_sobytiya (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     polzovatel_id uuid NOT NULL
-        REFERENCES qbit_test.polzovateli(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.polzovateli(id),
     dialog_id uuid NOT NULL
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     kod_celi text NOT NULL,
     vremya_sobytiya timestamptz NOT NULL,
     istochnik text NOT NULL,
@@ -815,24 +815,24 @@ CREATE TABLE qbit_test.celevye_sobytiya (
 );
 
 CREATE INDEX ix_celi_dialog_kod
-    ON qbit_test.celevye_sobytiya (
+    ON qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya (
         dialog_id,
         kod_celi
     );
 
 CREATE INDEX ix_celi_polz_vremya
-    ON qbit_test.celevye_sobytiya (
+    ON qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya (
         polzovatel_id,
         vremya_sobytiya
     );
 
 
-CREATE TABLE qbit_test.zayavki (
+CREATE TABLE qbit_bot_pervichnogo_obrascheniya.zayavki (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     dialog_id uuid NOT NULL
-        REFERENCES qbit_test.dialogi(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.dialogi(id),
     polzovatel_id uuid NOT NULL
-        REFERENCES qbit_test.polzovateli(id),
+        REFERENCES qbit_bot_pervichnogo_obrascheniya.polzovateli(id),
     kontakt_zashchishchennyy jsonb,
     potrebnost jsonb,
     vneshniy_klyuch text NOT NULL,
@@ -863,262 +863,262 @@ CREATE TABLE qbit_test.zayavki (
 );
 
 CREATE UNIQUE INDEX uq_zayavki_vnesh_klyuch
-    ON qbit_test.zayavki (vneshniy_klyuch);
+    ON qbit_bot_pervichnogo_obrascheniya.zayavki (vneshniy_klyuch);
 
 CREATE INDEX ix_zayavki_dialog
-    ON qbit_test.zayavki (dialog_id);
+    ON qbit_bot_pervichnogo_obrascheniya.zayavki (dialog_id);
 
 CREATE INDEX ix_zayavki_crm
-    ON qbit_test.zayavki (crm_tip, crm_id)
+    ON qbit_bot_pervichnogo_obrascheniya.zayavki (crm_tip, crm_id)
     WHERE crm_id IS NOT NULL;
 
 -- ===========================================================================
 -- 2. RUSSIAN COMMENTS: TABLES
 -- ===========================================================================
 
-COMMENT ON TABLE qbit_test.polzovateli IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.polzovateli IS
 'Люди, впервые и повторно обратившиеся в компанию; основа метрик по пользователям.';
 
-COMMENT ON TABLE qbit_test.identifikatory_kanalov IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov IS
 'Связь внутреннего пользователя с конкретным каналом, аккаунтом и адресом диалога.';
 
-COMMENT ON TABLE qbit_test.dialogi IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.dialogi IS
 'Отдельные бизнес-диалоги пользователя с версией состояния, ожиданием и владельцем bot/chelovek.';
 
-COMMENT ON TABLE qbit_test.soobshcheniya IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.soobshcheniya IS
 'Неизменяемые логические входящие и исходящие сообщения диалога, включая сырой и обезличенный текст.';
 
-COMMENT ON TABLE qbit_test.vlozheniya_soobshcheniy IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy IS
 'Метаданные и при необходимости локальные байты вложений сообщений.';
 
-COMMENT ON TABLE qbit_test.transkripcii_golosa IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa IS
 'Результаты локальной транскрипции голосовых сообщений и их обезличенная версия.';
 
-COMMENT ON TABLE qbit_test.fakty_dialoga IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.fakty_dialoga IS
 'Долговечные подтверждённые или рабочие факты диалога с доказательством и сроком действия.';
 
-COMMENT ON TABLE qbit_test.sootvetstviya_pii IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii IS
 'Локальное обратное соответствие PII-псевдометок; не предназначено для внешнего AI и служебного workflow.';
 
-COMMENT ON TABLE qbit_test.narusheniya_tematiky IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky IS
 'Подтверждённые нарушения тематики или injection, используемые для счётчика логической блокировки.';
 
-COMMENT ON TABLE qbit_test.sobytiya_dialogov IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov IS
 'История жизненного цикла диалога: начало, закрытие, потеря, возврат и передача управления.';
 
-COMMENT ON TABLE qbit_test.sobytiya_etapov IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov IS
 'История переходов между бизнес-этапами с источником и доказательством.';
 
-COMMENT ON TABLE qbit_test.celevye_sobytiya IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya IS
 'Достижения бизнес-целей пользователя/диалога с доказательными сообщениями.';
 
-COMMENT ON TABLE qbit_test.zayavki IS
+COMMENT ON TABLE qbit_bot_pervichnogo_obrascheniya.zayavki IS
 'Локальные заявки и состояние их последующей синхронизации с CRM.';
 
 -- ===========================================================================
 -- 3. RUSSIAN COMMENTS: COLUMNS
 -- ===========================================================================
 
-COMMENT ON COLUMN qbit_test.polzovateli.id IS 'Внутренний UUID пользователя.';
-COMMENT ON COLUMN qbit_test.polzovateli.vremya_pervogo_obrashcheniya IS 'Время первого обращения; возвраты его не меняют.';
-COMMENT ON COLUMN qbit_test.polzovateli.vremya_poslednego_obrashcheniya IS 'Время последнего принятого обращения пользователя.';
-COMMENT ON COLUMN qbit_test.polzovateli.pervyy_kanal IS 'Код первого известного канала пользователя.';
-COMMENT ON COLUMN qbit_test.polzovateli.testovyy IS 'Признак тестовой идентичности.';
-COMMENT ON COLUMN qbit_test.polzovateli.sluzhebnyy IS 'Признак служебной идентичности.';
-COMMENT ON COLUMN qbit_test.polzovateli.tekushchaya_metka IS 'Текущая бизнес-метка пользователя.';
-COMMENT ON COLUMN qbit_test.polzovateli.byl_vozvrat IS 'Был ли подтверждён хотя бы один возврат.';
-COMMENT ON COLUMN qbit_test.polzovateli.kolichestvo_vozvratov IS 'Количество подтверждённых возвратов.';
-COMMENT ON COLUMN qbit_test.polzovateli.vremya_poslednego_vozvrata IS 'Время последнего подтверждённого возврата.';
-COMMENT ON COLUMN qbit_test.polzovateli.vremya_sozdaniya IS 'Время создания строки.';
-COMMENT ON COLUMN qbit_test.polzovateli.vremya_obnovleniya IS 'Время последнего изменения строки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.id IS 'Внутренний UUID пользователя.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.vremya_pervogo_obrashcheniya IS 'Время первого обращения; возвраты его не меняют.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.vremya_poslednego_obrashcheniya IS 'Время последнего принятого обращения пользователя.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.pervyy_kanal IS 'Код первого известного канала пользователя.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.testovyy IS 'Признак тестовой идентичности.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.sluzhebnyy IS 'Признак служебной идентичности.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.tekushchaya_metka IS 'Текущая бизнес-метка пользователя.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.byl_vozvrat IS 'Был ли подтверждён хотя бы один возврат.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.kolichestvo_vozvratov IS 'Количество подтверждённых возвратов.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.vremya_poslednego_vozvrata IS 'Время последнего подтверждённого возврата.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.vremya_sozdaniya IS 'Время создания строки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.polzovateli.vremya_obnovleniya IS 'Время последнего изменения строки.';
 
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.id IS 'UUID идентичности канала.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.polzovatel_id IS 'Ссылка на внутреннего пользователя.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.kanal IS 'Код канала: telegram, site и т.п.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.akkaunt_kanala_id IS 'Доверенный код конкретного бота или аккаунта канала.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.vneshniy_polzovatel_id IS 'ID пользователя у внешнего провайдера.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.vneshniy_dialog_id IS 'Адрес внешнего диалога для ответа.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.sposob_vosstanovleniya IS 'Подтверждённый способ восстановления сессии.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.dannye_vosstanovleniya IS 'Безопасные структурированные данные восстановления без секретов.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.vozmozhna_otlozhennaya_otpravka IS 'Разрешает ли канал отложенную отправку.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.zapret_iniciativnyh_soobshcheniy IS 'Устойчивый запрет инициативных сообщений.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.vremya_zapreta_iniciativy IS 'Время установки opt-out.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.logicheski_zablokirovan IS 'Логическая блокировка CORE без запрета хранения входа.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.vremya_blokirovki IS 'Время логической блокировки.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.prichina_blokirovki IS 'Безопасный код причины блокировки.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.schetchik_narusheniy IS 'Число подтверждённых тематических нарушений.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.vremya_sozdaniya IS 'Время создания идентичности.';
-COMMENT ON COLUMN qbit_test.identifikatory_kanalov.vremya_obnovleniya IS 'Время последнего изменения идентичности.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.id IS 'UUID идентичности канала.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.polzovatel_id IS 'Ссылка на внутреннего пользователя.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.kanal IS 'Код канала: telegram, site и т.п.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.akkaunt_kanala_id IS 'Доверенный код конкретного бота или аккаунта канала.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.vneshniy_polzovatel_id IS 'ID пользователя у внешнего провайдера.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.vneshniy_dialog_id IS 'Адрес внешнего диалога для ответа.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.sposob_vosstanovleniya IS 'Подтверждённый способ восстановления сессии.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.dannye_vosstanovleniya IS 'Безопасные структурированные данные восстановления без секретов.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.vozmozhna_otlozhennaya_otpravka IS 'Разрешает ли канал отложенную отправку.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.zapret_iniciativnyh_soobshcheniy IS 'Устойчивый запрет инициативных сообщений.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.vremya_zapreta_iniciativy IS 'Время установки opt-out.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.logicheski_zablokirovan IS 'Логическая блокировка CORE без запрета хранения входа.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.vremya_blokirovki IS 'Время логической блокировки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.prichina_blokirovki IS 'Безопасный код причины блокировки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.schetchik_narusheniy IS 'Число подтверждённых тематических нарушений.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.vremya_sozdaniya IS 'Время создания идентичности.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov.vremya_obnovleniya IS 'Время последнего изменения идентичности.';
 
-COMMENT ON COLUMN qbit_test.dialogi.id IS 'UUID бизнес-диалога.';
-COMMENT ON COLUMN qbit_test.dialogi.polzovatel_id IS 'Пользователь диалога.';
-COMMENT ON COLUMN qbit_test.dialogi.identifikator_kanala_id IS 'Конкретная идентичность канала диалога.';
-COMMENT ON COLUMN qbit_test.dialogi.predydushchiy_dialog_id IS 'Предыдущий диалог того же бизнес-цикла/пользователя при наличии.';
-COMMENT ON COLUMN qbit_test.dialogi.vremya_nachala IS 'Время начала диалога.';
-COMMENT ON COLUMN qbit_test.dialogi.vremya_zaversheniya IS 'Время завершения диалога.';
-COMMENT ON COLUMN qbit_test.dialogi.etap IS 'Конфигурируемый бизнес-код текущего этапа.';
-COMMENT ON COLUMN qbit_test.dialogi.status IS 'Технический статус жизненного цикла диалога.';
-COMMENT ON COLUMN qbit_test.dialogi.rezultat IS 'Финальный результат завершённого диалога.';
-COMMENT ON COLUMN qbit_test.dialogi.prichina_zaversheniya IS 'Безопасная причина завершения.';
-COMMENT ON COLUMN qbit_test.dialogi.poslednee_vhodyashchee_id IS 'Последнее логическое входящее сообщение.';
-COMMENT ON COLUMN qbit_test.dialogi.poslednee_ishodyashchee_id IS 'Последнее подтверждённое логическое исходящее сообщение.';
-COMMENT ON COLUMN qbit_test.dialogi.versiya_dialoga IS 'CAS-версия состояния диалога, начиная с 1.';
-COMMENT ON COLUMN qbit_test.dialogi.ozhidaetsya_otvet IS 'Есть ли актуальное ожидание ответа клиента.';
-COMMENT ON COLUMN qbit_test.dialogi.t0 IS 'Время подтверждённого основного сообщения, от которого считаются напоминания.';
-COMMENT ON COLUMN qbit_test.dialogi.pokolenie_ozhidaniya IS 'Поколение ожидания для отмены устаревших напоминаний.';
-COMMENT ON COLUMN qbit_test.dialogi.vladelec IS 'Текущий владелец ответа: bot или chelovek.';
-COMMENT ON COLUMN qbit_test.dialogi.tekushchiy_menedzher_id IS 'UUID текущего менеджера; FK на menedzhery_telegram добавляет DB-03.';
-COMMENT ON COLUMN qbit_test.dialogi.versiya_workflow IS 'Версия CORE/workflow, обрабатывающего диалог.';
-COMMENT ON COLUMN qbit_test.dialogi.versiya_prompta IS 'Версия prompt/config, применённая к диалогу.';
-COMMENT ON COLUMN qbit_test.dialogi.vremya_sozdaniya IS 'Время создания диалога.';
-COMMENT ON COLUMN qbit_test.dialogi.vremya_obnovleniya IS 'Время последнего изменения состояния диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.id IS 'UUID бизнес-диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.polzovatel_id IS 'Пользователь диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.identifikator_kanala_id IS 'Конкретная идентичность канала диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.predydushchiy_dialog_id IS 'Предыдущий диалог того же бизнес-цикла/пользователя при наличии.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.vremya_nachala IS 'Время начала диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.vremya_zaversheniya IS 'Время завершения диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.etap IS 'Конфигурируемый бизнес-код текущего этапа.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.status IS 'Технический статус жизненного цикла диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.rezultat IS 'Финальный результат завершённого диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.prichina_zaversheniya IS 'Безопасная причина завершения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.poslednee_vhodyashchee_id IS 'Последнее логическое входящее сообщение.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.poslednee_ishodyashchee_id IS 'Последнее подтверждённое логическое исходящее сообщение.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.versiya_dialoga IS 'CAS-версия состояния диалога, начиная с 1.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.ozhidaetsya_otvet IS 'Есть ли актуальное ожидание ответа клиента.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.t0 IS 'Время подтверждённого основного сообщения, от которого считаются напоминания.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.pokolenie_ozhidaniya IS 'Поколение ожидания для отмены устаревших напоминаний.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.vladelec IS 'Текущий владелец ответа: bot или chelovek.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.tekushchiy_menedzher_id IS 'UUID текущего менеджера; FK на menedzhery_telegram добавляет DB-03.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.versiya_workflow IS 'Версия CORE/workflow, обрабатывающего диалог.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.versiya_prompta IS 'Версия prompt/config, применённая к диалогу.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.vremya_sozdaniya IS 'Время создания диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.dialogi.vremya_obnovleniya IS 'Время последнего изменения состояния диалога.';
 
-COMMENT ON COLUMN qbit_test.soobshcheniya.id IS 'UUID логического сообщения.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.dialog_id IS 'Диалог сообщения.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.sobytie_id IS 'UUID входного integration event; FK на sobytiya_integraciy добавляет DB-03.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.napravlenie IS 'Направление: vhodyashchee или ishodyashchee.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.avtor IS 'Автор: klient, bot, menedzher или sistema.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.vid IS 'Вид: text, voice, photo, video, document, sticker или system.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.tekst_ishodnyy IS 'Неизменяемый исходный текст; защищённое чтение.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.tekst_obezlichennyy IS 'Обезличенный текст для памяти и внешнего AI.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.vneshnee_soobshchenie_id IS 'ID сообщения у провайдера канала.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.otvet_na_id IS 'Логическое сообщение, на которое дан ответ.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.redakciya_dlya_id IS 'Предыдущее логическое сообщение, редакцией которого является эта строка.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.vremya_istochnika IS 'Время сообщения по данным канала.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.vremya_priema IS 'Локальное время приёма/формирования логического сообщения.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.vremya_otpravki IS 'Время подтверждённого принятия исходящего сообщения каналом.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.vremya_dostavki IS 'Время доставки, только если канал предоставляет подтверждение.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.status_otpravki IS 'Состояние связанного исходящего действия.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.ozhidaetsya_otvet IS 'Требует ли это исходящее сообщение ответа клиента.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.tip_zaversheniya IS 'Решение CORE по ожиданию/завершению.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.prichina_resheniya IS 'Безопасная причина решения CORE.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.trassirovka_id IS 'Безопасный ID трассировки выполнения.';
-COMMENT ON COLUMN qbit_test.soobshcheniya.vremya_sozdaniya IS 'Время создания строки сообщения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.id IS 'UUID логического сообщения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.dialog_id IS 'Диалог сообщения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.sobytie_id IS 'UUID входного integration event; FK на sobytiya_integraciy добавляет DB-03.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.napravlenie IS 'Направление: vhodyashchee или ishodyashchee.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.avtor IS 'Автор: klient, bot, menedzher или sistema.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.vid IS 'Вид: text, voice, photo, video, document, sticker или system.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.tekst_ishodnyy IS 'Неизменяемый исходный текст; защищённое чтение.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.tekst_obezlichennyy IS 'Обезличенный текст для памяти и внешнего AI.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.vneshnee_soobshchenie_id IS 'ID сообщения у провайдера канала.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.otvet_na_id IS 'Логическое сообщение, на которое дан ответ.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.redakciya_dlya_id IS 'Предыдущее логическое сообщение, редакцией которого является эта строка.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.vremya_istochnika IS 'Время сообщения по данным канала.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.vremya_priema IS 'Локальное время приёма/формирования логического сообщения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.vremya_otpravki IS 'Время подтверждённого принятия исходящего сообщения каналом.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.vremya_dostavki IS 'Время доставки, только если канал предоставляет подтверждение.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.status_otpravki IS 'Состояние связанного исходящего действия.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.ozhidaetsya_otvet IS 'Требует ли это исходящее сообщение ответа клиента.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.tip_zaversheniya IS 'Решение CORE по ожиданию/завершению.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.prichina_resheniya IS 'Безопасная причина решения CORE.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.trassirovka_id IS 'Безопасный ID трассировки выполнения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.soobshcheniya.vremya_sozdaniya IS 'Время создания строки сообщения.';
 
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.id IS 'UUID вложения.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.soobshchenie_id IS 'Исходное сообщение вложения.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.tip_vlozheniya IS 'Тип вложения: voice, photo, video, document, sticker и т.п.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.vneshniy_file_id IS 'Provider file_id конкретного бота/аккаунта.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.vneshniy_file_unique_id IS 'Стабильный внешний unique file ID, если провайдер его даёт.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.imya_fayla IS 'Безопасное имя файла.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.mime IS 'Проверенный или заявленный MIME.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.razmer_bayt IS 'Фактический размер содержимого в байтах.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.dlitelnost_sekund IS 'Длительность медиа в секундах.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.shirina IS 'Ширина изображения/видео.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.vysota IS 'Высота изображения/видео.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.sha256 IS 'SHA-256 скачанных байтов.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.status_sohraneniya IS 'Состояние локального хранения вложения.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.hranilishche_tip IS 'Тип локального хранилища; v1 обычно postgres_bytea.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.soderzhimoe IS 'Локальные байты вложения после проверки лимитов.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.hranilishche_klyuch IS 'Ключ будущего защищённого object storage.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.razresheno_ai IS 'Разрешено ли содержимое политикой для AI; фото/видео v1 запрещены.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.bezopasnye_metadannye IS 'Безопасные структурированные метаданные без секретов.';
-COMMENT ON COLUMN qbit_test.vlozheniya_soobshcheniy.vremya_sozdaniya IS 'Время создания записи вложения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.id IS 'UUID вложения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.soobshchenie_id IS 'Исходное сообщение вложения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.tip_vlozheniya IS 'Тип вложения: voice, photo, video, document, sticker и т.п.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.vneshniy_file_id IS 'Provider file_id конкретного бота/аккаунта.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.vneshniy_file_unique_id IS 'Стабильный внешний unique file ID, если провайдер его даёт.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.imya_fayla IS 'Безопасное имя файла.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.mime IS 'Проверенный или заявленный MIME.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.razmer_bayt IS 'Фактический размер содержимого в байтах.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.dlitelnost_sekund IS 'Длительность медиа в секундах.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.shirina IS 'Ширина изображения/видео.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.vysota IS 'Высота изображения/видео.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.sha256 IS 'SHA-256 скачанных байтов.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.status_sohraneniya IS 'Состояние локального хранения вложения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.hranilishche_tip IS 'Тип локального хранилища; v1 обычно postgres_bytea.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.soderzhimoe IS 'Локальные байты вложения после проверки лимитов.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.hranilishche_klyuch IS 'Ключ будущего защищённого object storage.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.razresheno_ai IS 'Разрешено ли содержимое политикой для AI; фото/видео v1 запрещены.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.bezopasnye_metadannye IS 'Безопасные структурированные метаданные без секретов.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy.vremya_sozdaniya IS 'Время создания записи вложения.';
 
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.id IS 'UUID записи транскрипции.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.soobshchenie_id IS 'Голосовое логическое сообщение.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.status IS 'Состояние локальной транскрипции.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.tekst_transkripcii IS 'Исходный локально полученный текст транскрипции.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.tekst_obezlichennyy IS 'Обезличенный текст транскрипции для дальнейшей обработки.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.dvizhok IS 'Локальный STT-движок.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.versiya_dvizhka IS 'Версия локального STT-движка/модели.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.popytki IS 'Количество попыток локальной транскрипции.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.vremya_nachala IS 'Время начала обработки.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.vremya_zaversheniya IS 'Время завершения обработки.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.kod_oshibki IS 'Безопасный код ошибки транскрипции.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.opisanie_oshibki IS 'Безопасное описание ошибки транскрипции.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.vremya_sozdaniya IS 'Время создания записи.';
-COMMENT ON COLUMN qbit_test.transkripcii_golosa.vremya_obnovleniya IS 'Время последнего изменения записи.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.id IS 'UUID записи транскрипции.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.soobshchenie_id IS 'Голосовое логическое сообщение.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.status IS 'Состояние локальной транскрипции.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.tekst_transkripcii IS 'Исходный локально полученный текст транскрипции.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.tekst_obezlichennyy IS 'Обезличенный текст транскрипции для дальнейшей обработки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.dvizhok IS 'Локальный STT-движок.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.versiya_dvizhka IS 'Версия локального STT-движка/модели.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.popytki IS 'Количество попыток локальной транскрипции.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.vremya_nachala IS 'Время начала обработки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.vremya_zaversheniya IS 'Время завершения обработки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.kod_oshibki IS 'Безопасный код ошибки транскрипции.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.opisanie_oshibki IS 'Безопасное описание ошибки транскрипции.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.vremya_sozdaniya IS 'Время создания записи.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa.vremya_obnovleniya IS 'Время последнего изменения записи.';
 
-COMMENT ON COLUMN qbit_test.fakty_dialoga.id IS 'UUID долговечного факта.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.dialog_id IS 'Диалог, в котором факт получен/подтверждён.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.polzovatel_id IS 'Пользователь, к которому относится факт.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.kod_polya IS 'Нормализованный код факта/поля.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.znachenie_zashchishchennoe IS 'Защищённое локальное значение факта.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.znachenie_dlya_ai IS 'Безопасная версия значения, допустимая для AI.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.eto_pii IS 'Содержит ли исходное значение персональные данные.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.podtverzhden IS 'Подтверждён ли факт по правилам CORE.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.istochnik IS 'Источник факта: правило, LLM, клиент, менеджер и т.п.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.soobshchenie_dokazatelstvo_id IS 'Сообщение-доказательство факта.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.vremya_fakta IS 'Время, к которому относится факт.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.deystvitelno_do IS 'Срок действия факта при наличии.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.zamenen_faktom_id IS 'Более новый факт, заменивший эту запись.';
-COMMENT ON COLUMN qbit_test.fakty_dialoga.vremya_sozdaniya IS 'Время создания факта.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.id IS 'UUID долговечного факта.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.dialog_id IS 'Диалог, в котором факт получен/подтверждён.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.polzovatel_id IS 'Пользователь, к которому относится факт.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.kod_polya IS 'Нормализованный код факта/поля.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.znachenie_zashchishchennoe IS 'Защищённое локальное значение факта.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.znachenie_dlya_ai IS 'Безопасная версия значения, допустимая для AI.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.eto_pii IS 'Содержит ли исходное значение персональные данные.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.podtverzhden IS 'Подтверждён ли факт по правилам CORE.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.istochnik IS 'Источник факта: правило, LLM, клиент, менеджер и т.п.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.soobshchenie_dokazatelstvo_id IS 'Сообщение-доказательство факта.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.vremya_fakta IS 'Время, к которому относится факт.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.deystvitelno_do IS 'Срок действия факта при наличии.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.zamenen_faktom_id IS 'Более новый факт, заменивший эту запись.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.fakty_dialoga.vremya_sozdaniya IS 'Время создания факта.';
 
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.id IS 'UUID локального PII-соответствия.';
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.dialog_id IS 'Диалог псевдонимизации.';
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.polzovatel_id IS 'Пользователь псевдонимизации.';
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.soobshchenie_id IS 'Исходное сообщение, породившее соответствие.';
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.tip_pii IS 'Тип персональных данных.';
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.psevdometka IS 'Псевдометка, используемая вместо исходного значения.';
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.znachenie_zashchishchennoe IS 'Локальное защищённое исходное значение.';
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.hash_normalizovannogo_znacheniya IS 'Хэш нормализованного значения для локального сопоставления.';
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.vremya_sozdaniya IS 'Время создания соответствия.';
-COMMENT ON COLUMN qbit_test.sootvetstviya_pii.deystvitelno_do IS 'Срок действия соответствия при наличии.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.id IS 'UUID локального PII-соответствия.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.dialog_id IS 'Диалог псевдонимизации.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.polzovatel_id IS 'Пользователь псевдонимизации.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.soobshchenie_id IS 'Исходное сообщение, породившее соответствие.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.tip_pii IS 'Тип персональных данных.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.psevdometka IS 'Псевдометка, используемая вместо исходного значения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.znachenie_zashchishchennoe IS 'Локальное защищённое исходное значение.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.hash_normalizovannogo_znacheniya IS 'Хэш нормализованного значения для локального сопоставления.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.vremya_sozdaniya IS 'Время создания соответствия.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii.deystvitelno_do IS 'Срок действия соответствия при наличии.';
 
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.id IS 'UUID подтверждённого нарушения.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.identifikator_kanala_id IS 'Канальная идентичность, по которой считается блокировка.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.dialog_id IS 'Диалог нарушения.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.soobshchenie_id IS 'Сообщение, признанное нарушением.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.klassifikaciya IS 'ne_po_teme или ataka_ili_injection.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.nomer_narusheniya IS 'Порядковый номер подтверждённого нарушения.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.istochnik IS 'Источник классификации.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.uverennost IS 'Уверенность классификации от 0 до 1.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.prichina IS 'Безопасная причина классификации.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.vremya_sobytiya IS 'Время фиксации нарушения.';
-COMMENT ON COLUMN qbit_test.narusheniya_tematiky.privelo_k_blokirovke IS 'Привело ли это нарушение к логической блокировке.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.id IS 'UUID подтверждённого нарушения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.identifikator_kanala_id IS 'Канальная идентичность, по которой считается блокировка.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.dialog_id IS 'Диалог нарушения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.soobshchenie_id IS 'Сообщение, признанное нарушением.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.klassifikaciya IS 'ne_po_teme или ataka_ili_injection.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.nomer_narusheniya IS 'Порядковый номер подтверждённого нарушения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.istochnik IS 'Источник классификации.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.uverennost IS 'Уверенность классификации от 0 до 1.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.prichina IS 'Безопасная причина классификации.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.vremya_sobytiya IS 'Время фиксации нарушения.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky.privelo_k_blokirovke IS 'Привело ли это нарушение к логической блокировке.';
 
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.id IS 'UUID события жизненного цикла.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.dialog_id IS 'Диалог события.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.polzovatel_id IS 'Пользователь события.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.tip_sobytiya IS 'Код исторического события диалога.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.vremya_sobytiya IS 'Бизнес-время события.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.vremya_zapisi IS 'Время записи события в БД.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.prichina IS 'Безопасная причина события.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.rezultat IS 'Связанный результат при наличии.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.predydushchaya_poterya_id IS 'Предыдущее событие потери, к которому относится возврат.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.istochnik IS 'Источник события: правило, LLM, менеджер, система.';
-COMMENT ON COLUMN qbit_test.sobytiya_dialogov.trassirovka_id IS 'Безопасный ID трассировки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.id IS 'UUID события жизненного цикла.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.dialog_id IS 'Диалог события.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.polzovatel_id IS 'Пользователь события.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.tip_sobytiya IS 'Код исторического события диалога.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.vremya_sobytiya IS 'Бизнес-время события.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.vremya_zapisi IS 'Время записи события в БД.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.prichina IS 'Безопасная причина события.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.rezultat IS 'Связанный результат при наличии.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.predydushchaya_poterya_id IS 'Предыдущее событие потери, к которому относится возврат.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.istochnik IS 'Источник события: правило, LLM, менеджер, система.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov.trassirovka_id IS 'Безопасный ID трассировки.';
 
-COMMENT ON COLUMN qbit_test.sobytiya_etapov.id IS 'UUID перехода этапа.';
-COMMENT ON COLUMN qbit_test.sobytiya_etapov.dialog_id IS 'Диалог перехода.';
-COMMENT ON COLUMN qbit_test.sobytiya_etapov.staryy_etap IS 'Предыдущий этап; NULL допустим для начального состояния.';
-COMMENT ON COLUMN qbit_test.sobytiya_etapov.novyy_etap IS 'Новый бизнес-этап.';
-COMMENT ON COLUMN qbit_test.sobytiya_etapov.vremya_sobytiya IS 'Время перехода.';
-COMMENT ON COLUMN qbit_test.sobytiya_etapov.prichina IS 'Безопасная причина перехода.';
-COMMENT ON COLUMN qbit_test.sobytiya_etapov.istochnik IS 'Источник перехода: правило, LLM, человек и т.п.';
-COMMENT ON COLUMN qbit_test.sobytiya_etapov.uverennost IS 'Уверенность от 0 до 1 для вероятностного источника.';
-COMMENT ON COLUMN qbit_test.sobytiya_etapov.soobshchenie_dokazatelstvo_id IS 'Сообщение-доказательство перехода.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov.id IS 'UUID перехода этапа.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov.dialog_id IS 'Диалог перехода.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov.staryy_etap IS 'Предыдущий этап; NULL допустим для начального состояния.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov.novyy_etap IS 'Новый бизнес-этап.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov.vremya_sobytiya IS 'Время перехода.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov.prichina IS 'Безопасная причина перехода.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov.istochnik IS 'Источник перехода: правило, LLM, человек и т.п.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov.uverennost IS 'Уверенность от 0 до 1 для вероятностного источника.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov.soobshchenie_dokazatelstvo_id IS 'Сообщение-доказательство перехода.';
 
-COMMENT ON COLUMN qbit_test.celevye_sobytiya.id IS 'UUID события достижения цели.';
-COMMENT ON COLUMN qbit_test.celevye_sobytiya.polzovatel_id IS 'Пользователь цели.';
-COMMENT ON COLUMN qbit_test.celevye_sobytiya.dialog_id IS 'Диалог цели.';
-COMMENT ON COLUMN qbit_test.celevye_sobytiya.kod_celi IS 'Конфигурируемый бизнес-код цели.';
-COMMENT ON COLUMN qbit_test.celevye_sobytiya.vremya_sobytiya IS 'Время достижения/фиксации цели.';
-COMMENT ON COLUMN qbit_test.celevye_sobytiya.istochnik IS 'Источник фиксации цели.';
-COMMENT ON COLUMN qbit_test.celevye_sobytiya.podtverzhdenie_id IS 'UUID объекта подтверждения; конкретная связь определяется операцией CORE.';
-COMMENT ON COLUMN qbit_test.celevye_sobytiya.dokazatelnye_soobshcheniya IS 'Массив UUID доказательных сообщений; проверяется прикладной операцией.';
-COMMENT ON COLUMN qbit_test.celevye_sobytiya.podtverzhdeno IS 'Прошла ли цель подтверждение по правилам CORE.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya.id IS 'UUID события достижения цели.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya.polzovatel_id IS 'Пользователь цели.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya.dialog_id IS 'Диалог цели.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya.kod_celi IS 'Конфигурируемый бизнес-код цели.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya.vremya_sobytiya IS 'Время достижения/фиксации цели.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya.istochnik IS 'Источник фиксации цели.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya.podtverzhdenie_id IS 'UUID объекта подтверждения; конкретная связь определяется операцией CORE.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya.dokazatelnye_soobshcheniya IS 'Массив UUID доказательных сообщений; проверяется прикладной операцией.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya.podtverzhdeno IS 'Прошла ли цель подтверждение по правилам CORE.';
 
-COMMENT ON COLUMN qbit_test.zayavki.id IS 'UUID локальной заявки.';
-COMMENT ON COLUMN qbit_test.zayavki.dialog_id IS 'Диалог, в котором создана заявка.';
-COMMENT ON COLUMN qbit_test.zayavki.polzovatel_id IS 'Пользователь заявки.';
-COMMENT ON COLUMN qbit_test.zayavki.kontakt_zashchishchennyy IS 'Защищённые локальные контактные данные.';
-COMMENT ON COLUMN qbit_test.zayavki.potrebnost IS 'Структурированная потребность клиента.';
-COMMENT ON COLUMN qbit_test.zayavki.vneshniy_klyuch IS 'Стабильный ключ заявки для идемпотентности внешней синхронизации.';
-COMMENT ON COLUMN qbit_test.zayavki.otvetstvennyy IS 'Безопасный код/идентификатор ответственного.';
-COMMENT ON COLUMN qbit_test.zayavki.lokalnyy_status IS 'Локальный статус заявки.';
-COMMENT ON COLUMN qbit_test.zayavki.crm_tip IS 'Тип CRM при подключённой интеграции.';
-COMMENT ON COLUMN qbit_test.zayavki.crm_id IS 'ID записи заявки в CRM после подтверждённой синхронизации.';
-COMMENT ON COLUMN qbit_test.zayavki.status_sinhronizacii IS 'Состояние синхронизации заявки с внешней системой.';
-COMMENT ON COLUMN qbit_test.zayavki.vremya_sozdaniya IS 'Время создания заявки.';
-COMMENT ON COLUMN qbit_test.zayavki.vremya_obnovleniya IS 'Время последнего изменения заявки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.id IS 'UUID локальной заявки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.dialog_id IS 'Диалог, в котором создана заявка.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.polzovatel_id IS 'Пользователь заявки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.kontakt_zashchishchennyy IS 'Защищённые локальные контактные данные.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.potrebnost IS 'Структурированная потребность клиента.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.vneshniy_klyuch IS 'Стабильный ключ заявки для идемпотентности внешней синхронизации.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.otvetstvennyy IS 'Безопасный код/идентификатор ответственного.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.lokalnyy_status IS 'Локальный статус заявки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.crm_tip IS 'Тип CRM при подключённой интеграции.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.crm_id IS 'ID записи заявки в CRM после подтверждённой синхронизации.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.status_sinhronizacii IS 'Состояние синхронизации заявки с внешней системой.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.vremya_sozdaniya IS 'Время создания заявки.';
+COMMENT ON COLUMN qbit_bot_pervichnogo_obrascheniya.zayavki.vremya_obnovleniya IS 'Время последнего изменения заявки.';
 
 -- ===========================================================================
 -- 4. ACCESS: KEEP RUNTIME ROLES DEFAULT-DENY
 -- ===========================================================================
 
-REVOKE ALL ON ALL TABLES IN SCHEMA qbit_test FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA qbit_bot_pervichnogo_obrascheniya FROM PUBLIC;
 
 DO $db02$
 DECLARE
@@ -1137,7 +1137,7 @@ BEGIN
              WHERE rolname = v_role
         ) THEN
             EXECUTE pg_catalog.format(
-                'REVOKE ALL ON ALL TABLES IN SCHEMA qbit_test FROM %I',
+                'REVOKE ALL ON ALL TABLES IN SCHEMA qbit_bot_pervichnogo_obrascheniya FROM %I',
                 v_role
             );
         END IF;
@@ -1159,7 +1159,7 @@ BEGIN
       FROM pg_catalog.pg_class AS c
       JOIN pg_catalog.pg_namespace AS n
         ON n.oid = c.relnamespace
-     WHERE n.nspname = 'qbit_test'
+     WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
        AND c.relkind = 'r'
        AND c.relname IN (
             'polzovateli',
@@ -1188,7 +1188,7 @@ BEGIN
       FROM pg_catalog.pg_class AS i
       JOIN pg_catalog.pg_namespace AS n
         ON n.oid = i.relnamespace
-     WHERE n.nspname = 'qbit_test'
+     WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
        AND i.relkind = 'i'
        AND i.relname IN (
             'ix_polzovateli_pervoe',
@@ -1241,7 +1241,7 @@ BEGIN
           FROM pg_catalog.pg_class AS c
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = c.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND c.relkind = 'r'
            AND c.relname IN (
                 'polzovateli',
@@ -1272,7 +1272,7 @@ BEGIN
             ON a.attrelid = c.oid
            AND a.attnum > 0
            AND a.attisdropped = false
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND c.relkind = 'r'
            AND c.relname IN (
                 'polzovateli',
@@ -1303,7 +1303,7 @@ $db02$;
 
 SAVEPOINT db02_probe;
 
-INSERT INTO qbit_test.polzovateli (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.polzovateli (
     id,
     vremya_pervogo_obrashcheniya,
     vremya_poslednego_obrashcheniya,
@@ -1318,7 +1318,7 @@ VALUES (
     true
 );
 
-INSERT INTO qbit_test.identifikatory_kanalov (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov (
     id,
     polzovatel_id,
     kanal,
@@ -1335,7 +1335,7 @@ VALUES (
     'db02_chat_1'
 );
 
-INSERT INTO qbit_test.dialogi (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.dialogi (
     id,
     polzovatel_id,
     identifikator_kanala_id,
@@ -1356,7 +1356,7 @@ VALUES (
     'db02_probe'
 );
 
-INSERT INTO qbit_test.soobshcheniya (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
     id,
     dialog_id,
     napravlenie,
@@ -1381,13 +1381,13 @@ VALUES (
     '2026-09-24 12:00:01+00'
 );
 
-UPDATE qbit_test.dialogi
+UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi
    SET poslednee_vhodyashchee_id =
        '00000000-0000-4000-8000-000000000204'
  WHERE id =
        '00000000-0000-4000-8000-000000000203';
 
-INSERT INTO qbit_test.vlozheniya_soobshcheniy (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy (
     id,
     soobshchenie_id,
     tip_vlozheniya,
@@ -1404,7 +1404,7 @@ VALUES (
     true
 );
 
-INSERT INTO qbit_test.transkripcii_golosa (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa (
     id,
     soobshchenie_id,
     status
@@ -1415,7 +1415,7 @@ VALUES (
     'zaplanirovana'
 );
 
-INSERT INTO qbit_test.fakty_dialoga (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.fakty_dialoga (
     id,
     dialog_id,
     polzovatel_id,
@@ -1442,7 +1442,7 @@ VALUES (
     '2026-09-24 12:00:01+00'
 );
 
-INSERT INTO qbit_test.sootvetstviya_pii (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii (
     id,
     dialog_id,
     polzovatel_id,
@@ -1463,7 +1463,7 @@ VALUES (
     'db02_hash'
 );
 
-INSERT INTO qbit_test.narusheniya_tematiky (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky (
     id,
     identifikator_kanala_id,
     dialog_id,
@@ -1486,7 +1486,7 @@ VALUES (
     '2026-09-24 12:00:02+00'
 );
 
-INSERT INTO qbit_test.sobytiya_dialogov (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov (
     id,
     dialog_id,
     polzovatel_id,
@@ -1503,7 +1503,7 @@ VALUES (
     'db02_probe'
 );
 
-INSERT INTO qbit_test.sobytiya_etapov (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov (
     id,
     dialog_id,
     staryy_etap,
@@ -1524,7 +1524,7 @@ VALUES (
     '00000000-0000-4000-8000-000000000204'
 );
 
-INSERT INTO qbit_test.celevye_sobytiya (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya (
     id,
     polzovatel_id,
     dialog_id,
@@ -1545,7 +1545,7 @@ VALUES (
     true
 );
 
-INSERT INTO qbit_test.zayavki (
+INSERT INTO qbit_bot_pervichnogo_obrascheniya.zayavki (
     id,
     dialog_id,
     polzovatel_id,
@@ -1571,7 +1571,7 @@ DO $db02$
 BEGIN
     -- Same external user in the same channel/account cannot create a second identity.
     BEGIN
-        INSERT INTO qbit_test.identifikatory_kanalov (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov (
             polzovatel_id,
             kanal,
             akkaunt_kanala_id,
@@ -1595,7 +1595,7 @@ BEGIN
 
     -- Repeat of the same external message in one dialog must not create a second message.
     BEGIN
-        INSERT INTO qbit_test.soobshcheniya (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
             dialog_id,
             napravlenie,
             avtor,
@@ -1623,7 +1623,7 @@ BEGIN
 
     -- Message cannot point to a missing dialog.
     BEGIN
-        INSERT INTO qbit_test.soobshcheniya (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
             dialog_id,
             napravlenie,
             avtor,
@@ -1647,7 +1647,7 @@ BEGIN
 
     -- Human owner requires a manager UUID even though the target FK is added in DB-03.
     BEGIN
-        INSERT INTO qbit_test.dialogi (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.dialogi (
             polzovatel_id,
             identifikator_kanala_id,
             vremya_nachala,
@@ -1679,7 +1679,7 @@ BEGIN
 
     -- A saved attachment must have local bytes or protected storage key.
     BEGIN
-        INSERT INTO qbit_test.vlozheniya_soobshcheniy (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy (
             soobshchenie_id,
             tip_vlozheniya,
             status_sohraneniya
@@ -1699,7 +1699,7 @@ BEGIN
 
     -- PII placeholder is unique inside a dialog.
     BEGIN
-        INSERT INTO qbit_test.sootvetstviya_pii (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii (
             dialog_id,
             polzovatel_id,
             soobshchenie_id,
@@ -1725,7 +1725,7 @@ BEGIN
 
     -- One message cannot count as two confirmed topic violations.
     BEGIN
-        INSERT INTO qbit_test.narusheniya_tematiky (
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky (
             identifikator_kanala_id,
             dialog_id,
             soobshchenie_id,
@@ -1761,31 +1761,31 @@ BEGIN
     SELECT count(*)
       INTO v_bad_count
       FROM (
-            SELECT 'polzovateli' AS t, count(*) AS c FROM qbit_test.polzovateli
+            SELECT 'polzovateli' AS t, count(*) AS c FROM qbit_bot_pervichnogo_obrascheniya.polzovateli
             UNION ALL
-            SELECT 'identifikatory_kanalov', count(*) FROM qbit_test.identifikatory_kanalov
+            SELECT 'identifikatory_kanalov', count(*) FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov
             UNION ALL
-            SELECT 'dialogi', count(*) FROM qbit_test.dialogi
+            SELECT 'dialogi', count(*) FROM qbit_bot_pervichnogo_obrascheniya.dialogi
             UNION ALL
-            SELECT 'soobshcheniya', count(*) FROM qbit_test.soobshcheniya
+            SELECT 'soobshcheniya', count(*) FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya
             UNION ALL
-            SELECT 'vlozheniya_soobshcheniy', count(*) FROM qbit_test.vlozheniya_soobshcheniy
+            SELECT 'vlozheniya_soobshcheniy', count(*) FROM qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy
             UNION ALL
-            SELECT 'transkripcii_golosa', count(*) FROM qbit_test.transkripcii_golosa
+            SELECT 'transkripcii_golosa', count(*) FROM qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa
             UNION ALL
-            SELECT 'fakty_dialoga', count(*) FROM qbit_test.fakty_dialoga
+            SELECT 'fakty_dialoga', count(*) FROM qbit_bot_pervichnogo_obrascheniya.fakty_dialoga
             UNION ALL
-            SELECT 'sootvetstviya_pii', count(*) FROM qbit_test.sootvetstviya_pii
+            SELECT 'sootvetstviya_pii', count(*) FROM qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii
             UNION ALL
-            SELECT 'narusheniya_tematiky', count(*) FROM qbit_test.narusheniya_tematiky
+            SELECT 'narusheniya_tematiky', count(*) FROM qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky
             UNION ALL
-            SELECT 'sobytiya_dialogov', count(*) FROM qbit_test.sobytiya_dialogov
+            SELECT 'sobytiya_dialogov', count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov
             UNION ALL
-            SELECT 'sobytiya_etapov', count(*) FROM qbit_test.sobytiya_etapov
+            SELECT 'sobytiya_etapov', count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov
             UNION ALL
-            SELECT 'celevye_sobytiya', count(*) FROM qbit_test.celevye_sobytiya
+            SELECT 'celevye_sobytiya', count(*) FROM qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya
             UNION ALL
-            SELECT 'zayavki', count(*) FROM qbit_test.zayavki
+            SELECT 'zayavki', count(*) FROM qbit_bot_pervichnogo_obrascheniya.zayavki
       ) AS x
      WHERE x.c <> 1;
 
@@ -1817,7 +1817,7 @@ BEGIN
           FROM pg_catalog.pg_class AS c
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = c.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND c.relkind = 'r'
            AND c.relname IN (
                 'polzovateli',
@@ -1845,7 +1845,7 @@ BEGIN
         IF v_owner IS DISTINCT FROM 'qbit_test_owner' THEN
             RAISE EXCEPTION
                 'DB-02 table %.% has wrong owner %',
-                'qbit_test',
+                'qbit_bot_pervichnogo_obrascheniya',
                 v_table.relname,
                 v_owner;
         END IF;
@@ -1853,19 +1853,19 @@ BEGIN
 
     -- Probe rollback must leave all DB-02 business tables empty.
     SELECT
-          (SELECT count(*) FROM qbit_test.polzovateli)
-        + (SELECT count(*) FROM qbit_test.identifikatory_kanalov)
-        + (SELECT count(*) FROM qbit_test.dialogi)
-        + (SELECT count(*) FROM qbit_test.soobshcheniya)
-        + (SELECT count(*) FROM qbit_test.vlozheniya_soobshcheniy)
-        + (SELECT count(*) FROM qbit_test.transkripcii_golosa)
-        + (SELECT count(*) FROM qbit_test.fakty_dialoga)
-        + (SELECT count(*) FROM qbit_test.sootvetstviya_pii)
-        + (SELECT count(*) FROM qbit_test.narusheniya_tematiky)
-        + (SELECT count(*) FROM qbit_test.sobytiya_dialogov)
-        + (SELECT count(*) FROM qbit_test.sobytiya_etapov)
-        + (SELECT count(*) FROM qbit_test.celevye_sobytiya)
-        + (SELECT count(*) FROM qbit_test.zayavki)
+          (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.polzovateli)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.dialogi)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.fakty_dialoga)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.zayavki)
       INTO v_total_rows;
 
     IF v_total_rows <> 0 THEN
@@ -1887,7 +1887,7 @@ BEGIN
               FROM pg_catalog.pg_class AS c
               JOIN pg_catalog.pg_namespace AS n
                 ON n.oid = c.relnamespace
-             WHERE n.nspname = 'qbit_test'
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
                AND c.relkind = 'r'
                AND c.relname IN (
                     'polzovateli',
@@ -1926,7 +1926,7 @@ BEGIN
                 'DELETE'
             ) THEN
                 RAISE EXCEPTION
-                    'Runtime role % has direct DML on qbit_test.%',
+                    'Runtime role % has direct DML on qbit_bot_pervichnogo_obrascheniya.%',
                     v_runtime_role,
                     v_table.relname;
             END IF;
@@ -1977,14 +1977,14 @@ SELECT jsonb_build_object(
     'database',
     current_database(),
     'schema',
-    'qbit_test',
+    'qbit_bot_pervichnogo_obrascheniya',
     'owner',
     (
         SELECT r.rolname
           FROM pg_catalog.pg_namespace AS n
           JOIN pg_catalog.pg_roles AS r
             ON r.oid = n.nspowner
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
     ),
     'tables_ok',
     (
@@ -1992,7 +1992,7 @@ SELECT jsonb_build_object(
           FROM pg_catalog.pg_class AS c
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = c.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND c.relkind = 'r'
            AND c.relname IN (
                 'polzovateli',
@@ -2016,7 +2016,7 @@ SELECT jsonb_build_object(
           FROM pg_catalog.pg_class AS i
           JOIN pg_catalog.pg_namespace AS n
             ON n.oid = i.relnamespace
-         WHERE n.nspname = 'qbit_test'
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND i.relkind = 'i'
            AND i.relname IN (
                 'ix_polzovateli_pervoe',
@@ -2060,19 +2060,19 @@ SELECT jsonb_build_object(
     ),
     'probe_rows_remaining',
     (
-          (SELECT count(*) FROM qbit_test.polzovateli)
-        + (SELECT count(*) FROM qbit_test.identifikatory_kanalov)
-        + (SELECT count(*) FROM qbit_test.dialogi)
-        + (SELECT count(*) FROM qbit_test.soobshcheniya)
-        + (SELECT count(*) FROM qbit_test.vlozheniya_soobshcheniy)
-        + (SELECT count(*) FROM qbit_test.transkripcii_golosa)
-        + (SELECT count(*) FROM qbit_test.fakty_dialoga)
-        + (SELECT count(*) FROM qbit_test.sootvetstviya_pii)
-        + (SELECT count(*) FROM qbit_test.narusheniya_tematiky)
-        + (SELECT count(*) FROM qbit_test.sobytiya_dialogov)
-        + (SELECT count(*) FROM qbit_test.sobytiya_etapov)
-        + (SELECT count(*) FROM qbit_test.celevye_sobytiya)
-        + (SELECT count(*) FROM qbit_test.zayavki)
+          (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.polzovateli)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.dialogi)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.vlozheniya_soobshcheniy)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.transkripcii_golosa)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.fakty_dialoga)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sootvetstviya_pii)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.narusheniya_tematiky)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.celevye_sobytiya)
+        + (SELECT count(*) FROM qbit_bot_pervichnogo_obrascheniya.zayavki)
     ),
     'forward_fk_db03',
     jsonb_build_array(
