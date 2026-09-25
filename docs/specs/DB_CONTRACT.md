@@ -225,7 +225,7 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 
 ## DB-03. Надёжность, память и операторский Telegram
 
-Для реализации DB-03 делится без изменения итогового контракта: DB-03A создаёт девять core-таблиц надёжности и добавляет FK `soobshcheniya.sobytie_id`; DB-03B создаёт три операторские таблицы и добавляет FK `dialogi.tekushchiy_menedzher_id`; DB-03C реализует клиентские/очередные/исходящие функции; DB-03D — функции служебного Telegram и конкурентного ручного перехвата. Родительский DB-03 закрывается только после всех четырёх подзадач и интегральных проверок.
+Для реализации DB-03 делится без изменения итогового контракта: DB-03A создаёт девять core-таблиц надёжности и добавляет FK `soobshcheniya.sobytie_id`; DB-03B создаёт три операторские таблицы и добавляет FK `dialogi.tekushchiy_menedzher_id`; DB-03C реализует клиентские/очередные/исходящие функции; DB-03D — функции служебного Telegram и конкурентного ручного перехвата. DB-03D дополнительно разделён на DB-03D1 (service ingress/private chat/topic/mirror) и DB-03D2 (Take/Return/manual outgoing/private alert). Родительский DB-03 закрывается только после всех подзадач и интегральных проверок.
 
 ### `sobytiya_integraciy`
 
@@ -395,13 +395,13 @@ CRM использует `sozdat_ishodyashchee_deystvie` с `vid_deystviya='crm'
 
 | Функция | Роль | Контракт |
 |---|---|---|
-| `zaregistrirovat_sluzhebnoe_sobytie` | sluzhebnyy | durable idempotent ingress одного service-bot webhook; не создаёт клиентский dialog; возвращает зарегистрированный event для внутренней маршрутизации |
-| `podtverdit_lichnyy_chat_menedzhera` | sluzhebnyy | `/start`: обновляет private chat только у заранее разрешённого active `telegram_user_id`; неизвестного пользователя не добавляет |
-| `zabrat_sobytie_zerkala` | sluzhebnyy | claim mirror event; возвращает только узкий payload, topic/media bytes, нужные для конкретной отправки; не открывает общий SELECT архива |
-| `zafiksirovat_rezultat_zerkala` | sluzhebnyy | confirmed/retry/unknown/error; сохраняет external message id; unknown не повторяет вслепую |
-| `zabrat_sozdanie_operator_temy` | sluzhebnyy | claim `nuzhno_sozdat`; если topic уже gotova — возвращает его; конкурент получает занято/дубликат |
-| `podtverdit_operator_temu` | sluzhebnyy | dialog + creation operation + thread id/card id; записывает mapping один раз; конфликт другого thread запрещён |
-| `otmetit_temu_neizvestnoy` | sluzhebnyy | ambiguous createForumTopic; запрещает blind recreate, создаёт системное событие |
+| `zaregistrirovat_sluzhebnoe_sobytie` | sluzhebnyy | DB-03D1 signature `jsonb`; durable idempotent `telegram_service` ingress; same external event/different content → conflict; не создаёт client dialog; возвращает persisted payload только для внутренней маршрутизации |
+| `podtverdit_lichnyy_chat_menedzhera` | sluzhebnyy | DB-03D1 signature `jsonb`; `/start` подтверждает private chat только у заранее разрешённого active `telegram_user_id`; unknown/inactive user не добавляется, существующий confirmed chat не заменяется молча |
+| `zabrat_sobytie_zerkala` | sluzhebnyy | DB-03D1 signature `jsonb`; due/expired mirror claim через `SKIP LOCKED` + lease/fencing; group target берётся из confirmed topic, private target — из approved manager; возвращает только event-specific text/payload и exact attachment bytes/storage reference; общего SELECT архива нет |
+| `zafiksirovat_rezultat_zerkala` | sluzhebnyy | DB-03D1 signature `jsonb`; fenced confirmed/retry/unknown/error; confirmed сохраняет Telegram message id, retry освобождает lease, unknown terminal и не claimится повторно |
+| `zabrat_sozdanie_operator_temy` | sluzhebnyy | DB-03D1 signature `jsonb`; specific/next due topic claim, `nuzhno_sozdat` или expired `sozdaetsya`; gotova возвращает mapping, live конкурент получает busy, neizvestno запрещает blind recreate |
+| `podtverdit_operator_temu` | sluzhebnyy | DB-03D1 signature `jsonb`; current creation operation + worker/fencing + thread; mapping записывается один раз, queued group mirror events получают trusted thread; conflict другого thread запрещён; initial card event создаётся при отсутствии card id |
+| `otmetit_temu_neizvestnoy` | sluzhebnyy | DB-03D1 signature `jsonb`; current topic owner/fencing переводит ambiguous createForumTopic в `neizvestno`, закрывает ensure-event и пишет system warning; blind recreate запрещён |
 | `zabrat_dialog_operatorom` | sluzhebnyy | callback + manager Telegram ID + expected dialog version; проверяет allowed manager; `bot→chelovek` first-commit-wins; отменяет wait/reminders/planned bot reply, increment version/generation, пишет dialog+mirror events |
 | `vernut_dialog_botu` | sluzhebnyy | current manager/admin + expected version; `chelovek→bot`, manager=NULL, wait=false, без автосообщения; пишет события |
 | `sozdat_ruchnoe_ishodyashchee` | sluzhebnyy | service event/message, chat/thread, manager user id, text; resolves topic→dialog, verifies current manager/owner, creates `soobshcheniya` author=manager + ordinary outgoing action; idempotent |

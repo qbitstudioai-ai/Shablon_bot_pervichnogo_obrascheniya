@@ -223,11 +223,42 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 ## Текущая задача
 
-**DB-03D — служебный Telegram, зеркало, topic, Take/Return, ручное исходящее и личные уведомления. Статус: не начато.**
+**DB-03D1 — service ingress, private chat менеджера, operator topic и mirror queue. Статус: в работе.**
 
-Условия начала выполнены: DB-03B и весь DB-03C завершены в test-контуре. Следующая задача должна реализовать узкие функции служебного Telegram по DB_CONTRACT и проверить конкурентный `Забрать`, ownership менеджера, Return без автоответа, ручную отправку только текущим менеджером и отсутствие общего raw SELECT у service role.
+DB-03D разделён без изменения итогового контракта:
+- DB-03D1 — долговечный вход служебного Telegram, private chat allowlist, topic lifecycle и mirror queue;
+- DB-03D2 — конкурентный Take/Return, ручное исходящее менеджера и private alert.
 
-Production, рабочий трафик и Credentials не менять.
+Подготовлен полный SQL `sql/DB-03D1_service_topic_mirror.sql` v0.1 только для `qbit_test`.
+
+Он создаёт 7 `SECURITY DEFINER` функций, все только для `qbit_test_sluzhebnyy`:
+- `zaregistrirovat_sluzhebnoe_sobytie(jsonb)`;
+- `podtverdit_lichnyy_chat_menedzhera(jsonb)`;
+- `zabrat_sozdanie_operator_temy(jsonb)`;
+- `podtverdit_operator_temu(jsonb)`;
+- `otmetit_temu_neizvestnoy(jsonb)`;
+- `zabrat_sobytie_zerkala(jsonb)`;
+- `zafiksirovat_rezultat_zerkala(jsonb)`.
+
+Ключевые правила:
+- service webhook сначала долговечно регистрируется в `sobytiya_integraciy`, затем маршрутизируется; повтор external event возвращает старую запись, same-event/different-content → conflict;
+- источник service ingress жёстко фиксируется как `telegram_service`;
+- `/start` подтверждает private chat только у заранее существующего active `telegram_user_id`; неизвестный user не создаёт manager row;
+- topic intent уже создаётся DB-03C1, D1 его не дублирует;
+- topic claim использует row lock/`SKIP LOCKED`, lease и monotonic fencing; expired `sozdaetsya` может быть reclaimed;
+- confirmed topic один раз фиксирует `dialog_id → sluzhebnyy_chat_id → message_thread_id` и привязывает накопленные group mirror events к trusted thread;
+- ambiguous `createForumTopic` переводит topic + ensure-event в `neizvestno`, пишет system warning и запрещает blind recreate;
+- mirror claim исключает `obespechit_temu`, использует lease/fencing и выдаёт только данные конкретного claimed event;
+- client text берётся из `sobytiya_zerkala_operatora.tekst`, а media — только из конкретного `vlozhenie_id` claimed event;
+- private notification target разрешается только из подтверждённого manager private chat, а не из входного текста;
+- mirror `neizvestno` terminal и не попадает обратно в due queue;
+- service role не получает общий `SELECT/INSERT/UPDATE/DELETE` по таблицам `qbit_test`.
+
+SAVEPOINT-probe проверяет service ingress new/duplicate/conflict, private chat allowlist, topic first-owner/confirm/conflicting thread, initial card, narrow client text, exact media bytes, trusted private target, mirror retry→unknown terminal и topic unknown/no-blind-recreate.
+
+Статический аудит кандидата: 7 функций, 7 compiler directives, 7 fixed `search_path`, 7 COMMENT/REVOKE/GRANT; необъявленных/неиспользуемых `v_*` нет; production/canary объекты не создаются; SAVEPOINT/rollback сохранены.
+
+**Не выполнено:** DB-03D1 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03d1_result` либо полный ERROR/CONTEXT. DB-03D2 до успешного D1 не начинается.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
