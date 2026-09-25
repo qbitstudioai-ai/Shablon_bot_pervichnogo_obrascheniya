@@ -66,9 +66,11 @@ SQL, schema, роли и PostgreSQL-функции по DB-00 ещё не соз
 
 ### PRE-02 остаётся в работе
 
-OpenRouter зафиксирован как единый внешний AI-шлюз. В [PROCESSING_PROFILE](specs/PROCESSING_PROFILE.md) остаются: LLM-кандидат `deepseek/deepseek-v4.1-flash`; embedding-кандидат `qwen/qwen3-embedding-8b` с целевой размерностью 1024; cosine; chunking 600/800/100; candidate top-k 12 и максимум 8 evidence. Порог similarity намеренно не назначен до контрольного набора. Резерв — `qwen/qwen3-embedding-0.6b` native 1024, только если OpenRouter не подтвердит стабильный `dimensions=1024` для 8B.
+PRE-02 разделён на небольшие проверяемые подзадачи PRE-02A…PRE-02D. Активна только **PRE-02A — runtime-проверка LLM OpenRouter из self-hosted n8n**. На 25 сентября 2026 года по официальной документации OpenRouter подтверждены актуальный model ID `deepseek/deepseek-v4.1-flash`, доступность `qwen/qwen3-embedding-8b` и параметр `dimensions` у `POST /api/v1/embeddings`. Это проверка документации, а не runtime сервера.
 
-Не выполнены runtime-проверки LLM/embedding, tokenizer/parser и similarity threshold. PRE-02 блокирует DB-04, но не подготовку DB-01/DB-02/DB-03 по уже согласованной структуре.
+Для PRE-02A нужен отдельный test Credential `QBIT_TEST_LLM` с ограниченным бюджетом и один обезличенный пробный вызов из n8n. Секрет не передаётся в чат и не сохраняется в workflow/GitHub. Runtime-вызов ещё не выполнен. Павел сообщил, что фактически импортированный draft workflow есть только в n8n; перед использованием этого workflow для Telegram/runtime текущей сессии нужен его очищенный JSON-экспорт, чтобы не гадать о нодах и не запускать DB/операторские ветки вслепую.
+
+Полноценное подключение клиентского Telegram и испытание надёжного входа относится к RT-01 после PRE-02A и не считается доказательством PRE-02. База знаний пока не загружена; DB-04/DB-05 не начинать до завершения PRE-02.
 
 ## Последний завершённый блок
 

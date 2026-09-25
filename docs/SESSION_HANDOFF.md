@@ -36,17 +36,22 @@ Canonical qBit schema:
 
 ## Следующая одна задача
 
-**PRE-02 — runtime-проверка AI-профиля в n8n/OpenRouter.**
+**PRE-02A — runtime-проверка LLM-профиля в n8n/OpenRouter.**
 
-Новая сессия должна:
-1. прочитать README, PROJECT_STATE, этот SESSION_HANDOFF и WORKPLAN_TEMPLATE;
-2. проверить ветку `main` и последний commit;
-3. прочитать `docs/specs/PROCESSING_PROFILE.md` и только связанные с PRE-02 спецификации;
-4. проверить runtime-параметры LLM/embedding, tokenizer/parser и калибровку similarity threshold по плану PRE-02;
-5. не начинать DB-04/DB-05 до закрытия PRE-02;
-6. не менять production, рабочий трафик или Credentials без отдельного разрешения Павла.
+Текущая сессия уже:
+1. сверила `main` = `2879c826bbd577b0dbf255d9ee1cf75ce59c658d` перед началом работы;
+2. прочитала README, PROJECT_STATE, WORKPLAN_TEMPLATE, SESSION_HANDOFF, DOCUMENTATION_RULES и PROCESSING_PROFILE;
+3. разделила большой PRE-02 на PRE-02A…PRE-02D;
+4. по официальной документации OpenRouter на 25.09.2026 подтвердила актуальность `deepseek/deepseek-v4.1-flash`, `qwen/qwen3-embedding-8b` и параметра embeddings `dimensions`;
+5. не выполняла runtime-вызов и не меняла Credentials/production.
 
-Исходный SHA перед закрывающим документационным commit этой сессии:
-`dc1da53cb3b8e9bc1fc0af00697b624a5c466919`.
+Для продолжения PRE-02A Павел передаёт **очищенный JSON-экспорт фактически импортированного клиентского workflow n8n**. Токены, API keys и другие секреты из экспорта удалить/не присылать. Экспорт нужен, чтобы определить точные существующие ноды и не запускать DB/Telegram/операторские ветки вслепую.
 
-Новая сессия обязана сверить фактический текущий SHA `main` на GitHub.
+После чтения JSON:
+- использовать только test Credential `QBIT_TEST_LLM` с ограниченным бюджетом;
+- выполнить один обезличенный вызов `deepseek/deepseek-v4.1-flash` из self-hosted n8n;
+- зафиксировать статус, фактический model ID и форму ответа без секрета и личных данных;
+- Telegram/RT-01 пока не считать начатым;
+- DB-04/DB-05 не начинать.
+
+Production, рабочий трафик и production Credentials не менять без отдельного разрешения Павла.

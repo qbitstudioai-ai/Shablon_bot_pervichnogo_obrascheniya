@@ -119,13 +119,29 @@ n8n 2.41.0 содержит штатную ноду **OpenRouter Chat Model** и
 
 Для retrieval измеряются как минимум попадание ожидаемого раздела в top-12 и ложные срабатывания на вопросах без ответа. Для финального ответа обязательны: валидная структура, отсутствие неподтверждённых технических фактов и отсутствие PII leak.
 
+## Декомпозиция PRE-02 и текущая проверка
+
+PRE-02 выполняется четырьмя небольшими задачами:
+
+- **PRE-02A** — один реальный LLM-вызов `deepseek/deepseek-v4.1-flash` из self-hosted n8n через отдельный test Credential;
+- **PRE-02B** — embedding-вызов `qwen/qwen3-embedding-8b` с `dimensions=1024` и фактическая проверка длины вектора;
+- **PRE-02C** — runtime-проверка parser/tokenizer библиотек в self-hosted n8n;
+- **PRE-02D** — контрольный набор и калибровка similarity threshold.
+
+25 сентября 2026 года перед началом PRE-02A повторно сверены официальные источники OpenRouter:
+
+- `deepseek/deepseek-v4.1-flash` существует как закреплённый model ID и поддерживает structured outputs: https://openrouter.ai/deepseek/deepseek-v4.1-flash;
+- `qwen/qwen3-embedding-8b` доступен как embedding model: https://openrouter.ai/qwen/qwen3-embedding-8b;
+- `POST /api/v1/embeddings` документирует опциональный целочисленный параметр `dimensions`: https://openrouter.ai/docs/api/api-reference/embeddings/create-embeddings.
+
+Эта сверка подтверждает только актуальность внешнего API на дату проверки. Она не заменяет runtime-проверку с российского сервера.
+
 ## Что осталось до закрытия PRE-02
 
-1. Создать test API keys OpenRouter с лимитами, не передавая их в чат.
-2. Проверить из российского n8n вызов `deepseek/deepseek-v4.1-flash`.
-3. Проверить embedding `qwen/qwen3-embedding-8b` с `dimensions=1024` и длину ответа ровно 1024.
-4. Проверить tokenizer и parser-библиотеки в self-hosted n8n.
-5. Прогнать контрольный набор и выбрать similarity threshold.
-6. Зафиксировать результаты и только тогда поставить PRE-02 = завершено.
+1. PRE-02A: создать test API key/credential `QBIT_TEST_LLM` с лимитом и выполнить один обезличенный LLM-вызов из российского n8n.
+2. PRE-02B: создать отдельный test credential `QBIT_TEST_EMBEDDING`, проверить `qwen/qwen3-embedding-8b` с `dimensions=1024` и длину ответа ровно 1024.
+3. PRE-02C: проверить tokenizer и parser-библиотеки в self-hosted n8n.
+4. PRE-02D: прогнать контрольный набор и выбрать similarity threshold.
+5. Зафиксировать результаты всех четырёх подзадач и только тогда поставить PRE-02 = завершено.
 
 Исполняемый клиентский workflow в PRE-02 не создаётся.
