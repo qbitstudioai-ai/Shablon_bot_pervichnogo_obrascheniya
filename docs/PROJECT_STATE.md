@@ -202,16 +202,47 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 ## Текущая задача
 
-**DB-03C4 — исходящие действия, подтверждение отправки, напоминания и потеря без ответа. Статус: не начато.**
+**DB-03C4 — исходящие действия, подтверждение отправки, напоминания и потеря без ответа. Статус: в работе.**
 
-Нужно подготовить 5 test-only PostgreSQL-функций:
-- `sozdat_ishodyashchee_deystvie`;
-- `zabrat_ishodyashchee_deystvie`;
-- `zafiksirovat_rezultat_ishodyashchego`;
-- `podgotovit_napominanie`;
-- `zafiksirovat_poteryu_bez_otveta`.
+Подготовлен полный SQL `sql/DB-03C4_outgoing_reminders.sql` v0.1 только для `qbit_test`.
 
-Обязательные свойства: stable-key idempotency, lease/fencing исходящей очереди, `neizvestno` без blind retry, только подтверждённая отправка меняет бизнес-состояние/t0/напоминания, opt-out/block/handoff/version проверяются до отправки, reminder1/reminder2 считаются от одного t0, потеря — только после подтверждённого reminder2 и отдельного срока без нового входа. Production, workflow и Credentials не менять.
+Он создаёт 5 `SECURITY DEFINER` функций, все только для `qbit_test_bot`:
+- `sozdat_ishodyashchee_deystvie(jsonb)`;
+- `zabrat_ishodyashchee_deystvie(jsonb)`;
+- `zafiksirovat_rezultat_ishodyashchego(jsonb)`;
+- `podgotovit_napominanie(jsonb)`;
+- `zafiksirovat_poteryu_bez_otveta(jsonb)`.
+
+Ключевые правила:
+- logical outgoing message/action сохраняется **до** внешнего API;
+- stable `klyuch_povtora` сравнивает не только payload, но и dialog/version/channel/text/wait/effects; другой контент под тем же ключом → `konflikt`;
+- claim/reclaim исходящей очереди использует `SKIP LOCKED`, lease и монотонный fencing number;
+- `neizvestno` не claim-ится повторно и не применяет зависимые бизнес-эффекты;
+- если внешний API успел реально отправить сообщение, а новый вход пересёкся до записи результата, confirmed-факт всё равно сохраняется, но stale stage/t0/reminders/close effects подавляются;
+- retry при уже stale/forbidden dialog не планируется;
+- только still-current `podtverzhdeno` применяет allowlisted effects: stage, optional confirmed goal, close result либо ожидание;
+- `t0` ставится только подтверждённым основным bot-сообщением, которое действительно требует ответа;
+- reminder1/reminder2 считаются от одного `t0`; сами напоминания `t0` не двигают;
+- final reminder recheck проверяет generation/t0/owner/block/initiative opt-out/new client input/window;
+- подтверждённые main replies и reminders создают operator mirror `otvet_bota`;
+- confirmed reminder2 создаёт durable `proverka_poteri` от **фактического** времени отправки + trusted delay;
+- `net_otveta` фиксируется только при confirmed reminder2, том же generation/t0 и отсутствии более нового входа.
+
+SAVEPOINT-probe проверяет:
+- stable-key idempotency;
+- `neizvestno` без t0/reminders;
+- confirmed send, пересёкшийся с новым входом: факт сохранён, stale effects не применены;
+- temporary retry → повторный claim;
+- confirmed main reply → t0 + reminder1/2 + operator mirror;
+- confirmed reminder1 не меняет t0 и зеркалируется;
+- confirmed reminder2 создаёт loss-check;
+- ранний loss-check возвращает `povtor`;
+- due loss-check закрывает `net_otveta`;
+- отдельный confirmed non-waiting reply корректно закрывает консультацию без напоминаний.
+
+Статический аудит: 5 функций, 5 compiler directives, 5 фиксированных `search_path`, 5 COMMENT/REVOKE/GRANT; необъявленных/неиспользуемых `v_*` нет; одна секция precheck/privileges/probe/result; production/canary не создаются; SAVEPOINT/rollback сохранены.
+
+**Не выполнено:** DB-03C4 ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03c4_result` либо полный ERROR/CONTEXT.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

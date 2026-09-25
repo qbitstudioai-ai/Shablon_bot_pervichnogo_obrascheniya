@@ -383,11 +383,11 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 
 | Функция | Роль | Контракт |
 |---|---|---|
-| `sozdat_ishodyashchee_deystvie` | bot | создаёт logical message + action до внешнего API; повтор по stable key не создаёт дубль; проверяет owner/version/block/opt-out |
-| `zabrat_ishodyashchee_deystvie` | bot | claim due action с арендой |
-| `zafiksirovat_rezultat_ishodyashchego` | bot | action + ownership + результат API; переводит в confirmed/retry/unknown/error; **только confirmed** атомарно применяет разрешённые stage/goal/memory/t0/reminder changes и создаёт mirror bot-response event |
-| `podgotovit_napominanie` | bot | reminder id/generation; под lock повторно проверяет owner/status/block/opt-out/new input/window; возвращает `otpravit/propustit/otmenit` и при `otpravit` создаёт outgoing action |
-| `zafiksirovat_poteryu_bez_otveta` | bot | loss-check reminder; закрывает `net_otveta` только при подтверждённом reminder2 и отсутствии более нового входа |
+| `sozdat_ishodyashchee_deystvie` | bot | DB-03C4 signature `jsonb`; сохраняет logical message/action до API; stable key сравнивает dialog/version/channel/text/wait/effects, конфликт содержимого запрещён; owner/version/block проверяются всегда, initiative opt-out — только для инициативной отправки |
+| `zabrat_ishodyashchee_deystvie` | bot | DB-03C4 signature `jsonb`; due `zaplanirovano/povtor` или expired `v_rabote`; `SKIP LOCKED` + lease/fencing; stale/blocked/human/closed/initiative-opt-out action отменяется до внешнего API; `neizvestno` не claimится |
+| `zafiksirovat_rezultat_ishodyashchego` | bot | DB-03C4 signature `jsonb`; fenced result `podtverzhdeno/povtor/neizvestno/oshibka`; API-факт confirmed/unknown/error сохраняется даже если dialog изменился in-flight, но зависимые effects применяются только при still-current state; retry stale state отменяется; confirmed client-facing message создаёт bot mirror; t0/reminders только от confirmed main waiting reply |
+| `podgotovit_napominanie` | bot | DB-03C4 signature `jsonb`; final lock/recheck generation/t0/owner/status/block/initiative-opt-out/new input/window; reminder1 пропускается, если уже наступил reminder2; создаёт stable initiative outgoing action, reminder сам t0 не меняет |
+| `zafiksirovat_poteryu_bez_otveta` | bot | DB-03C4 signature `jsonb`; durable loss-check создаётся только после confirmed reminder2 от actual send + trusted delay; закрывает `net_otveta` только при том же generation/t0, active bot wait и отсутствии более нового client input; иначе отменяется |
 
 CRM использует `sozdat_ishodyashchee_deystvie` с `vid_deystviya='crm'`; отдельной привилегированной CRM-функции БД не требуется.
 
