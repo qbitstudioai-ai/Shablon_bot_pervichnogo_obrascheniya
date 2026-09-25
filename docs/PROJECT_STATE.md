@@ -256,39 +256,51 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 - DB-03D1/D2 завершены и родительский **DB-03D закрыт**;
 - DB-03A и DB-03B также ранее завершены.
 
+## Последний завершённый блок
+
+**DB-03V — интегральная проверка позднего bot-ответа после Take. Статус: завершено 25 сентября 2026 года.**
+
+Павел выполнил `sql/DB-03V_late_confirm_after_take.sql` v0.2 целиком в self-hosted Supabase Studio. Сервер вернул:
+- `db03v_status = verified`;
+- `late_confirm_fact_preserved = true`;
+- `human_owner_preserved = true`;
+- `stale_effects_suppressed = true`;
+- `wait_t0_reminders_not_restored = true`;
+- `stage_goal_not_applied = true`;
+- `bot_mirror_marks_effects_false = true`;
+- `probe_rows_remaining = 0`;
+- `production_untouched = true`;
+- `parent_db03_ready_to_close = true`.
+
+Подтверждён критический crossing-сценарий `bot action v_rabote → operator Take → late confirmed`: внешний confirmed-факт и внешний message ID сохраняются, но post-Take human owner/version остаются текущими, stale stage/goal/wait/t0/reminders не восстанавливаются, а operator mirror отмечает `effekty_primeneny=false`.
+
+v0.1 ранее остановился на SQL parse до выполнения probe из-за недопустимого `pg_catalog.position(... IN ...)`; применений на сервере не было. В v0.2 использован `pg_catalog.strpos`.
+
+**Родительский DB-03 завершён:** DB-03A, DB-03B, весь DB-03C, весь DB-03D и интегральный DB-03V применены/проверены в `qbit_test`. Production не затронут.
+
 ## Текущая задача
 
-**DB-03V — интегральная проверка позднего bot-ответа после Take. Статус: в работе.**
+**PRE-02 — runtime-подтверждение профиля обработки. Статус: в работе.**
 
-Подготовлен исправленный `sql/DB-03V_late_confirm_after_take.sql` v0.2 только для `qbit_test`.
+Провайдер и кандидаты уже зафиксированы в `docs/specs/PROCESSING_PROFILE.md`:
+- OpenRouter — единый внешний AI-шлюз;
+- LLM: `deepseek/deepseek-v4.1-flash`;
+- embeddings: `qwen/qwen3-embedding-8b`, целевая размерность 1024;
+- резерв embeddings: `qwen/qwen3-embedding-0.6b` native 1024;
+- similarity: cosine;
+- Markdown parser: `markdown-it 15.0.2`;
+- YAML parser: `yaml 2.9.1`;
+- tokenizer runtime: `@huggingface/transformers 4.3.0`, tokenizer `Qwen/Qwen3-Embedding-8B`.
 
-Это **не миграция схемы**: файл не создаёт и не заменяет функции/таблицы/индексы. Он выполняет один disposable probe внутри `SAVEPOINT`, затем `ROLLBACK TO SAVEPOINT`.
+Осталось фактически подтвердить:
+1. test-вызов LLM из российского n8n через OpenRouter;
+2. embedding 8B с `dimensions=1024` и длиной ответа ровно 1024;
+3. tokenizer/parser в self-hosted runtime;
+4. контрольный набор и similarity threshold в диапазоне 0.45–0.85 шаг 0.05.
 
-Проверяемый сценарий:
-1. создаётся новый test dialog и waiting bot outgoing с allowlisted effects `novyy_etap`, `kod_celi` и reminder policy;
-2. только это probe-действие переводится прямым test-only UPDATE в точное состояние C4 claim: `status='v_rabote'`, worker, future lease, fencing, message=`v_rabote`;
-3. регистрируется service `callback_take`, текущий manager забирает dialog;
-4. после Take проверяется, что уже начатый внешний action **не отменён** и остался `v_rabote`, а dialog уже `chelovek/peredan_cheloveku` с новой version/generation;
-5. затем вызывается обычный `zafiksirovat_rezultat_ishodyashchego` с поздним `podtverzhdeno`;
-6. проверяется, что action/message получили confirmed + внешний Telegram message ID;
-7. одновременно dialog остаётся у manager с той же post-Take version/generation, `ozhidaetsya_otvet=false`, `t0=NULL`;
-8. stale `novyy_etap` и `kod_celi` не применяются, reminders не создаются;
-9. operator mirror `bot_confirmed:...` создаётся как внешний факт, но его payload содержит `effekty_primeneny=false`;
-10. все probe rows откатываются и отдельно проверяется, что следов `db03v_*` не осталось.
+Секреты OpenRouter в GitHub/чат не передавать: test credentials подключаются через безопасный интерфейс n8n. Если 8B через OpenRouter не подтверждает стабильный `dimensions=1024`, используется зафиксированный резерв 0.6B; профили векторов не смешиваются.
 
-Изоляция от существующей test-очереди: DB-03V намеренно **не вызывает queue-wide outgoing claim**, потому что C4 claim не принимает specific action ID. Вместо этого он test-only прямым UPDATE воспроизводит точное состояние claim только для собственного действия и сразу проверяет crossing-сценарий. Это исключает захват чужой due-записи в `qbit_test`.
-
-Первый запуск v0.1 в Supabase Studio 25.09.2026 не прошёл SQL parse: использован недопустимый schema-qualified специальный синтаксис `pg_catalog.position(... IN ...)`. Ошибка возникла до выполнения транзакции/probe, поэтому серверные данные и схема не изменились. В v0.2 precheck использует обычную функцию `pg_catalog.strpos(string, substring)`.
-
-Статический аудит v0.2:
-- permanent DDL: 0;
-- одна transaction, один SAVEPOINT/ROLLBACK/RELEASE/COMMIT;
-- transaction-control команд внутри PL/pgSQL DO нет;
-- необъявленных/неиспользуемых probe-переменных нет;
-- writes в production `qbit` отсутствуют;
-- проверки external fact / human owner / stage / goal / wait / t0 / reminders / mirror-effects присутствуют.
-
-**Не выполнено:** DB-03V ещё не запускался в self-hosted Supabase. Следующее действие — Павел запускает актуальный файл целиком одним Run и передаёт `db03v_result` либо полный ERROR/CONTEXT. Только после успешного server-check можно закрыть родительский DB-03.
+**Следующий шаг:** выполнить PRE-02 runtime-проверки. DB-04 до закрытия PRE-02 не начинать. RT-01 после DB-03 уже имеет выполненные зависимости, но параллельно не запускается.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
