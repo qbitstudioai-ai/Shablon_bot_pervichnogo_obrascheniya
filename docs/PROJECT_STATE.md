@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-09-24. Документационная основа v0.3; подготовка реализации разрешена.
+Обновлено: 2026-09-25. Документационная основа v0.3; подготовка реализации разрешена.
 
 ## Режим
 
@@ -200,51 +200,34 @@ OpenRouter зафиксирован как единый внешний AI-шлю
 
 Тем самым серверно подтверждены atomic queue claim, один active job на dialog, monotonic fencing number, heartbeat текущего worker, expired lease reclaim, запрет stale heartbeat/completion после нового входа, retry/reclaim и terminal success/error/cancel paths. Production не затронут.
 
+## Последний завершённый блок
+
+**DB-03C4 — исходящие действия, подтверждение отправки, напоминания и потеря без ответа. Статус: завершено 25 сентября 2026 года.**
+
+Павел выполнил `sql/DB-03C4_outgoing_reminders.sql` v0.2 целиком в self-hosted Supabase Studio. Сервер вернул:
+- `db03c4_status = applied`;
+- `functions_ok = true`;
+- `bot_execute_ok = true`;
+- `service_execute_denied = true`;
+- `runtime_direct_dml = false`;
+- `outgoing_unique_key_ok = true`;
+- `reminder_unique_generation_ok = true`;
+- `probe_rows_remaining = 0`;
+- результат: `DB-03C4 SQL APPLIED: outgoing intent/lease/in-flight-confirmed fact/confirmed-vs-unknown effects/t0/reminders/loss-check verified; probe data removed; production untouched.`
+
+Тем самым серверно подтверждены: сохранение outgoing intent до внешнего API, lease/fencing исходящей очереди, различие confirmed/retry/unknown, сохранение реального confirmed-факта при in-flight изменении dialog с подавлением stale effects, постановка `t0` только после подтверждённого основного сообщения, reminder1/reminder2 без переноса `t0`, operator mirror и durable loss-check после подтверждённого reminder2.
+
+Неуспешные ранние запуски v0.1 были остановлены внутри SAVEPOINT-probe до `COMMIT` и откатились. Применена только v0.2. Production не затронут.
+
+**Родительский DB-03C завершён:** DB-03C1 v0.3, DB-03C2 v0.1, DB-03C3 v0.1 и DB-03C4 v0.2 применены и проверены в `qbit_test`.
+
 ## Текущая задача
 
-**DB-03C4 — исходящие действия, подтверждение отправки, напоминания и потеря без ответа. Статус: в работе.**
+**DB-03D — служебный Telegram, зеркало, topic, Take/Return, ручное исходящее и личные уведомления. Статус: не начато.**
 
-Подготовлен исправленный SQL `sql/DB-03C4_outgoing_reminders.sql` v0.2 только для `qbit_test`.
+Условия начала выполнены: DB-03B и весь DB-03C завершены в test-контуре. Следующая задача должна реализовать узкие функции служебного Telegram по DB_CONTRACT и проверить конкурентный `Забрать`, ownership менеджера, Return без автоответа, ручную отправку только текущим менеджером и отсутствие общего raw SELECT у service role.
 
-Он создаёт 5 `SECURITY DEFINER` функций, все только для `qbit_test_bot`:
-- `sozdat_ishodyashchee_deystvie(jsonb)`;
-- `zabrat_ishodyashchee_deystvie(jsonb)`;
-- `zafiksirovat_rezultat_ishodyashchego(jsonb)`;
-- `podgotovit_napominanie(jsonb)`;
-- `zafiksirovat_poteryu_bez_otveta(jsonb)`.
-
-Ключевые правила:
-- logical outgoing message/action сохраняется **до** внешнего API;
-- stable `klyuch_povtora` сравнивает не только payload, но и dialog/version/channel/text/wait/effects; другой контент под тем же ключом → `konflikt`;
-- claim/reclaim исходящей очереди использует `SKIP LOCKED`, lease и монотонный fencing number;
-- `neizvestno` не claim-ится повторно и не применяет зависимые бизнес-эффекты;
-- если внешний API успел реально отправить сообщение, а новый вход пересёкся до записи результата, confirmed-факт всё равно сохраняется, но stale stage/t0/reminders/close effects подавляются;
-- retry при уже stale/forbidden dialog не планируется;
-- только still-current `podtverzhdeno` применяет allowlisted effects: stage, optional confirmed goal, close result либо ожидание;
-- `t0` ставится только подтверждённым основным bot-сообщением, которое действительно требует ответа;
-- reminder1/reminder2 считаются от одного `t0`; сами напоминания `t0` не двигают;
-- final reminder recheck проверяет generation/t0/owner/block/initiative opt-out/new client input/window;
-- подтверждённые main replies и reminders создают operator mirror `otvet_bota`;
-- confirmed reminder2 создаёт durable `proverka_poteri` от **фактического** времени отправки + trusted delay;
-- `net_otveta` фиксируется только при confirmed reminder2, том же generation/t0 и отсутствии более нового входа.
-
-SAVEPOINT-probe проверяет:
-- stable-key idempotency;
-- `neizvestno` без t0/reminders;
-- confirmed send, пересёкшийся с новым входом: факт сохранён, stale effects не применены;
-- temporary retry → повторный claim;
-- confirmed main reply → t0 + reminder1/2 + operator mirror;
-- confirmed reminder1 не меняет t0 и зеркалируется;
-- confirmed reminder2 создаёт loss-check;
-- ранний loss-check возвращает `povtor`;
-- due loss-check закрывает `net_otveta`;
-- отдельный confirmed non-waiting reply корректно закрывает консультацию без напоминаний.
-
-Первый запуск v0.1 в self-hosted Supabase 25.09.2026 остановился внутри SAVEPOINT-probe до `COMMIT`: основной confirmed-flow корректно вернул `pokolenie_ozhidaniya=2`, а probe ошибочно ожидал жёсткую константу `1`. Причина подтверждена по DB-03C1: каждый новый вход в существующий диалог увеличивает `pokolenie_ozhidaniya`; затем confirmed waiting reply увеличивает его ещё раз. В v0.2 probe вычисляет ожидаемое поколение и текущую версию динамически.
-
-Статический аудит v0.2: 5 функций, 5 compiler directives, 5 фиксированных `search_path`, 5 COMMENT/REVOKE/GRANT; необъявленных/неиспользуемых `v_*` нет; одна секция precheck/privileges/probe/result; production/canary не создаются; SAVEPOINT/rollback сохранены.
-
-**Не выполнено:** DB-03C4 ещё не применён. Неуспешный v0.1 завершился до `COMMIT`, поэтому его изменения откатились. Следующее действие — Павел запускает актуальный v0.2 целиком одним Run и передаёт `db03c4_result` либо полный ERROR/CONTEXT.
+Production, рабочий трафик и Credentials не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
