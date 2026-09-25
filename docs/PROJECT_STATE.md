@@ -6,7 +6,7 @@
 
 **Подготовка реализации.** 23 сентября 2026 года Павел отдельно разрешил приступить к реализации шаблона. Это разрешение не включает изменение production, удаление рабочих данных или переключение рабочего трафика.
 
-Завершена задача DOC-03. Первая эталонная установка создаётся для компании qBit; безопасный технический код — `qbit`. В PRE-01 подтверждены: n8n 2.41.0; Docker 29.8.1; Docker Compose v5.5.1; self-hosted Supabase в Docker; Supabase Postgres image 17.6.1.136 и PostgreSQL 17.6; Auth/GoTrue 2.196.0; Supavisor 2.9.12; PostgREST 14.17; Studio 2026.09.07-sha-7996410; отдельная БД n8n — PostgreSQL 17.11-alpine; reverse proxy Caddy 2.11.4; Portainer 2.45.1. pgvector 0.8.2 включён и функционально проверен: операция L2 для тестовых векторов вернула `1`. Сверка с текущим официальным Docker Compose Supabase показала совпадение основных тегов стека; переустановка Supabase ради векторного хранилища не требуется. n8n и Supabase открываются через веб-интерфейсы; сервер администрируется через терминал. Instance ID n8n и имя сервера в публичную документацию не сохраняются. SQL DB-01 v0.3 применён и проверен в self-hosted Supabase; SQL DB-02…DB-05 и production-код пока не создавались. Draft workflow уже импортированы Павлом 24.09.2026; это отражено ниже. Production, рабочий трафик и production schema/roles не менялись.
+Завершена задача DOC-03. Первая эталонная установка создаётся для компании qBit; безопасный технический код — `qbit`. В PRE-01 подтверждены: n8n 2.41.0; Docker 29.8.1; Docker Compose v5.5.1; self-hosted Supabase в Docker; Supabase Postgres image 17.6.1.136 и PostgreSQL 17.6; Auth/GoTrue 2.196.0; Supavisor 2.9.12; PostgREST 14.17; Studio 2026.09.07-sha-7996410; отдельная БД n8n — PostgreSQL 17.11-alpine; reverse proxy Caddy 2.11.4; Portainer 2.45.1. pgvector 0.8.2 включён и функционально проверен: операция L2 для тестовых векторов вернула `1`. Сверка с текущим официальным Docker Compose Supabase показала совпадение основных тегов стека; переустановка Supabase ради векторного хранилища не требуется. n8n и Supabase открываются через веб-интерфейсы; сервер администрируется через терминал. Instance ID n8n и имя сервера в публичную документацию не сохраняются. SQL DB-01, DB-02 и весь DB-03 применены и проверены в self-hosted Supabase; DB-04/DB-05 намеренно не начаты до закрытия PRE-02; production-код не создавался. Draft workflow уже импортированы Павлом 24.09.2026; это отражено ниже. Production, рабочий трафик и production schema/roles не менялись.
 
 ## Последний завершённый блок
 
@@ -278,48 +278,43 @@ v0.1 ранее остановился на SQL parse до выполнения 
 
 **Родительский DB-03 завершён:** DB-03A, DB-03B, весь DB-03C, весь DB-03D и интегральный DB-03V применены/проверены в `qbit_bot_pervichnogo_obrascheniya`. Production не затронут.
 
-## Текущая задача
+## Последний завершённый блок
 
-**DB-SCHEMA-01F — финальная проверка уже переименованной qBit schema. Статус: в работе.**
+**DB-SCHEMA-01 / DB-SCHEMA-01F — rename qBit schema и финальная серверная проверка. Статус: завершено 25 сентября 2026 года.**
 
-Бизнес-решение Павла сохраняется: canonical schema этого проекта — `qbit_bot_pervichnogo_obrascheniya`; роли `qbit_test_*` в этой задаче не переименовываются.
+Canonical schema первой qBit-установки — `qbit_bot_pervichnogo_obrascheniya`; роли `qbit_test_*` сохранены по принятому решению.
 
-Что произошло с DB-SCHEMA-01:
-- v0.1 остановился на отсутствии database CREATE у owner-role;
-- v0.2 остановился на чтении postgres-owned TEMP snapshot после `SET ROLE`;
-- v0.3 дошёл до `COMMIT`, а ошибочный `pg_get_functiondef()` в **post-COMMIT финальном SELECT** мог дать `42809: "array_agg" is an aggregate function` уже после сохранения rename;
-- последующий запуск подтвердил, что source schema `qbit_test` больше не существует;
-- поэтому повторно выполнять rename теперь нельзя и не нужно.
+После нескольких безопасно остановленных/исправленных попыток rename был фактически сохранён в DB-SCHEMA-01 v0.3 до ошибочного post-COMMIT reporting SELECT. Поэтому старую rename-миграцию повторно запускать нельзя.
 
-Подготовлен fresh-path verifier `sql/DB-SCHEMA-01F_v0.4_verify_renamed_schema.sql` v0.4. Это read-only verifier:
-- не выполняет ALTER/CREATE/DROP;
-- не выполняет INSERT/UPDATE/DELETE;
-- не выполняет GRANT/REVOKE;
-- требует отсутствие `qbit_test` и наличие `qbit_bot_pervichnogo_obrascheniya`;
-- проверяет owner `qbit_test_owner`;
-- проверяет, что временный database CREATE у owner-role отозван;
-- проверяет отсутствие PUBLIC schema privilege;
-- проверяет 25 таблиц;
-- проверяет ровно 28 ожидаемых `SECURITY DEFINER` функций по точным сигнатурам: 26×`(p_dannye jsonb)`, `zaregistrirovat_vhod_klienta(p_vhod jsonb)` и `sohranit_vlozhenie(p_dannye jsonb, p_soderzhimoe bytea)`;
-- проверяет fixed `search_path=pg_catalog, qbit_bot_pervichnogo_obrascheniya`;
-- проверяет отсутствие `qbit_test.` внутри definitions только на allowlisted `prokind='f'`, поэтому aggregate-объекты не попадают в `pg_get_functiondef()`;
-- проверяет EXECUTE distribution: bot=17, service=10, dash_admin=1 и PUBLIC=0;
-- проверяет отсутствие прямого INSERT/UPDATE/DELETE у runtime-ролей;
-- проверяет cross-schema isolation с `kompaniya_001_test`;
-- требует наличие canary schema `kompaniya_001_test`;
-- **не требует** наличие production schema `qbit`: DB-01 прямо не создаёт production schema; её текущее наличие в финальном JSON только информационное.
+Финальный read-only verifier:
+`sql/DB-SCHEMA-01F_v0.4_verify_renamed_schema.sql`.
 
-Исходные SQL DB-01…DB-03 в GitHub уже используют canonical schema `qbit_bot_pervichnogo_obrascheniya`; имена ролей `qbit_test_*` оставлены намеренно.
+Павел успешно выполнил его целиком в self-hosted Supabase Studio. Сервер вернул:
+- `verifier_version = DB-SCHEMA-01F_v0.4_fresh_path`;
+- `db_schema_01f_status = verified`;
+- `old_schema_absent = true`;
+- `new_schema_present = true`;
+- `schema_owner = qbit_test_owner`;
+- `tables_ok = true`;
+- `functions_ok = true`;
+- `execute_distribution = bot=17/service=10/dash_admin=1`;
+- `runtime_direct_dml_denied = true`;
+- `temporary_database_create_revoked = true`;
+- `canary_schema_present = true`;
+- `production_schema_qbit_required = false`;
+- `production_schema_qbit_present_informational = false`;
+- `supabase_stage_complete = true`;
+- `next_stage = PRE-02_n8n_openrouter`.
 
-Первый запуск verifier v0.1 корректно подтвердил уже переименованную schema, но остановился на своей неверной проверке количества функций: считал только сигнатуру `(p_dannye jsonb)` и получил 26 вместо проектных 28. Две функции имеют другие корректные сигнатуры: `zaregistrirovat_vhod_klienta(p_vhod jsonb)` и `sohranit_vlozhenie(p_dannye jsonb, p_soderzhimoe bytea)`. В v0.2 все проверки функций используют точный allowlist сигнатур.
+Тем самым подтверждено: старая `qbit_test` отсутствует; canonical schema существует и принадлежит `qbit_test_owner`; 25 таблиц и 28 ожидаемых SECURITY DEFINER функций используют новый schema/search_path; PUBLIC EXECUTE отсутствует; runtime-роли не имеют прямого DML; временный CREATE ON DATABASE отозван; межкомпанейская canary-изоляция сохранена. Production schema `qbit` не создавалась и на test-stage не требуется.
 
-Запуск v0.2 прошёл все предыдущие проверки и остановился только на ошибочной финальной предпосылке `Production schema qbit unexpectedly missing`. Это ошибка verifier: DB-01 явно создавал только test schema и canary и прямо указывает, что production schema `qbit` не создаётся. В v0.3 требование наличия `qbit` удалено; canary `kompaniya_001_test` остаётся обязательной.
+**DB-SCHEMA-01F и родительский DB-SCHEMA-01 закрыты. Текущий Supabase-этап завершён.**
 
-Повторный запуск, который Павел считал v0.3, снова вернул тот же `CONTEXT ... inline_code_block line 721`. Сверка доказала, что это тело v0.2: в v0.2 фраза `Production schema qbit unexpectedly missing` находится в file line 749, что соответствует примерно line 721 внутри DO-блока; в сохранённом v0.3 этой фразы нет, а file line 721 относится к runtime DML check. Чтобы исключить старую вкладку/кэш/смешанный текст, создан отдельный fresh-path файл v0.4 с новым именем и итоговым полем `verifier_version=DB-SCHEMA-01F_v0.4_fresh_path`.
+## Следующая задача
 
-**Следующий шаг:** Павел открывает именно новый `DB-SCHEMA-01F_v0.4_verify_renamed_schema.sql`, вставляет его целиком в новый SQL Editor query и запускает одним Run. Перед запуском первая строка должна содержать `v0.4 FRESH-PATH`. Передаёт `db_schema_01f_result` либо полный ERROR/CONTEXT. Старый `DB-SCHEMA-01_rename_qbit_schema.sql` и прежние verifier повторно не запускать.
+**PRE-02 — runtime-проверка AI-профиля в n8n/OpenRouter.**
 
-После успешного DB-SCHEMA-01F текущая работа с Supabase считается завершённой. DB-04/DB-05 не являются незавершённой текущей работой Supabase: они намеренно заблокированы до PRE-02. Следующая сессия после verifier — PRE-02 в n8n/OpenRouter.
+Начинать в новой сессии. Нужно проверить актуальный `main`, прочитать `docs/specs/PROCESSING_PROFILE.md` и связанные с PRE-02 спецификации, затем выполнить только PRE-02. DB-04/DB-05 не начинать до закрытия PRE-02. Production, рабочий трафик и Credentials не менять без отдельного разрешения.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

@@ -4,9 +4,9 @@
 
 ## Статус и границы
 
-Подготовлена документационная основа v0.3. 23 сентября 2026 года Павел разрешил перейти к реализации шаблона. Текущий режим — **подготовка реализации**: PRE-01, DB-00, DB-01 и DB-02 завершены; DB-03 начат: DB-03A и DB-03B завершены; весь DB-03C (C1…C4) успешно применён и проверен в `qbit_bot_pervichnogo_obrascheniya`; DB-03C и DB-03D полностью применены и проверены в `qbit_bot_pervichnogo_obrascheniya`; D2 подтвердил atomic Take/Return/manual outgoing/private alert и controlled C4 manager-source upgrade. DB-03 полностью завершён и проверен в `qbit_bot_pervichnogo_obrascheniya`, включая DB-03V crossing `bot v_rabote → Take → late confirmed`: внешний факт сохраняется, stale effects/wait/t0/reminders не восстанавливаются. Перед PRE-02 завершается DB-SCHEMA-01F: rename schema уже фактически произошёл, поэтому старую rename-миграцию повторно не запускаем; выполняется только read-only verifier новой `qbit_bot_pervichnogo_obrascheniya`.
+Подготовлена документационная основа v0.3. 23 сентября 2026 года Павел разрешил перейти к реализации шаблона. Текущий режим — **подготовка реализации**: PRE-01, DB-00, DB-01, DB-02 и весь DB-03 завершены и проверены в `qbit_bot_pervichnogo_obrascheniya`. DB-SCHEMA-01 и финальный DB-SCHEMA-01F также завершены: read-only verifier v0.4 подтвердил canonical schema `qbit_bot_pervichnogo_obrascheniya`, 25 таблиц, 28 SECURITY DEFINER функций, права runtime-ролей и изоляцию; production schema `qbit` на test-stage не требуется и отсутствует. Старую rename-миграцию повторно не запускать.
 
-Финальная проверка текущего Supabase-этапа — `sql/DB-SCHEMA-01F_v0.4_verify_renamed_schema.sql`; после её успешного server-check следующая сессия — PRE-02/n8n. Supabase один, развёрнут на сервере Павла. Studio — интерфейс управления этой установкой. Компании используют разные schema одной базы PostgreSQL; облачные проекты Supabase для компаний не создаются.
+Текущий этап Supabase завершён. Следующая отдельная сессия — PRE-02 в n8n/OpenRouter. Supabase один, развёрнут на сервере Павла. Studio — интерфейс управления этой установкой. Компании используют разные schema одной базы PostgreSQL; облачные проекты Supabase для компаний не создаются.
 
 У каждой компании свои:
 
