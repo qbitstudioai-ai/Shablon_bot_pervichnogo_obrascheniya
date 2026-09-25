@@ -375,9 +375,9 @@ DB-02 создаётся раньше DB-03, поэтому две физиче�
 
 | Функция | Роль | Контракт |
 |---|---|---|
-| `zabrat_zadanie_obrabotki` | bot | атомарный claim следующего due job через row locking/SKIP LOCKED; не даёт двум worker один dialog |
-| `prodlit_arendu_zadaniya` | bot | job + worker + ownership number; продлевает только текущему владельцу |
-| `zavershit_zadanie_obrabotki` | bot | job + worker + ownership number + expected dialog version; `zaversheno/povtor/otmeneno/oshibka`, retry time/error; stale owner/version получает `konflikt` |
+| `zabrat_zadanie_obrabotki` | bot | DB-03C3 signature `jsonb`; due `ozhidaet/povtor` или expired `v_rabote`; locks job+dialog with `SKIP LOCKED`, one active job per dialog + unique backstop; stale/blocked/human/closed due jobs отменяет; каждый claim/reclaim увеличивает attempts и fencing `nomer_vladeniya` |
+| `prodlit_arendu_zadaniya` | bot | DB-03C3 signature `jsonb`; продлевает только live lease текущего worker с совпадающим fencing number; current dialog version/state перепроверяются, поэтому stale work не может удерживать очередь heartbeat-ами |
+| `zavershit_zadanie_obrabotki` | bot | DB-03C3 signature `jsonb`; live lease + worker + fencing + expected/current dialog version/state; `zaversheno/povtor/otmeneno/oshibka`; retry требует future time/error; stale/expired/reclaimed owner или version получает `konflikt` без записи результата |
 
 ### Исходящие действия и напоминания
 
