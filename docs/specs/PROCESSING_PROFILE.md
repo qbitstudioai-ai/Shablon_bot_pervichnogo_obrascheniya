@@ -4,9 +4,9 @@
 
 ## Внешний AI-шлюз
 
-Единый внешний шлюз — **OpenRouter**. Павел подтвердил, что баланс OpenRouter пополнен.
+Единый внешний AI-шлюз — **OpenRouter**, но после географической проверки вызовы OpenRouter планируются через отдельный **AI relay на n8n в Амстердаме**. Павел подтвердил, что на российском n8n проверка OpenRouter Credential возвращала `403 Forbidden`, а на сервере в Амстердаме Credential подключился без этой ошибки. Полный LLM runtime-вызов в Амстердаме ещё должен быть зафиксирован как доказательство PRE-02A.
 
-Основная инфраструктура остаётся на российском сервере. Во внешний API уходят только обезличенные данные после локальной очистки PII. OpenRouter, модели и их upstream-провайдеры не являются постоянным хранилищем продукта.
+Основная инфраструктура и постоянные данные остаются на российском сервере. Российский n8n выполняет CORE, PII-очистку, работу с Supabase и RAG-оркестрацию; амстердамский relay не получает доступ к Supabase и вызывает только внешние AI API. Во внешний API уходят только обезличенные данные после локальной очистки PII. OpenRouter, relay и upstream-провайдеры не являются постоянным хранилищем продукта.
 
 Для test и production создаются разные API keys. Секреты не сохраняются в GitHub и не вставляются в workflow. Для LLM и embeddings предпочтительны отдельные ключи с независимыми лимитами расходов.
 
@@ -33,6 +33,8 @@
 - similarity: cosine;
 - хранение: только pgvector в schema компании;
 - один профиль модели/размерности используется и при индексации документов, и при поисковых запросах.
+- embedding нужен **при каждом semantic-поиске**: текст запроса пользователя преобразуется в query-vector тем же профилем, затем российский Supabase/pgvector ищет ближайшие опубликованные фрагменты;
+- вычисление document embeddings и query embeddings выполняется через амстердамский AI relay, а сами векторы и поиск остаются в российском Supabase.
 
 Qwen3 Embedding 8B поддерживает Matryoshka Representation Learning и пользовательскую размерность. Runtime-проверка обязана подтвердить, что OpenRouter для выбранного upstream возвращает ровно 1024 значения. Если параметр `dimensions=1024` не поддерживается стабильно, резервный кандидат — `qwen/qwen3-embedding-0.6b` с нативной размерностью 1024; смешивать векторы разных профилей нельзя.
 
@@ -123,8 +125,8 @@ n8n 2.41.0 содержит штатную ноду **OpenRouter Chat Model** и
 
 PRE-02 выполняется четырьмя небольшими задачами:
 
-- **PRE-02A** — один реальный LLM-вызов `deepseek/deepseek-v4.1-flash` из self-hosted n8n через отдельный test Credential;
-- **PRE-02B** — embedding-вызов `qwen/qwen3-embedding-8b` с `dimensions=1024` и фактическая проверка длины вектора;
+- **PRE-02A** — один реальный LLM-вызов `deepseek/deepseek-v4.1-flash` через test Credential на амстердамском n8n/AI relay с фиксацией ответа без секретов;
+- **PRE-02B** — два embedding smoke-test через амстердамский relay: document/chunk и query для `qwen/qwen3-embedding-8b` с `dimensions=1024`, оба возвращают вектор длиной 1024 и используют один профиль;
 - **PRE-02C** — runtime-проверка parser/tokenizer библиотек в self-hosted n8n;
 - **PRE-02D** — контрольный набор и калибровка similarity threshold.
 
@@ -134,12 +136,12 @@ PRE-02 выполняется четырьмя небольшими задача
 - `qwen/qwen3-embedding-8b` доступен как embedding model: https://openrouter.ai/qwen/qwen3-embedding-8b;
 - `POST /api/v1/embeddings` документирует опциональный целочисленный параметр `dimensions`: https://openrouter.ai/docs/api/api-reference/embeddings/create-embeddings.
 
-Эта сверка подтверждает только актуальность внешнего API на дату проверки. Она не заменяет runtime-проверку с российского сервера.
+Эта сверка подтверждает только актуальность внешнего API на дату проверки. Прямая OpenRouter Credential-проверка на российском n8n дала `403 Forbidden`, а на амстердамском n8n подключение прошло без этой ошибки. Поэтому runtime-профиль теперь проверяется через отдельный Amsterdam AI relay; это решение не переносит Supabase или CORE из России.
 
 ## Что осталось до закрытия PRE-02
 
-1. PRE-02A: создать test API key/credential `QBIT_TEST_LLM` с лимитом и выполнить один обезличенный LLM-вызов из российского n8n.
-2. PRE-02B: создать отдельный test credential `QBIT_TEST_EMBEDDING`, проверить `qwen/qwen3-embedding-8b` с `dimensions=1024` и длину ответа ровно 1024.
+1. PRE-02A: выполнить и сохранить результат одного обезличенного LLM-вызова `deepseek/deepseek-v4.1-flash` через амстердамский n8n/AI relay с test Credential `QBIT_TEST_LLM`.
+2. PRE-02B: создать отдельный test credential `QBIT_TEST_EMBEDDING`; через Amsterdam relay проверить отдельно embedding очищенного фрагмента документа и embedding поискового запроса `qwen/qwen3-embedding-8b` с `dimensions=1024`, оба ответа должны иметь длину ровно 1024.
 3. PRE-02C: проверить tokenizer и parser-библиотеки в self-hosted n8n.
 4. PRE-02D: прогнать контрольный набор и выбрать similarity threshold.
 5. Зафиксировать результаты всех четырёх подзадач и только тогда поставить PRE-02 = завершено.
