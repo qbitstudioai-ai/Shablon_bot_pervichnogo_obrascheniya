@@ -1,0 +1,86 @@
+{
+  "name": "PRE-02A — OpenRouter Amsterdam — n8n 2.20.9",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "d3d5a2ad-6a8e-4b0c-92cf-17c55b0fa001",
+      "name": "Запустить проверку вручную",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Ответь ровно одной строкой: PRE-02A Amsterdam OK",
+        "hasOutputParser": false,
+        "needsFallback": false,
+        "batching": {
+          "batchSize": 1,
+          "delayBetweenBatches": 0
+        }
+      },
+      "id": "8b4bd3cb-302f-4ebc-896d-74c35e0fa002",
+      "name": "Проверить OpenRouter через Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "options": {
+          "maxTokens": 64,
+          "temperature": 0,
+          "timeout": 120000,
+          "maxRetries": 0
+        }
+      },
+      "id": "c7e775c2-65e5-4c14-8d6f-8dcf8f0fa003",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        300,
+        220
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Запустить проверку вручную": {
+      "main": [
+        [
+          {
+            "node": "Проверить OpenRouter через Chat Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Проверить OpenRouter через Chat Model",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {},
+  "tags": []
+}
