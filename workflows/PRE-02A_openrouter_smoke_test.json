@@ -1,0 +1,107 @@
+{
+  "name": "PRE-02A — проверка OpenRouter из n8n",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "f0b1b1a2-1c4d-4de3-8bc4-1d89d0a2a101",
+      "name": "Запустить проверку вручную",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = {\n  model: 'deepseek/deepseek-v4.1-flash',\n  temperature: 0,\n  max_tokens: 80,\n  response_format: {\n    type: 'json_schema',\n    json_schema: {\n      name: 'pre02a_smoke',\n      strict: true,\n      schema: {\n        type: 'object',\n        additionalProperties: false,\n        properties: {\n          status: { type: 'string', enum: ['ok'] },\n          message: { type: 'string' }\n        },\n        required: ['status', 'message']\n      }\n    }\n  },\n  messages: [\n    {\n      role: 'system',\n      content: 'Это техническая проверка API. Верни только данные по заданной JSON Schema.'\n    },\n    {\n      role: 'user',\n      content: 'Проверка PRE-02A из self-hosted n8n. Верни status=ok и короткое сообщение на русском.'\n    }\n  ]\n};\nreturn [{json:{zapros_modeli:body}}];"
+      },
+      "id": "6d4439e5-fcf0-45e0-91d5-6bbb3cb08c4f",
+      "name": "Подготовить безопасный тестовый запрос",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.zapros_modeli }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "9f9904df-442c-48a8-9bbf-499f40e4232c",
+      "name": "Вызвать OpenRouter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x = $json || {};\nconst model = String(x.model || '');\nconst content = x.choices?.[0]?.message?.content;\nlet parsed = null;\ntry {\n  parsed = typeof content === 'object' && content ? content : JSON.parse(String(content || ''));\n} catch {}\nconst ok = Boolean(\n  model.includes('deepseek') &&\n  parsed &&\n  parsed.status === 'ok' &&\n  typeof parsed.message === 'string' &&\n  parsed.message.length > 0\n);\nif (!ok) {\n  throw new Error('PRE-02A: OpenRouter ответил, но структура/модель не прошла проверку');\n}\nreturn [{\n  json: {\n    pre02a_status: 'verified',\n    requested_model: 'deepseek/deepseek-v4.1-flash',\n    returned_model: model,\n    structured_output_ok: true,\n    message: parsed.message,\n    usage: x.usage || null\n  }\n}];"
+      },
+      "id": "f95fd586-70c6-43be-97df-155d975f80fd",
+      "name": "Проверить ответ OpenRouter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Запустить проверку вручную": {
+      "main": [
+        [
+          {
+            "node": "Подготовить безопасный тестовый запрос",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить безопасный тестовый запрос": {
+      "main": [
+        [
+          {
+            "node": "Вызвать OpenRouter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вызвать OpenRouter": {
+      "main": [
+        [
+          {
+            "node": "Проверить ответ OpenRouter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "00000000-0000-4000-8000-0000000002a0",
+  "meta": {},
+  "tags": []
+}
