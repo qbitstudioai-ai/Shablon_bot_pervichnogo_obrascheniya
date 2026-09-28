@@ -2,54 +2,36 @@
 
 Статус: в работе. Выбор провайдера и моделей зафиксирован; runtime-проверка API и калибровка порога поиска ещё не выполнены.
 
-## Внешний AI-шлюз
+## Внешний AI-провайдер
 
-Единый внешний AI-шлюз — **OpenRouter**, но после географической проверки вызовы OpenRouter планируются через отдельный **AI relay на n8n в Амстердаме**. Павел подтвердил, что на российском n8n проверка OpenRouter Credential возвращала `403 Forbidden`, а на сервере в Амстердаме Credential подключился без этой ошибки. Полный LLM runtime-вызов в Амстердаме ещё должен быть зафиксирован как доказательство PRE-02A.
+28 сентября 2026 года Павел отказался от OpenRouter как целевого профиля и перенёс рабочий n8n на сервер в Амстердаме. Новый целевой провайдер для **LLM и embeddings — OpenAI**.
 
-Основная инфраструктура и постоянные данные остаются на российском сервере. Российский n8n выполняет CORE, PII-очистку, работу с Supabase и RAG-оркестрацию; амстердамский relay не получает доступ к Supabase и вызывает только внешние AI API. Во внешний API уходят только обезличенные данные после локальной очистки PII. OpenRouter, relay и upstream-провайдеры не являются постоянным хранилищем продукта.
+Точный LLM model ID, embedding model ID, размерность, стоимость и runtime-настройки ещё не зафиксированы и должны быть выбраны в новой подзадаче PRE-02E по актуальной официальной документации и smoke-test из n8n. На момент решения официальная документация OpenAI подтверждает endpoint `/v1/embeddings` и модели `text-embedding-3-small`, `text-embedding-3-large`; выбор между ними не делается в этой сессии.
 
-Для test и production создаются разные API keys. Секреты не сохраняются в GitHub и не вставляются в workflow. Для LLM и embeddings предпочтительны отдельные ключи с независимыми лимитами расходов.
+Supabase/pgvector остаётся на российском сервере. DB-04/DB-05 ещё не создавались, поэтому переход с Qwen/OpenRouter на OpenAI сейчас **не требует изменения существующего DB-03**. Размерность будущих vector-полей фиксируется только после PRE-02E.
+
+Для test и production используются разные OpenAI API keys. Секреты не сохраняются в GitHub и не вставляются в workflow.
 
 ## LLM
 
-Основная модель v1:
-
-- provider/gateway: OpenRouter;
-- model ID: `deepseek/deepseek-v4.1-flash`;
-- использовать закреплённый ID, не rolling alias `latest`;
-- structured outputs: JSON Schema там, где CORE ожидает структурированное решение;
-- reasoning для простых guard/classifier вызовов не увеличивать без контрольной необходимости;
-- итоговый текст клиенту проходит правила CORE и не получает прав на адресата, schema, CRM или блокировку.
-
-Причина выбора: модель доступна через единый OpenRouter API, поддерживает structured outputs и имеет несколько upstream-провайдеров с маршрутизацией/failover. Финальное качество подтверждается контрольным набором проекта.
+Целевой провайдер: **OpenAI**. Конкретная модель выбирается в PRE-02E. CORE по-прежнему требует структурированный и проверяемый результат; LLM не получает права выбирать schema, Credential, адресата или выполнять исходящее действие самостоятельно.
 
 ## Embeddings
 
-Основная модель-кандидат v1:
+Целевой провайдер: **OpenAI**.
 
-- OpenRouter endpoint: `POST /api/v1/embeddings`;
-- model ID: `qwen/qwen3-embedding-8b`;
-- целевая размерность: **1024** через параметр `dimensions`;
-- similarity: cosine;
-- хранение: только pgvector в schema компании;
-- один профиль модели/размерности используется и при индексации документов, и при поисковых запросах.
-- embedding нужен **при каждом semantic-поиске**: текст запроса пользователя преобразуется в query-vector тем же профилем, затем российский Supabase/pgvector ищет ближайшие опубликованные фрагменты;
-- вычисление document embeddings и query embeddings выполняется через амстердамский AI relay, а сами векторы и поиск остаются в российском Supabase.
+Обязательные правила сохраняются:
+- один embedding model/dimension profile используется и для document chunks, и для query embeddings;
+- embedding нужен при индексации знаний и при каждом semantic-поиске;
+- similarity = cosine;
+- векторы и similarity search хранятся/выполняются только в российском Supabase/pgvector;
+- смешивать разные embedding-профили в одном активном индексе нельзя.
 
-Qwen3 Embedding 8B поддерживает Matryoshka Representation Learning и пользовательскую размерность. Runtime-проверка обязана подтвердить, что OpenRouter для выбранного upstream возвращает ровно 1024 значения. Если параметр `dimensions=1024` не поддерживается стабильно, резервный кандидат — `qwen/qwen3-embedding-0.6b` с нативной размерностью 1024; смешивать векторы разных профилей нельзя.
+Точный model ID и размерность определяются до DB-04/DB-05.
 
 ## Подключение n8n
 
-n8n 2.41.0 содержит штатную ноду **OpenRouter Chat Model** и Credential **OpenRouter** для LLM.
-
-Для embeddings v1 предпочтителен явный HTTP Request к `https://openrouter.ai/api/v1/embeddings` с отдельным Header Auth Credential. Это не добавляет отдельный сервер и делает payload/модель/размерность видимыми в CORE. Альтернатива через OpenAI-compatible embedding node допускается только после отдельной проверки.
-
-Рекомендуемые test Credentials:
-
-- `QBIT_TEST_LLM` — OpenRouter key для LLM;
-- `QBIT_TEST_EMBEDDING` — OpenRouter key для embeddings.
-
-Оба ключа получают минимальный лимит расходов на время PRE-02. Реальные значения ключей в чат и GitHub не передаются.
+Рабочий n8n находится в Амстердаме. В новой сессии нужно проверить фактическую версию n8n, штатные OpenAI nodes/Credentials этой версии и выбрать наиболее простой переносимый способ для LLM и embeddings. API keys в JSON не сохраняются.
 
 ## Голос и локальный STT
 
@@ -123,12 +105,11 @@ n8n 2.41.0 содержит штатную ноду **OpenRouter Chat Model** и
 
 ## Декомпозиция PRE-02 и текущая проверка
 
-PRE-02 выполняется четырьмя небольшими задачами:
+OpenRouter-путь PRE-02A/PRE-02B остановлен после смены провайдера и сохраняется только как история проверки. Актуальный путь продолжает новая задача PRE-02E:
 
-- **PRE-02A** — один реальный LLM-вызов `deepseek/deepseek-v4.1-flash` через test Credential на амстердамском n8n/AI relay с фиксацией ответа без секретов;
-- **PRE-02B** — два embedding smoke-test через амстердамский relay: document/chunk и query для `qwen/qwen3-embedding-8b` с `dimensions=1024`, оба возвращают вектор длиной 1024 и используют один профиль;
-- **PRE-02C** — runtime-проверка parser/tokenizer библиотек в self-hosted n8n;
-- **PRE-02D** — контрольный набор и калибровка similarity threshold.
+- **PRE-02E** — по текущему workflow и официальной документации выбрать OpenAI LLM/embedding profile, проверить Credentials и smoke-test LLM + document/query embeddings из амстердамского n8n, зафиксировать фактическую размерность;
+- **PRE-02C** — после выбора OpenAI embedding-профиля уточнить tokenizer/chunking runtime;
+- **PRE-02D** — после PRE-02E/PRE-02C прогнать контрольный набор и откалибровать similarity threshold.
 
 25 сентября 2026 года перед началом PRE-02A повторно сверены официальные источники OpenRouter:
 
@@ -140,10 +121,9 @@ PRE-02 выполняется четырьмя небольшими задача
 
 ## Что осталось до закрытия PRE-02
 
-1. PRE-02A: выполнить и сохранить результат одного обезличенного LLM-вызова `deepseek/deepseek-v4.1-flash` через амстердамский n8n/AI relay с test Credential `QBIT_TEST_LLM`.
-2. PRE-02B: создать отдельный test credential `QBIT_TEST_EMBEDDING`; через Amsterdam relay проверить отдельно embedding очищенного фрагмента документа и embedding поискового запроса `qwen/qwen3-embedding-8b` с `dimensions=1024`, оба ответа должны иметь длину ровно 1024.
-3. PRE-02C: проверить tokenizer и parser-библиотеки в self-hosted n8n.
-4. PRE-02D: прогнать контрольный набор и выбрать similarity threshold.
-5. Зафиксировать результаты всех четырёх подзадач и только тогда поставить PRE-02 = завершено.
+1. PRE-02E: выбрать и runtime-проверить OpenAI LLM + embedding profile в амстердамском n8n; отдельно проверить document embedding и query embedding и зафиксировать размерность.
+2. PRE-02C: согласовать tokenizer/chunking с выбранным OpenAI embedding-профилем.
+3. PRE-02D: прогнать контрольный набор и выбрать similarity threshold.
+4. Только после этого начинать DB-04/DB-05 и фиксировать vector dimension в SQL.
 
-Исполняемый клиентский workflow в PRE-02 не создаётся.
+Исполняемый клиентский workflow не считается проверенным только из-за смены AI-провайдера.
