@@ -35,11 +35,11 @@ Supabase/pgvector остаётся на российском сервере. DB-
 
 ## Голос и локальный STT
 
-Текст и голос являются поддерживаемыми входами клиентского Telegram v1. Голос не отправляется напрямую в OpenRouter или другой внешний transcription API, потому что исходное аудио может содержать PII.
+Текст и голос являются поддерживаемыми входами клиентского Telegram v1. Голос не отправляется напрямую в OpenAI или другой внешний transcription API, потому что исходное аудио может содержать PII.
 
 До внешнего AI используется локальный STT-адаптер на российском сервере:
 
-`Telegram voice → локальный STT → транскрипция → локальная PII-очистка → OpenRouter`.
+`Telegram voice → локальный STT → транскрипция → PII-очистка → OpenAI`.
 
 Конкретный движок STT, модель, требования к CPU/GPU и производительность ещё не зафиксированы и должны быть проверены отдельным runtime-тестом. В draft workflow используется настраиваемый HTTP-контракт локального STT; пример URL не означает, что сервис уже развёрнут.
 
@@ -56,7 +56,7 @@ Supabase/pgvector остаётся на российском сервере. DB-
 - Markdown parser: `markdown-it 15.0.2`;
 - YAML parser: `yaml 2.9.1`;
 - tokenizer runtime: `@huggingface/transformers 4.3.0`;
-- tokenizer модели: tokenizer `Qwen/Qwen3-Embedding-8B`.
+- tokenizer модели: **уточнить после выбора OpenAI embedding model в PRE-02E**.
 
 Пакеты пока не установлены на сервер. Их доступность в self-hosted n8n Code node и воспроизводимый подсчёт токенов проверяются до закрытия PRE-02.
 
@@ -111,13 +111,15 @@ OpenRouter-путь PRE-02A/PRE-02B остановлен после смены �
 - **PRE-02C** — после выбора OpenAI embedding-профиля уточнить tokenizer/chunking runtime;
 - **PRE-02D** — после PRE-02E/PRE-02C прогнать контрольный набор и откалибровать similarity threshold.
 
-25 сентября 2026 года перед началом PRE-02A повторно сверены официальные источники OpenRouter:
+### История остановленного OpenRouter-пути
+
+25 сентября 2026 года перед началом PRE-02A были сверены официальные источники OpenRouter:
 
 - `deepseek/deepseek-v4.1-flash` существует как закреплённый model ID и поддерживает structured outputs: https://openrouter.ai/deepseek/deepseek-v4.1-flash;
 - `qwen/qwen3-embedding-8b` доступен как embedding model: https://openrouter.ai/qwen/qwen3-embedding-8b;
 - `POST /api/v1/embeddings` документирует опциональный целочисленный параметр `dimensions`: https://openrouter.ai/docs/api/api-reference/embeddings/create-embeddings.
 
-Эта сверка подтверждает только актуальность внешнего API на дату проверки. Прямая OpenRouter Credential-проверка на российском n8n дала `403 Forbidden`, а на амстердамском n8n подключение прошло без этой ошибки. Поэтому runtime-профиль теперь проверяется через отдельный Amsterdam AI relay; это решение не переносит Supabase или CORE из России.
+Эти сведения сохранены только как история остановленного пути. 28 сентября 2026 года Павел выбрал OpenAI для LLM и embeddings и перенёс весь рабочий n8n в Амстердам; OpenRouter больше не является целевым runtime-профилем.
 
 ## Что осталось до закрытия PRE-02
 
