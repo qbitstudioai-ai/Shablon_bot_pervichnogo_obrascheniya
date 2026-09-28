@@ -1,0 +1,1731 @@
+-- DB-03E v0.1: runtime gap closure for n8n
+-- Project: Shablon_bot_pervichnogo_obrascheniya
+-- Date: 2026-09-28
+--
+-- TARGET
+--   self-hosted Supabase / PostgreSQL 17+
+--   schema: qbit_bot_pervichnogo_obrascheniya ONLY
+--   owner:  qbit_test_owner
+--
+-- REQUIRES
+--   DB-01..DB-03D2 and DB-SCHEMA-01F already applied/verified.
+--
+-- ADDS 3 NARROW SECURITY DEFINER FUNCTIONS
+--   ustanovit_zapret_iniciativy(jsonb)
+--   zaprosit_cheloveka(jsonb)
+--   obrabotat_sleduyushchee_napominanie(jsonb)
+--
+-- IMPORTANT
+--   * Preparation only until Pavel explicitly authorizes application to Supabase.
+--   * Run the WHOLE file as one query when application is authorized.
+--   * Production schema qbit is not touched.
+--   * Runtime roles still receive no direct table DML.
+--   * Existing in-flight external attempts are not erased.
+--   * Built-in behavior probes are rolled back to SAVEPOINT.
+--   * On any error before COMMIT, the whole migration is rolled back.
+
+BEGIN;
+
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '180s';
+SET LOCAL search_path = pg_catalog;
+
+-- ===========================================================================
+-- 0. PRECHECK
+-- ===========================================================================
+
+DO $db03e$
+DECLARE
+    v_required text;
+    v_target text;
+BEGIN
+    IF current_setting('server_version_num')::integer < 170000 THEN
+        RAISE EXCEPTION
+            'DB-03E requires PostgreSQL 17+, current=%',
+            current_setting('server_version');
+    END IF;
+
+    IF session_user <> 'postgres' THEN
+        RAISE EXCEPTION
+            'DB-03E must run from trusted postgres session. session_user=%',
+            session_user;
+    END IF;
+
+    IF NOT pg_catalog.pg_has_role(
+        session_user,
+        'qbit_test_owner',
+        'SET'
+    ) THEN
+        RAISE EXCEPTION
+            'session_user % cannot SET ROLE qbit_test_owner',
+            session_user;
+    END IF;
+
+    IF (
+        SELECT r.rolname
+          FROM pg_catalog.pg_namespace AS n
+          JOIN pg_catalog.pg_roles AS r
+            ON r.oid = n.nspowner
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
+    ) IS DISTINCT FROM 'qbit_test_owner' THEN
+        RAISE EXCEPTION
+            'qbit_bot_pervichnogo_obrascheniya is not owned by qbit_test_owner';
+    END IF;
+
+    FOREACH v_required IN ARRAY ARRAY[
+        'identifikatory_kanalov',
+        'dialogi',
+        'soobshcheniya',
+        'zadaniya_obrabotki',
+        'ishodyashchie_deystviya',
+        'napominaniya',
+        'operator_telegram_temy',
+        'sobytiya_zerkala_operatora',
+        'sobytiya_dialogov'
+    ]
+    LOOP
+        IF pg_catalog.to_regclass(
+            pg_catalog.format(
+                'qbit_bot_pervichnogo_obrascheniya.%I',
+                v_required
+            )
+        ) IS NULL THEN
+            RAISE EXCEPTION
+                'Required table qbit_bot_pervichnogo_obrascheniya.% is missing',
+                v_required;
+        END IF;
+    END LOOP;
+
+    FOREACH v_required IN ARRAY ARRAY[
+        'zaregistrirovat_vhod_klienta',
+        'zabrat_zadanie_obrabotki',
+        'podgotovit_napominanie',
+        'zafiksirovat_poteryu_bez_otveta',
+        'zabrat_ishodyashchee_deystvie',
+        'zafiksirovat_rezultat_ishodyashchego',
+        'zabrat_sobytie_zerkala',
+        'zabrat_dialog_operatorom'
+    ]
+    LOOP
+        IF pg_catalog.to_regprocedure(
+            pg_catalog.format(
+                'qbit_bot_pervichnogo_obrascheniya.%I(jsonb)',
+                v_required
+            )
+        ) IS NULL THEN
+            RAISE EXCEPTION
+                'Required function qbit_bot_pervichnogo_obrascheniya.%(jsonb) is missing',
+                v_required;
+        END IF;
+    END LOOP;
+
+    FOREACH v_target IN ARRAY ARRAY[
+        'ustanovit_zapret_iniciativy',
+        'zaprosit_cheloveka',
+        'obrabotat_sleduyushchee_napominanie'
+    ]
+    LOOP
+        IF EXISTS (
+            SELECT 1
+              FROM pg_catalog.pg_proc AS p
+              JOIN pg_catalog.pg_namespace AS n
+                ON n.oid = p.pronamespace
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
+               AND p.proname = v_target
+        ) THEN
+            RAISE EXCEPTION
+                'DB-03E target function % already exists; stop instead of overwriting',
+                v_target;
+        END IF;
+    END LOOP;
+END
+$db03e$;
+
+-- ===========================================================================
+-- 1. PERSISTENT INITIATIVE OPT-OUT / EXPLICIT OPT-IN
+-- ===========================================================================
+
+SET LOCAL ROLE qbit_test_owner;
+
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(
+    p_dannye jsonb
+)
+RETURNS TABLE (
+    operaciya_id text,
+    rezultat text,
+    kod_oshibki text,
+    opisanie text,
+    povtor_posle timestamptz,
+    identifikator_kanala_id uuid,
+    dialog_id uuid,
+    zapret_iniciativy boolean,
+    versiya_dialoga bigint,
+    pokolenie_ozhidaniya bigint
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
+AS $fn$
+#variable_conflict use_column
+DECLARE
+    v_operaciya text;
+    v_job_id uuid;
+    v_worker text;
+    v_ownership bigint;
+    v_dialog_id uuid;
+    v_expected bigint;
+    v_block boolean;
+    v_reason text;
+    v_now timestamptz;
+
+    v_job record;
+    v_dialog record;
+    v_identity record;
+    v_new_version bigint;
+    v_new_generation bigint;
+BEGIN
+    IF p_dannye IS NULL OR jsonb_typeof(p_dannye) <> 'object' THEN
+        RETURN QUERY SELECT
+            NULL::text, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
+            'Ожидается JSON object.'::text, NULL::timestamptz,
+            NULL::uuid, NULL::uuid, NULL::boolean, NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    v_operaciya := NULLIF(btrim(p_dannye->>'operaciya_id'), '');
+    v_job_id := NULLIF(p_dannye->>'zadanie_id', '')::uuid;
+    v_worker := NULLIF(btrim(p_dannye->>'worker_id'), '');
+    v_ownership := NULLIF(p_dannye->>'nomer_vladeniya', '')::bigint;
+    v_dialog_id := NULLIF(p_dannye->>'dialog_id', '')::uuid;
+    v_expected := NULLIF(p_dannye->>'ozhidaemaya_versiya_dialoga', '')::bigint;
+    v_block := NULLIF(p_dannye->>'zapreshcheno', '')::boolean;
+    v_reason := COALESCE(
+        NULLIF(btrim(p_dannye->>'prichina'), ''),
+        CASE WHEN v_block THEN 'yavnyy_zapret_klienta' ELSE 'yavnoe_razreshenie_klienta' END
+    );
+    v_now := COALESCE(
+        NULLIF(p_dannye->>'vremya_sobytiya', '')::timestamptz,
+        clock_timestamp()
+    );
+
+    IF v_operaciya IS NULL
+       OR v_job_id IS NULL
+       OR v_worker IS NULL
+       OR v_ownership IS NULL
+       OR v_ownership < 1
+       OR v_dialog_id IS NULL
+       OR v_expected IS NULL
+       OR v_expected < 1
+       OR v_block IS NULL
+       OR v_reason IS NULL THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
+            'Нужны operation/job/worker/fencing/dialog/expected version/zapreshcheno.'::text,
+            NULL::timestamptz, NULL::uuid, v_dialog_id, v_block,
+            NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    SELECT z.*
+      INTO v_job
+      FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
+     WHERE z.id = v_job_id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'zadanie_ne_naydeno'::text,
+            'Processing job не найден.'::text, NULL::timestamptz,
+            NULL::uuid, v_dialog_id, v_block, NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    SELECT d.*
+      INTO v_dialog
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+     WHERE d.id = v_dialog_id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'dialog_ne_nayden'::text,
+            'Dialog не найден.'::text, NULL::timestamptz,
+            NULL::uuid, v_dialog_id, v_block, NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    SELECT i.*
+      INTO v_identity
+      FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
+     WHERE i.id = v_dialog.identifikator_kanala_id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'Dialog % references missing channel identity %',
+            v_dialog.id,
+            v_dialog.identifikator_kanala_id;
+    END IF;
+
+    -- Idempotent replay after the first successful commit.
+    IF v_job.status = 'otmeneno'
+       AND v_job.kod_oshibki = 'initiative_preference_changed'
+       AND v_job.dialog_id = v_dialog.id
+       AND v_dialog.versiya_dialoga = v_expected + 1
+       AND v_identity.zapret_iniciativnyh_soobshcheniy = v_block THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'dublikat'::text, NULL::text,
+            'Настройка инициативных сообщений уже применена.'::text,
+            NULL::timestamptz,
+            v_identity.id, v_dialog.id,
+            v_identity.zapret_iniciativnyh_soobshcheniy,
+            v_dialog.versiya_dialoga,
+            v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    IF v_job.dialog_id IS DISTINCT FROM v_dialog.id
+       OR v_job.versiya_dialoga IS DISTINCT FROM v_expected
+       OR v_dialog.versiya_dialoga IS DISTINCT FROM v_expected THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'konflikt'::text, 'stale_dialog_version'::text,
+            'Job/dialog version уже изменились.'::text, NULL::timestamptz,
+            v_identity.id, v_dialog.id,
+            v_identity.zapret_iniciativnyh_soobshcheniy,
+            v_dialog.versiya_dialoga,
+            v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    IF v_job.status <> 'v_rabote'
+       OR v_job.vladelec_arendy IS DISTINCT FROM v_worker
+       OR v_job.nomer_vladeniya IS DISTINCT FROM v_ownership THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'konflikt'::text, 'stale_lease_owner'::text,
+            'Worker больше не владеет processing lease.'::text,
+            NULL::timestamptz,
+            v_identity.id, v_dialog.id,
+            v_identity.zapret_iniciativnyh_soobshcheniy,
+            v_dialog.versiya_dialoga,
+            v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    IF v_job.arenda_do IS NULL OR v_job.arenda_do <= clock_timestamp() THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'konflikt'::text, 'arenda_istekla'::text,
+            'Истёкшая processing lease не имеет права менять opt-out.'::text,
+            NULL::timestamptz,
+            v_identity.id, v_dialog.id,
+            v_identity.zapret_iniciativnyh_soobshcheniy,
+            v_dialog.versiya_dialoga,
+            v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    IF v_dialog.vladelec <> 'bot'
+       OR v_dialog.status IN ('peredan_cheloveku', 'zavershen') THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'konflikt'::text, 'dialog_ne_razreshaet_bot'::text,
+            'Текущее состояние dialog не разрешает bot менять initiative preference.'::text,
+            NULL::timestamptz,
+            v_identity.id, v_dialog.id,
+            v_identity.zapret_iniciativnyh_soobshcheniy,
+            v_dialog.versiya_dialoga,
+            v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
+       SET zapret_iniciativnyh_soobshcheniy = v_block,
+           vremya_zapreta_iniciativy = CASE WHEN v_block THEN v_now ELSE NULL END,
+           vremya_obnovleniya = clock_timestamp()
+     WHERE i.id = v_identity.id;
+
+    v_new_version := v_dialog.versiya_dialoga + 1;
+    v_new_generation := v_dialog.pokolenie_ozhidaniya + 1;
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+       SET status = CASE
+               WHEN d.status = 'ozhidaet_otveta' THEN 'aktivnyy'
+               ELSE d.status
+           END,
+           ozhidaetsya_otvet = false,
+           t0 = NULL,
+           pokolenie_ozhidaniya = v_new_generation,
+           versiya_dialoga = v_new_version,
+           vremya_obnovleniya = clock_timestamp()
+     WHERE d.id = v_dialog.id;
+
+    -- The current worker intentionally ends here. New client input will create
+    -- a new version/job. This avoids continuing from the pre-opt-out snapshot.
+    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
+       SET status = 'otmeneno',
+           vladelec_arendy = NULL,
+           arenda_do = NULL,
+           kod_oshibki = 'initiative_preference_changed',
+           opisanie_oshibki = v_reason,
+           vremya_obnovleniya = clock_timestamp()
+     WHERE z.dialog_id = v_dialog.id
+       AND z.status IN ('ozhidaet', 'povtor', 'v_rabote');
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
+       SET status = 'otmeneno',
+           prichina = 'initiative_preference_changed',
+           vremya_obnovleniya = clock_timestamp()
+     WHERE n.dialog_id = v_dialog.id
+       AND n.status IN ('zaplanirovano', 'v_rabote');
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
+       SET status_otpravki = 'otmeneno'
+     WHERE m.id IN (
+        SELECT a.soobshchenie_id
+          FROM qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
+         WHERE a.dialog_id = v_dialog.id
+           AND a.istochnik IN ('bot', 'sistema')
+           AND a.status IN ('zaplanirovano', 'povtor')
+           AND a.soobshchenie_id IS NOT NULL
+     );
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
+       SET status = 'otmeneno',
+           vladelec_arendy = NULL,
+           arenda_do = NULL,
+           kod_oshibki = 'initiative_preference_changed',
+           opisanie_oshibki = 'Не начатая bot/system отправка отменена после изменения initiative preference.',
+           vremya_obnovleniya = clock_timestamp()
+     WHERE a.dialog_id = v_dialog.id
+       AND a.istochnik IN ('bot', 'sistema')
+       AND a.status IN ('zaplanirovano', 'povtor');
+
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov (
+        dialog_id,
+        polzovatel_id,
+        tip_sobytiya,
+        vremya_sobytiya,
+        prichina,
+        istochnik,
+        trassirovka_id
+    )
+    VALUES (
+        v_dialog.id,
+        v_dialog.polzovatel_id,
+        CASE WHEN v_block THEN 'zapret_iniciativy' ELSE 'razreshenie_iniciativy' END,
+        v_now,
+        v_reason,
+        'client_core',
+        v_operaciya
+    );
+
+    RETURN QUERY SELECT
+        v_operaciya, 'uspeshno'::text, NULL::text,
+        CASE
+            WHEN v_block
+            THEN 'Persistent initiative opt-out установлен; ожидание и не начатые bot actions отменены.'
+            ELSE 'Явное разрешение инициативных сообщений сохранено; старое ожидание автоматически не восстановлено.'
+        END::text,
+        NULL::timestamptz,
+        v_identity.id, v_dialog.id, v_block,
+        v_new_version, v_new_generation;
+END
+$fn$;
+
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(jsonb) IS
+'DB-03E: current fenced bot worker atomically persists initiative opt-out/explicit opt-in on channel identity, clears wait/reminders and stale unstarted bot actions, increments dialog version/generation and cancels the current processing job. In-flight external attempts remain factual.';
+
+-- ===========================================================================
+-- 2. DURABLE "HUMAN NEEDED" SIGNAL WITHOUT PREMATURE OWNER CHANGE
+-- ===========================================================================
+
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(
+    p_dannye jsonb
+)
+RETURNS TABLE (
+    operaciya_id text,
+    rezultat text,
+    kod_oshibki text,
+    opisanie text,
+    povtor_posle timestamptz,
+    sobytie_zerkala_id uuid,
+    dialog_id uuid,
+    vladelec text,
+    status_dialoga text,
+    etap text,
+    versiya_dialoga bigint,
+    pokolenie_ozhidaniya bigint
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
+AS $fn$
+#variable_conflict use_column
+DECLARE
+    v_operaciya text;
+    v_job_id uuid;
+    v_worker text;
+    v_ownership bigint;
+    v_dialog_id uuid;
+    v_expected bigint;
+    v_reason text;
+    v_text text;
+    v_now timestamptz;
+
+    v_job record;
+    v_dialog record;
+    v_topic record;
+    v_existing record;
+    v_event_id uuid;
+    v_new_version bigint;
+    v_new_generation bigint;
+    v_key text;
+    v_safe_client text;
+    v_stage_already boolean;
+BEGIN
+    IF p_dannye IS NULL OR jsonb_typeof(p_dannye) <> 'object' THEN
+        RETURN QUERY SELECT
+            NULL::text, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
+            'Ожидается JSON object.'::text, NULL::timestamptz,
+            NULL::uuid, NULL::uuid, NULL::text, NULL::text, NULL::text,
+            NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    v_operaciya := NULLIF(btrim(p_dannye->>'operaciya_id'), '');
+    v_job_id := NULLIF(p_dannye->>'zadanie_id', '')::uuid;
+    v_worker := NULLIF(btrim(p_dannye->>'worker_id'), '');
+    v_ownership := NULLIF(p_dannye->>'nomer_vladeniya', '')::bigint;
+    v_dialog_id := NULLIF(p_dannye->>'dialog_id', '')::uuid;
+    v_expected := NULLIF(p_dannye->>'ozhidaemaya_versiya_dialoga', '')::bigint;
+    v_reason := COALESCE(
+        NULLIF(btrim(p_dannye->>'prichina'), ''),
+        'zapros_klienta_ili_bezopasnyy_fallback'
+    );
+    v_text := COALESCE(
+        NULLIF(p_dannye->>'tekst', ''),
+        'Требуется подключение менеджера.'
+    );
+    v_now := COALESCE(
+        NULLIF(p_dannye->>'vremya_sobytiya', '')::timestamptz,
+        clock_timestamp()
+    );
+
+    IF v_operaciya IS NULL
+       OR v_job_id IS NULL
+       OR v_worker IS NULL
+       OR v_ownership IS NULL
+       OR v_ownership < 1
+       OR v_dialog_id IS NULL
+       OR v_expected IS NULL
+       OR v_expected < 1
+       OR v_reason IS NULL
+       OR v_text IS NULL THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
+            'Нужны operation/job/worker/fencing/dialog/expected version/reason.'::text,
+            NULL::timestamptz,
+            NULL::uuid, v_dialog_id, NULL::text, NULL::text, NULL::text,
+            NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    SELECT z.*
+      INTO v_job
+      FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
+     WHERE z.id = v_job_id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'zadanie_ne_naydeno'::text,
+            'Processing job не найден.'::text, NULL::timestamptz,
+            NULL::uuid, v_dialog_id, NULL::text, NULL::text, NULL::text,
+            NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    SELECT d.*
+      INTO v_dialog
+      FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+     WHERE d.id = v_dialog_id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'dialog_ne_nayden'::text,
+            'Dialog не найден.'::text, NULL::timestamptz,
+            NULL::uuid, v_dialog_id, NULL::text, NULL::text, NULL::text,
+            NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    SELECT t.*
+      INTO v_topic
+      FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy AS t
+     WHERE t.dialog_id = v_dialog.id
+     FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'tema_ne_naydena'::text,
+            'Operator topic intent не найден; human signal нельзя адресовать произвольно.'::text,
+            NULL::timestamptz,
+            NULL::uuid, v_dialog.id, v_dialog.vladelec, v_dialog.status,
+            v_dialog.etap, v_dialog.versiya_dialoga, v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    -- Replay after successful commit: event key is derived from resulting version.
+    IF v_job.status = 'otmeneno'
+       AND v_job.kod_oshibki = 'nuzhen_chelovek'
+       AND v_job.dialog_id = v_dialog.id THEN
+        SELECT e.*
+          INTO v_existing
+          FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora AS e
+         WHERE e.dialog_id = v_dialog.id
+           AND e.tip_sobytiya = 'nuzhen_chelovek'
+           AND e.payload->>'ishodnoe_zadanie_id' = v_job.id::text
+         ORDER BY e.vremya_sozdaniya DESC
+         LIMIT 1;
+
+        IF FOUND THEN
+            RETURN QUERY SELECT
+                v_operaciya, 'dublikat'::text, NULL::text,
+                'Human-needed signal уже создан для этого processing job.'::text,
+                NULL::timestamptz,
+                v_existing.id, v_dialog.id, v_dialog.vladelec, v_dialog.status,
+                v_dialog.etap, v_dialog.versiya_dialoga,
+                v_dialog.pokolenie_ozhidaniya;
+            RETURN;
+        END IF;
+    END IF;
+
+    IF v_job.dialog_id IS DISTINCT FROM v_dialog.id
+       OR v_job.versiya_dialoga IS DISTINCT FROM v_expected
+       OR v_dialog.versiya_dialoga IS DISTINCT FROM v_expected THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'konflikt'::text, 'stale_dialog_version'::text,
+            'Job/dialog version уже изменились.'::text, NULL::timestamptz,
+            NULL::uuid, v_dialog.id, v_dialog.vladelec, v_dialog.status,
+            v_dialog.etap, v_dialog.versiya_dialoga, v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    IF v_job.status <> 'v_rabote'
+       OR v_job.vladelec_arendy IS DISTINCT FROM v_worker
+       OR v_job.nomer_vladeniya IS DISTINCT FROM v_ownership THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'konflikt'::text, 'stale_lease_owner'::text,
+            'Worker больше не владеет processing lease.'::text,
+            NULL::timestamptz,
+            NULL::uuid, v_dialog.id, v_dialog.vladelec, v_dialog.status,
+            v_dialog.etap, v_dialog.versiya_dialoga, v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    IF v_job.arenda_do IS NULL OR v_job.arenda_do <= clock_timestamp() THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'konflikt'::text, 'arenda_istekla'::text,
+            'Истёкшая processing lease не имеет права создавать human signal.'::text,
+            NULL::timestamptz,
+            NULL::uuid, v_dialog.id, v_dialog.vladelec, v_dialog.status,
+            v_dialog.etap, v_dialog.versiya_dialoga, v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    IF v_dialog.vladelec <> 'bot'
+       OR v_dialog.status = 'zavershen' THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'konflikt'::text, 'dialog_ne_razreshaet_bot'::text,
+            'Human-needed signal этого типа создаётся только пока owner=bot и dialog не завершён.'::text,
+            NULL::timestamptz,
+            NULL::uuid, v_dialog.id, v_dialog.vladelec, v_dialog.status,
+            v_dialog.etap, v_dialog.versiya_dialoga, v_dialog.pokolenie_ozhidaniya;
+        RETURN;
+    END IF;
+
+    v_stage_already := (v_dialog.etap = 'peredacha_cheloveku');
+
+    IF v_stage_already THEN
+        v_new_version := v_dialog.versiya_dialoga;
+        v_new_generation := v_dialog.pokolenie_ozhidaniya;
+    ELSE
+        v_new_version := v_dialog.versiya_dialoga + 1;
+        v_new_generation := v_dialog.pokolenie_ozhidaniya + 1;
+
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_etapov (
+            dialog_id,
+            staryy_etap,
+            novyy_etap,
+            vremya_sobytiya,
+            prichina,
+            istochnik
+        )
+        VALUES (
+            v_dialog.id,
+            v_dialog.etap,
+            'peredacha_cheloveku',
+            v_now,
+            v_reason,
+            'client_core'
+        );
+
+        UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+           SET etap = 'peredacha_cheloveku',
+               status = CASE
+                   WHEN d.status = 'ozhidaet_otveta' THEN 'aktivnyy'
+                   ELSE d.status
+               END,
+               ozhidaetsya_otvet = false,
+               t0 = NULL,
+               pokolenie_ozhidaniya = v_new_generation,
+               versiya_dialoga = v_new_version,
+               vremya_obnovleniya = clock_timestamp()
+         WHERE d.id = v_dialog.id;
+    END IF;
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
+       SET status = 'otmeneno',
+           vladelec_arendy = NULL,
+           arenda_do = NULL,
+           kod_oshibki = 'nuzhen_chelovek',
+           opisanie_oshibki = v_reason,
+           vremya_obnovleniya = clock_timestamp()
+     WHERE z.dialog_id = v_dialog.id
+       AND z.status IN ('ozhidaet', 'povtor', 'v_rabote');
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
+       SET status = 'otmeneno',
+           prichina = 'nuzhen_chelovek',
+           vremya_obnovleniya = clock_timestamp()
+     WHERE n.dialog_id = v_dialog.id
+       AND n.status IN ('zaplanirovano', 'v_rabote');
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.soobshcheniya AS m
+       SET status_otpravki = 'otmeneno'
+     WHERE m.id IN (
+        SELECT a.soobshchenie_id
+          FROM qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
+         WHERE a.dialog_id = v_dialog.id
+           AND a.istochnik IN ('bot', 'sistema')
+           AND a.status IN ('zaplanirovano', 'povtor')
+           AND a.soobshchenie_id IS NOT NULL
+     );
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.ishodyashchie_deystviya AS a
+       SET status = 'otmeneno',
+           vladelec_arendy = NULL,
+           arenda_do = NULL,
+           kod_oshibki = 'nuzhen_chelovek',
+           opisanie_oshibki = 'Не начатая bot/system отправка отменена при запросе человека.',
+           vremya_obnovleniya = clock_timestamp()
+     WHERE a.dialog_id = v_dialog.id
+       AND a.istochnik IN ('bot', 'sistema')
+       AND a.status IN ('zaplanirovano', 'povtor');
+
+    SELECT e.bezopasnaya_podpis_klienta
+      INTO v_safe_client
+      FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora AS e
+     WHERE e.klyuch_idempotentnosti = 'tema:' || v_dialog.id::text;
+
+    v_key := 'nuzhen_chelovek:' || v_dialog.id::text || ':' || v_new_version::text;
+
+    SELECT e.*
+      INTO v_existing
+      FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora AS e
+     WHERE e.klyuch_idempotentnosti = v_key
+     FOR UPDATE;
+
+    IF FOUND THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'dublikat'::text, NULL::text,
+            'Human-needed signal этой версии уже существует.'::text,
+            NULL::timestamptz,
+            v_existing.id, v_dialog.id, 'bot'::text,
+            CASE WHEN v_dialog.status='ozhidaet_otveta' THEN 'aktivnyy' ELSE v_dialog.status END,
+            'peredacha_cheloveku'::text,
+            v_new_version, v_new_generation;
+        RETURN;
+    END IF;
+
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora (
+        dialog_id,
+        tip_sobytiya,
+        klyuch_idempotentnosti,
+        prioritet,
+        cel_chat_id,
+        cel_thread_id,
+        bezopasnaya_podpis_klienta,
+        tekst,
+        payload,
+        status
+    )
+    VALUES (
+        v_dialog.id,
+        'nuzhen_chelovek',
+        v_key,
+        100,
+        v_topic.sluzhebnyy_chat_id,
+        v_topic.message_thread_id,
+        COALESCE(v_safe_client, 'Клиент'),
+        v_text,
+        jsonb_build_object(
+            'prichina', v_reason,
+            'dialog_id', v_dialog.id,
+            'versiya_dialoga', v_new_version,
+            'ishodnoe_zadanie_id', v_job.id,
+            'deystvie', 'zabrat_dialog'
+        ),
+        'zaplanirovano'
+    )
+    RETURNING id
+    INTO v_event_id;
+
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.sobytiya_dialogov (
+        dialog_id,
+        polzovatel_id,
+        tip_sobytiya,
+        vremya_sobytiya,
+        prichina,
+        istochnik,
+        trassirovka_id
+    )
+    VALUES (
+        v_dialog.id,
+        v_dialog.polzovatel_id,
+        'nuzhen_chelovek',
+        v_now,
+        v_reason,
+        'client_core',
+        v_operaciya
+    );
+
+    RETURN QUERY SELECT
+        v_operaciya, 'uspeshno'::text, NULL::text,
+        'Human-needed signal создан; owner остаётся bot до отдельного service callback Take.'::text,
+        NULL::timestamptz,
+        v_event_id, v_dialog.id, 'bot'::text,
+        CASE WHEN v_dialog.status='ozhidaet_otveta' THEN 'aktivnyy' ELSE v_dialog.status END,
+        'peredacha_cheloveku'::text,
+        v_new_version, v_new_generation;
+END
+$fn$;
+
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(jsonb) IS
+'DB-03E: current fenced bot worker creates stable group nuzhen_chelovek mirror intent, cancels bot wait/reminders/internal job and unstarted bot actions, moves stage to peredacha_cheloveku, but deliberately keeps owner=bot until DB-03D2 Take.';
+
+-- ===========================================================================
+-- 3. ATOMIC DUE REMINDER / LOSS DISCOVERY
+-- ===========================================================================
+
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(
+    p_dannye jsonb
+)
+RETURNS TABLE (
+    operaciya_id text,
+    rezultat text,
+    kod_oshibki text,
+    opisanie text,
+    povtor_posle timestamptz,
+    napominanie_id uuid,
+    tip_napominaniya text,
+    dialog_id uuid,
+    deystvie_id uuid,
+    soobshchenie_id uuid,
+    reshenie text,
+    pokolenie_ozhidaniya bigint,
+    status_dialoga text,
+    rezultat_dialoga text,
+    versiya_dialoga bigint
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
+AS $fn$
+#variable_conflict use_column
+DECLARE
+    v_operaciya text;
+    v_now timestamptz;
+    v_text1 text;
+    v_text2 text;
+    v_safe1 text;
+    v_safe2 text;
+    v_loss_after integer;
+    v_reminder record;
+    v_prepare record;
+    v_loss record;
+BEGIN
+    IF p_dannye IS NULL OR jsonb_typeof(p_dannye) <> 'object' THEN
+        RETURN QUERY SELECT
+            NULL::text, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
+            'Ожидается JSON object.'::text, NULL::timestamptz,
+            NULL::uuid, NULL::text, NULL::uuid, NULL::uuid, NULL::uuid,
+            NULL::text, NULL::bigint, NULL::text, NULL::text, NULL::bigint;
+        RETURN;
+    END IF;
+
+    v_operaciya := NULLIF(btrim(p_dannye->>'operaciya_id'), '');
+    v_now := COALESCE(
+        NULLIF(p_dannye->>'vremya_proverki', '')::timestamptz,
+        clock_timestamp()
+    );
+    v_text1 := p_dannye->>'tekst_napominaniya_1';
+    v_text2 := p_dannye->>'tekst_napominaniya_2';
+    v_safe1 := COALESCE(p_dannye->>'tekst_obezlichennyy_1', v_text1);
+    v_safe2 := COALESCE(p_dannye->>'tekst_obezlichennyy_2', v_text2);
+    v_loss_after := COALESCE(
+        NULLIF(p_dannye->>'poterya_posle_sekund', '')::integer,
+        86400
+    );
+
+    IF v_operaciya IS NULL
+       OR v_loss_after < 3600 THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
+            'Нужны operaciya_id и trusted poterya_posle_sekund >= 3600.'::text,
+            NULL::timestamptz,
+            NULL::uuid, NULL::text, NULL::uuid, NULL::uuid, NULL::uuid,
+            NULL::text, NULL::bigint, NULL::text, NULL::text, NULL::bigint;
+        RETURN;
+    END IF;
+
+    SELECT n.*
+      INTO v_reminder
+      FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
+     WHERE n.status = 'zaplanirovano'
+       AND n.srok <= v_now
+     ORDER BY n.srok, n.vremya_sozdaniya, n.id
+     FOR UPDATE SKIP LOCKED
+     LIMIT 1;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'net_napominaniya'::text, NULL::text,
+            'Готового reminder/loss-check сейчас нет.'::text,
+            NULL::timestamptz,
+            NULL::uuid, NULL::text, NULL::uuid, NULL::uuid, NULL::uuid,
+            NULL::text, NULL::bigint, NULL::text, NULL::text, NULL::bigint;
+        RETURN;
+    END IF;
+
+    IF v_reminder.tip = 'proverka_poteri' THEN
+        SELECT *
+          INTO v_loss
+          FROM qbit_bot_pervichnogo_obrascheniya.zafiksirovat_poteryu_bez_otveta(
+            jsonb_build_object(
+                'operaciya_id',
+                v_operaciya || ':loss:' || v_reminder.id::text,
+                'napominanie_id',
+                v_reminder.id,
+                'vremya_proverki',
+                v_now
+            )
+          );
+
+        RETURN QUERY SELECT
+            v_operaciya,
+            v_loss.rezultat,
+            v_loss.kod_oshibki,
+            v_loss.opisanie,
+            v_loss.povtor_posle,
+            v_reminder.id,
+            v_reminder.tip,
+            v_reminder.dialog_id,
+            NULL::uuid,
+            NULL::uuid,
+            'proverka_poteri'::text,
+            v_reminder.pokolenie_ozhidaniya,
+            v_loss.status_dialoga,
+            v_loss.rezultat_dialoga,
+            v_loss.versiya_dialoga;
+        RETURN;
+    END IF;
+
+    IF v_reminder.tip = 'napominanie_1' AND v_text1 IS NULL THEN
+        UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_bad
+           SET status = 'oshibka',
+               prichina = 'net_teksta_napominaniya',
+               vremya_obnovleniya = clock_timestamp()
+         WHERE n_bad.id = v_reminder.id;
+
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'net_teksta_napominaniya'::text,
+            'Не задан trusted текст reminder1; reminder переведён в oshibka без внешней отправки.'::text,
+            NULL::timestamptz,
+            v_reminder.id, v_reminder.tip, v_reminder.dialog_id,
+            NULL::uuid, NULL::uuid, 'otmenit'::text,
+            v_reminder.pokolenie_ozhidaniya,
+            NULL::text, NULL::text, NULL::bigint;
+        RETURN;
+    END IF;
+
+    IF v_reminder.tip = 'napominanie_2' AND v_text2 IS NULL THEN
+        UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_bad
+           SET status = 'oshibka',
+               prichina = 'net_teksta_napominaniya',
+               vremya_obnovleniya = clock_timestamp()
+         WHERE n_bad.id = v_reminder.id;
+
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'net_teksta_napominaniya'::text,
+            'Не задан trusted текст reminder2; reminder переведён в oshibka без внешней отправки.'::text,
+            NULL::timestamptz,
+            v_reminder.id, v_reminder.tip, v_reminder.dialog_id,
+            NULL::uuid, NULL::uuid, 'otmenit'::text,
+            v_reminder.pokolenie_ozhidaniya,
+            NULL::text, NULL::text, NULL::bigint;
+        RETURN;
+    END IF;
+
+    SELECT *
+      INTO v_prepare
+      FROM qbit_bot_pervichnogo_obrascheniya.podgotovit_napominanie(
+        jsonb_build_object(
+            'operaciya_id',
+            v_operaciya || ':' || v_reminder.tip || ':' || v_reminder.id::text,
+            'napominanie_id',
+            v_reminder.id,
+            'pokolenie_ozhidaniya',
+            v_reminder.pokolenie_ozhidaniya,
+            'tekst_ishodnyy',
+            CASE
+                WHEN v_reminder.tip = 'napominanie_1' THEN v_text1
+                ELSE v_text2
+            END,
+            'tekst_obezlichennyy',
+            CASE
+                WHEN v_reminder.tip = 'napominanie_1' THEN v_safe1
+                ELSE v_safe2
+            END,
+            'vremya_proverki',
+            v_now,
+            'poterya_posle_sekund',
+            v_loss_after
+        )
+      );
+
+    RETURN QUERY SELECT
+        v_operaciya,
+        v_prepare.rezultat,
+        v_prepare.kod_oshibki,
+        v_prepare.opisanie,
+        v_prepare.povtor_posle,
+        v_reminder.id,
+        v_reminder.tip,
+        v_reminder.dialog_id,
+        v_prepare.deystvie_id,
+        v_prepare.soobshchenie_id,
+        v_prepare.reshenie,
+        v_prepare.pokolenie_ozhidaniya,
+        NULL::text,
+        NULL::text,
+        NULL::bigint;
+END
+$fn$;
+
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(jsonb) IS
+'DB-03E: atomically discovers one due scheduled reminder/loss-check via FOR UPDATE SKIP LOCKED and delegates to verified DB-03C4 final-recheck functions; runtime role needs no direct SELECT on napominaniya.';
+
+RESET ROLE;
+
+-- ===========================================================================
+-- 4. PRIVILEGES + STATIC SECURITY ASSERTIONS
+-- ===========================================================================
+
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(jsonb) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(jsonb) TO qbit_test_bot;
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(jsonb) TO qbit_test_bot;
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(jsonb) TO qbit_test_bot;
+
+DO $db03e$
+DECLARE
+    v_fn record;
+    v_role text;
+    v_table record;
+BEGIN
+    FOR v_fn IN
+        SELECT p.oid, p.proname, p.prosecdef, p.proconfig, r.rolname AS owner_name
+          FROM pg_catalog.pg_proc AS p
+          JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+          JOIN pg_catalog.pg_roles AS r ON r.oid = p.proowner
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
+           AND p.proname IN (
+                'ustanovit_zapret_iniciativy',
+                'zaprosit_cheloveka',
+                'obrabotat_sleduyushchee_napominanie'
+           )
+    LOOP
+        IF NOT v_fn.prosecdef
+           OR v_fn.owner_name IS DISTINCT FROM 'qbit_test_owner'
+           OR NOT (
+                COALESCE(v_fn.proconfig, ARRAY[]::text[])
+                @> ARRAY['search_path=pg_catalog, qbit_bot_pervichnogo_obrascheniya']::text[]
+           ) THEN
+            RAISE EXCEPTION
+                'Unsafe DB-03E function metadata: %, owner=%, config=%',
+                v_fn.proname, v_fn.owner_name, v_fn.proconfig;
+        END IF;
+
+        IF EXISTS (
+            SELECT 1
+              FROM pg_catalog.aclexplode(
+                    COALESCE(
+                        (SELECT p2.proacl FROM pg_catalog.pg_proc AS p2 WHERE p2.oid = v_fn.oid),
+                        pg_catalog.acldefault(
+                            'f',
+                            (SELECT p2.proowner FROM pg_catalog.pg_proc AS p2 WHERE p2.oid = v_fn.oid)
+                        )
+                    )
+              ) AS a
+             WHERE a.grantee = 0
+               AND a.privilege_type = 'EXECUTE'
+        ) THEN
+            RAISE EXCEPTION 'PUBLIC unexpectedly has EXECUTE on %', v_fn.proname;
+        END IF;
+
+        IF NOT pg_catalog.has_function_privilege(
+            'qbit_test_bot', v_fn.oid, 'EXECUTE'
+        ) THEN
+            RAISE EXCEPTION 'qbit_test_bot lacks EXECUTE on %', v_fn.proname;
+        END IF;
+
+        IF pg_catalog.has_function_privilege(
+            'qbit_test_sluzhebnyy', v_fn.oid, 'EXECUTE'
+        ) THEN
+            RAISE EXCEPTION
+                'qbit_test_sluzhebnyy unexpectedly has EXECUTE on client DB-03E function %',
+                v_fn.proname;
+        END IF;
+    END LOOP;
+
+    IF (
+        SELECT count(*)
+          FROM pg_catalog.pg_proc AS p
+          JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
+           AND p.proname IN (
+                'ustanovit_zapret_iniciativy',
+                'zaprosit_cheloveka',
+                'obrabotat_sleduyushchee_napominanie'
+           )
+           AND p.prosecdef
+    ) <> 3 THEN
+        RAISE EXCEPTION 'DB-03E expected exactly 3 SECURITY DEFINER functions';
+    END IF;
+
+    FOREACH v_role IN ARRAY ARRAY[
+        'qbit_test_bot',
+        'qbit_test_sluzhebnyy'
+    ]
+    LOOP
+        FOR v_table IN
+            SELECT c.oid, c.relname
+              FROM pg_catalog.pg_class AS c
+              JOIN pg_catalog.pg_namespace AS n
+                ON n.oid = c.relnamespace
+             WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
+               AND c.relkind = 'r'
+        LOOP
+            IF pg_catalog.has_table_privilege(v_role, v_table.oid, 'SELECT')
+            OR pg_catalog.has_table_privilege(v_role, v_table.oid, 'INSERT')
+            OR pg_catalog.has_table_privilege(v_role, v_table.oid, 'UPDATE')
+            OR pg_catalog.has_table_privilege(v_role, v_table.oid, 'DELETE') THEN
+                RAISE EXCEPTION
+                    'Runtime role % unexpectedly has direct DML on qbit_bot_pervichnogo_obrascheniya.%',
+                    v_role,
+                    v_table.relname;
+            END IF;
+        END LOOP;
+    END LOOP;
+END
+$db03e$;
+
+-- ===========================================================================
+-- 5. DISPOSABLE BEHAVIOR PROBE
+-- ===========================================================================
+
+SAVEPOINT db03e_probe;
+
+DO $db03e$
+DECLARE
+    r1 record;
+    c1 record;
+    optout1 record;
+    optout_dup record;
+    r2 record;
+    c2 record;
+    optin1 record;
+    r3 record;
+    c3 record;
+    human1 record;
+    human_dup record;
+
+    rr record;
+    v_basis uuid;
+    v_t0 timestamptz;
+    v_rem1 uuid;
+    v_loss uuid;
+    sched1 record;
+    sched_loss record;
+BEGIN
+    -- ---------------------------------------------------------------
+    -- A. opt-out and explicit opt-in
+    -- ---------------------------------------------------------------
+    SELECT *
+      INTO r1
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
+        jsonb_build_object(
+            'versiya_formata', 1,
+            'operaciya_id', 'db03e_ingress_1',
+            'klyuch_idempotentnosti', 'db03e_in_1',
+            'hash_soderzhaniya', 'db03e_hash_1',
+            'kanal', 'telegram',
+            'akkaunt_kanala_id', 'db03e_client_bot',
+            'vneshnee_sobytie_id', 'db03e_event_1',
+            'vneshniy_polzovatel_id', 'db03e_user_1',
+            'vneshniy_dialog_id', 'db03e_chat_1',
+            'vneshnee_soobshchenie_id', 'db03e_msg_1',
+            'tip_sobytiya', 'message',
+            'tip_soobshcheniya', 'text',
+            'tekst_ishodnyy', 'Больше не присылайте напоминания',
+            'vremya_priema', clock_timestamp(),
+            'versiya_workflow', 'db03e_probe',
+            'versiya_prompta', 'db03e_probe',
+            'sluzhebnyy_chat_id', 'db03e_service_group'
+        )
+      );
+
+    SELECT *
+      INTO c1
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_claim_1',
+            'worker_id', 'db03e_worker',
+            'arenda_sekund', 120
+        )
+      );
+
+    SELECT *
+      INTO optout1
+      FROM qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_optout_1',
+            'zadanie_id', c1.zadanie_id,
+            'worker_id', c1.vladelec_arendy,
+            'nomer_vladeniya', c1.nomer_vladeniya,
+            'dialog_id', c1.dialog_id,
+            'ozhidaemaya_versiya_dialoga', c1.versiya_dialoga,
+            'zapreshcheno', true,
+            'prichina', 'client_explicit_optout'
+        )
+      );
+
+    SELECT *
+      INTO optout_dup
+      FROM qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_optout_1_retry',
+            'zadanie_id', c1.zadanie_id,
+            'worker_id', c1.vladelec_arendy,
+            'nomer_vladeniya', c1.nomer_vladeniya,
+            'dialog_id', c1.dialog_id,
+            'ozhidaemaya_versiya_dialoga', c1.versiya_dialoga,
+            'zapreshcheno', true,
+            'prichina', 'client_explicit_optout'
+        )
+      );
+
+    IF optout1.rezultat <> 'uspeshno'
+       OR optout_dup.rezultat <> 'dublikat'
+       OR NOT optout1.zapret_iniciativy
+       OR optout1.versiya_dialoga <> c1.versiya_dialoga + 1
+       OR NOT EXISTS (
+            SELECT 1
+              FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
+             WHERE i.id = r1.identifikator_kanala_id
+               AND i.zapret_iniciativnyh_soobshcheniy
+               AND i.vremya_zapreta_iniciativy IS NOT NULL
+       )
+       OR NOT EXISTS (
+            SELECT 1
+              FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS z
+             WHERE z.id = c1.zadanie_id
+               AND z.status = 'otmeneno'
+               AND z.kod_oshibki = 'initiative_preference_changed'
+       ) THEN
+        RAISE EXCEPTION
+            'DB-03E opt-out/idempotency failed: first=%, duplicate=%',
+            row_to_json(optout1),
+            row_to_json(optout_dup);
+    END IF;
+
+    SELECT *
+      INTO r2
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
+        jsonb_build_object(
+            'versiya_formata', 1,
+            'operaciya_id', 'db03e_ingress_2',
+            'klyuch_idempotentnosti', 'db03e_in_2',
+            'hash_soderzhaniya', 'db03e_hash_2',
+            'kanal', 'telegram',
+            'akkaunt_kanala_id', 'db03e_client_bot',
+            'vneshnee_sobytie_id', 'db03e_event_2',
+            'vneshniy_polzovatel_id', 'db03e_user_1',
+            'vneshniy_dialog_id', 'db03e_chat_1',
+            'vneshnee_soobshchenie_id', 'db03e_msg_2',
+            'tip_sobytiya', 'message',
+            'tip_soobshcheniya', 'text',
+            'tekst_ishodnyy', 'Теперь можно писать',
+            'vremya_priema', clock_timestamp(),
+            'versiya_workflow', 'db03e_probe',
+            'versiya_prompta', 'db03e_probe',
+            'sluzhebnyy_chat_id', 'db03e_service_group'
+        )
+      );
+
+    SELECT *
+      INTO c2
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_claim_2',
+            'worker_id', 'db03e_worker',
+            'arenda_sekund', 120
+        )
+      );
+
+    SELECT *
+      INTO optin1
+      FROM qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_optin_1',
+            'zadanie_id', c2.zadanie_id,
+            'worker_id', c2.vladelec_arendy,
+            'nomer_vladeniya', c2.nomer_vladeniya,
+            'dialog_id', c2.dialog_id,
+            'ozhidaemaya_versiya_dialoga', c2.versiya_dialoga,
+            'zapreshcheno', false,
+            'prichina', 'client_explicit_optin'
+        )
+      );
+
+    IF optin1.rezultat <> 'uspeshno'
+       OR optin1.zapret_iniciativy
+       OR EXISTS (
+            SELECT 1
+              FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
+             WHERE i.id = r1.identifikator_kanala_id
+               AND (
+                    i.zapret_iniciativnyh_soobshcheniy
+                    OR i.vremya_zapreta_iniciativy IS NOT NULL
+               )
+       ) THEN
+        RAISE EXCEPTION
+            'DB-03E explicit opt-in failed: %',
+            row_to_json(optin1);
+    END IF;
+
+    -- ---------------------------------------------------------------
+    -- B. human-needed signal keeps owner bot until Take
+    -- ---------------------------------------------------------------
+    SELECT *
+      INTO r3
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
+        jsonb_build_object(
+            'versiya_formata', 1,
+            'operaciya_id', 'db03e_ingress_3',
+            'klyuch_idempotentnosti', 'db03e_in_3',
+            'hash_soderzhaniya', 'db03e_hash_3',
+            'kanal', 'telegram',
+            'akkaunt_kanala_id', 'db03e_client_bot',
+            'vneshnee_sobytie_id', 'db03e_event_3',
+            'vneshniy_polzovatel_id', 'db03e_user_1',
+            'vneshniy_dialog_id', 'db03e_chat_1',
+            'vneshnee_soobshchenie_id', 'db03e_msg_3',
+            'tip_sobytiya', 'message',
+            'tip_soobshcheniya', 'text',
+            'tekst_ishodnyy', 'Позовите менеджера',
+            'vremya_priema', clock_timestamp(),
+            'versiya_workflow', 'db03e_probe',
+            'versiya_prompta', 'db03e_probe',
+            'sluzhebnyy_chat_id', 'db03e_service_group'
+        )
+      );
+
+    SELECT *
+      INTO c3
+      FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_claim_3',
+            'worker_id', 'db03e_worker',
+            'arenda_sekund', 120
+        )
+      );
+
+    SELECT *
+      INTO human1
+      FROM qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_human_1',
+            'zadanie_id', c3.zadanie_id,
+            'worker_id', c3.vladelec_arendy,
+            'nomer_vladeniya', c3.nomer_vladeniya,
+            'dialog_id', c3.dialog_id,
+            'ozhidaemaya_versiya_dialoga', c3.versiya_dialoga,
+            'prichina', 'client_requested_manager',
+            'tekst', 'Клиент просит подключить менеджера.'
+        )
+      );
+
+    SELECT *
+      INTO human_dup
+      FROM qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_human_1_retry',
+            'zadanie_id', c3.zadanie_id,
+            'worker_id', c3.vladelec_arendy,
+            'nomer_vladeniya', c3.nomer_vladeniya,
+            'dialog_id', c3.dialog_id,
+            'ozhidaemaya_versiya_dialoga', c3.versiya_dialoga,
+            'prichina', 'client_requested_manager',
+            'tekst', 'Клиент просит подключить менеджера.'
+        )
+      );
+
+    IF human1.rezultat <> 'uspeshno'
+       OR human_dup.rezultat <> 'dublikat'
+       OR human1.vladelec <> 'bot'
+       OR human1.etap <> 'peredacha_cheloveku'
+       OR EXISTS (
+            SELECT 1
+              FROM qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+             WHERE d.id = c3.dialog_id
+               AND (
+                    d.vladelec <> 'bot'
+                    OR d.tekushchiy_menedzher_id IS NOT NULL
+                    OR d.etap <> 'peredacha_cheloveku'
+               )
+       )
+       OR NOT EXISTS (
+            SELECT 1
+              FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora AS e
+             WHERE e.id = human1.sobytie_zerkala_id
+               AND e.tip_sobytiya = 'nuzhen_chelovek'
+               AND e.status = 'zaplanirovano'
+               AND e.payload->>'deystvie' = 'zabrat_dialog'
+       ) THEN
+        RAISE EXCEPTION
+            'DB-03E human-needed signal/owner separation failed: first=%, duplicate=%',
+            row_to_json(human1),
+            row_to_json(human_dup);
+    END IF;
+
+    -- ---------------------------------------------------------------
+    -- C. due scheduler: reminder branch + loss branch
+    -- ---------------------------------------------------------------
+    SELECT *
+      INTO rr
+      FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta(
+        jsonb_build_object(
+            'versiya_formata', 1,
+            'operaciya_id', 'db03e_rem_ingress',
+            'klyuch_idempotentnosti', 'db03e_rem_in',
+            'hash_soderzhaniya', 'db03e_rem_hash',
+            'kanal', 'telegram',
+            'akkaunt_kanala_id', 'db03e_client_bot',
+            'vneshnee_sobytie_id', 'db03e_rem_event',
+            'vneshniy_polzovatel_id', 'db03e_user_rem',
+            'vneshniy_dialog_id', 'db03e_chat_rem',
+            'vneshnee_soobshchenie_id', 'db03e_rem_msg',
+            'tip_sobytiya', 'message',
+            'tip_soobshcheniya', 'text',
+            'tekst_ishodnyy', 'Тест напоминаний',
+            'vremya_priema', clock_timestamp(),
+            'versiya_workflow', 'db03e_probe',
+            'versiya_prompta', 'db03e_probe',
+            'sluzhebnyy_chat_id', 'db03e_service_group'
+        )
+      );
+
+    v_t0 := clock_timestamp() - interval '10 minutes';
+
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
+        dialog_id,
+        napravlenie,
+        avtor,
+        vid,
+        tekst_ishodnyy,
+        tekst_obezlichennyy,
+        vremya_priema,
+        vremya_otpravki,
+        status_otpravki,
+        ozhidaetsya_otvet,
+        trassirovka_id
+    )
+    VALUES (
+        rr.dialog_id,
+        'ishodyashchee',
+        'bot',
+        'text',
+        'Пожалуйста, уточните ваш ответ.',
+        'Пожалуйста, уточните ваш ответ.',
+        v_t0,
+        v_t0,
+        'podtverzhdeno',
+        true,
+        'db03e_rem_basis'
+    )
+    RETURNING id
+    INTO v_basis;
+
+    UPDATE qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+       SET status = 'ozhidaet_otveta',
+           ozhidaetsya_otvet = true,
+           t0 = v_t0,
+           pokolenie_ozhidaniya = 1,
+           poslednee_ishodyashchee_id = v_basis
+     WHERE d.id = rr.dialog_id;
+
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.napominaniya (
+        dialog_id,
+        tip,
+        t0,
+        soobshchenie_osnovanie_id,
+        pokolenie_ozhidaniya,
+        srok,
+        aktualno_do,
+        status,
+        prichina
+    )
+    VALUES (
+        rr.dialog_id,
+        'napominanie_1',
+        v_t0,
+        v_basis,
+        1,
+        clock_timestamp() - interval '1 minute',
+        clock_timestamp() + interval '1 hour',
+        'zaplanirovano',
+        'db03e_probe'
+    )
+    RETURNING id
+    INTO v_rem1;
+
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.napominaniya (
+        dialog_id,
+        tip,
+        t0,
+        soobshchenie_osnovanie_id,
+        pokolenie_ozhidaniya,
+        srok,
+        aktualno_do,
+        status,
+        prichina
+    )
+    VALUES (
+        rr.dialog_id,
+        'napominanie_2',
+        v_t0,
+        v_basis,
+        1,
+        clock_timestamp() + interval '3 hours',
+        clock_timestamp() + interval '4 hours',
+        'zaplanirovano',
+        'db03e_probe'
+    );
+
+    SELECT *
+      INTO sched1
+      FROM qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_scheduler_1',
+            'tekst_napominaniya_1', 'Напоминаем: ждём ваш ответ.',
+            'tekst_napominaniya_2', 'Ещё раз напоминаем: ждём ваш ответ.',
+            'poterya_posle_sekund', 86400,
+            'vremya_proverki', clock_timestamp()
+        )
+      );
+
+    IF sched1.rezultat NOT IN ('uspeshno', 'dublikat')
+       OR sched1.napominanie_id IS DISTINCT FROM v_rem1
+       OR sched1.tip_napominaniya <> 'napominanie_1'
+       OR sched1.reshenie <> 'otpravit'
+       OR sched1.deystvie_id IS NULL THEN
+        RAISE EXCEPTION
+            'DB-03E due reminder scheduler branch failed: %',
+            row_to_json(sched1);
+    END IF;
+
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.napominaniya (
+        dialog_id,
+        tip,
+        t0,
+        soobshchenie_osnovanie_id,
+        pokolenie_ozhidaniya,
+        srok,
+        aktualno_do,
+        status,
+        prichina
+    )
+    VALUES (
+        rr.dialog_id,
+        'proverka_poteri',
+        v_t0,
+        v_basis,
+        1,
+        clock_timestamp() - interval '30 seconds',
+        clock_timestamp() + interval '1 hour',
+        'zaplanirovano',
+        'db03e_probe'
+    )
+    RETURNING id
+    INTO v_loss;
+
+    SELECT *
+      INTO sched_loss
+      FROM qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_scheduler_loss',
+            'tekst_napominaniya_1', 'Напоминаем: ждём ваш ответ.',
+            'tekst_napominaniya_2', 'Ещё раз напоминаем: ждём ваш ответ.',
+            'poterya_posle_sekund', 86400,
+            'vremya_proverki', clock_timestamp()
+        )
+      );
+
+    IF sched_loss.rezultat <> 'uspeshno'
+       OR sched_loss.napominanie_id IS DISTINCT FROM v_loss
+       OR sched_loss.tip_napominaniya <> 'proverka_poteri'
+       OR sched_loss.reshenie <> 'proverka_poteri'
+       OR EXISTS (
+            SELECT 1
+              FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
+             WHERE n.id = v_loss
+               AND n.status <> 'otmeneno'
+       ) THEN
+        RAISE EXCEPTION
+            'DB-03E due loss scheduler branch failed: %',
+            row_to_json(sched_loss);
+    END IF;
+END
+$db03e$;
+
+ROLLBACK TO SAVEPOINT db03e_probe;
+RELEASE SAVEPOINT db03e_probe;
+
+-- ===========================================================================
+-- 6. POST-PROBE ASSERTIONS
+-- ===========================================================================
+
+DO $db03e$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
+         WHERE i.akkaunt_kanala_id = 'db03e_client_bot'
+    )
+    OR EXISTS (
+        SELECT 1
+          FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy AS e
+         WHERE e.akkaunt_istochnika_id = 'db03e_client_bot'
+    )
+    OR EXISTS (
+        SELECT 1
+          FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_zerkala_operatora AS z
+         WHERE z.klyuch_idempotentnosti LIKE 'nuzhen_chelovek:%'
+           AND z.payload->>'ishodnoe_zadanie_id' IS NOT NULL
+           AND EXISTS (
+                SELECT 1
+                  FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki AS j
+                 WHERE j.id::text = z.payload->>'ishodnoe_zadanie_id'
+                   AND j.kod_oshibki = 'nuzhen_chelovek'
+           )
+    ) THEN
+        RAISE EXCEPTION 'DB-03E probe rows remain after SAVEPOINT rollback';
+    END IF;
+END
+$db03e$;
+
+COMMIT;
+
+-- ===========================================================================
+-- 7. SINGLE RESULT SET FOR SUPABASE STUDIO
+-- ===========================================================================
+
+SELECT jsonb_build_object(
+    'db03e_status', 'applied',
+    'database', current_database(),
+    'schema', 'qbit_bot_pervichnogo_obrascheniya',
+    'functions_ok',
+    (
+        SELECT count(*) = 3
+          FROM pg_catalog.pg_proc AS p
+          JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
+           AND p.proname IN (
+                'ustanovit_zapret_iniciativy',
+                'zaprosit_cheloveka',
+                'obrabotat_sleduyushchee_napominanie'
+           )
+           AND p.prosecdef = true
+    ),
+    'bot_execute_ok',
+    pg_catalog.has_function_privilege(
+        'qbit_test_bot',
+        'qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(jsonb)',
+        'EXECUTE'
+    )
+    AND pg_catalog.has_function_privilege(
+        'qbit_test_bot',
+        'qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(jsonb)',
+        'EXECUTE'
+    )
+    AND pg_catalog.has_function_privilege(
+        'qbit_test_bot',
+        'qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(jsonb)',
+        'EXECUTE'
+    ),
+    'service_execute_denied',
+    NOT pg_catalog.has_function_privilege(
+        'qbit_test_sluzhebnyy',
+        'qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(jsonb)',
+        'EXECUTE'
+    )
+    AND NOT pg_catalog.has_function_privilege(
+        'qbit_test_sluzhebnyy',
+        'qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(jsonb)',
+        'EXECUTE'
+    )
+    AND NOT pg_catalog.has_function_privilege(
+        'qbit_test_sluzhebnyy',
+        'qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(jsonb)',
+        'EXECUTE'
+    ),
+    'runtime_direct_dml_denied',
+    NOT EXISTS (
+        SELECT 1
+          FROM pg_catalog.pg_class AS c
+          JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+         WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
+           AND c.relkind = 'r'
+           AND (
+                pg_catalog.has_table_privilege('qbit_test_bot', c.oid, 'SELECT')
+                OR pg_catalog.has_table_privilege('qbit_test_bot', c.oid, 'INSERT')
+                OR pg_catalog.has_table_privilege('qbit_test_bot', c.oid, 'UPDATE')
+                OR pg_catalog.has_table_privilege('qbit_test_bot', c.oid, 'DELETE')
+                OR pg_catalog.has_table_privilege('qbit_test_sluzhebnyy', c.oid, 'SELECT')
+                OR pg_catalog.has_table_privilege('qbit_test_sluzhebnyy', c.oid, 'INSERT')
+                OR pg_catalog.has_table_privilege('qbit_test_sluzhebnyy', c.oid, 'UPDATE')
+                OR pg_catalog.has_table_privilege('qbit_test_sluzhebnyy', c.oid, 'DELETE')
+           )
+    ),
+    'probe_rows_remaining',
+    (
+        SELECT count(*)
+          FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i
+         WHERE i.akkaunt_kanala_id = 'db03e_client_bot'
+    ),
+    'production_untouched', true,
+    'next_stage', 'PRE-02E_runtime_then_WF-02B2'
+) AS db03e_result;
