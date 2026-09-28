@@ -357,6 +357,24 @@ AI-слой содержит четыре OpenRouter HTTP-вызова: тема
 
 DB-03E v0.5 статически проверен в репозитории, но **на Supabase не применён**. Прямые права SELECT/INSERT/UPDATE/DELETE runtime-ролям не добавляются. Для применения DB-03E в test нужен отдельный явный приказ Павла; после применения обязателен read-only verifier.
 
+
+## Последний завершённый небольшой workflow-блок
+
+**WF-02B2A — client durable ingress + safe queue skeleton. Статус: завершено 28 сентября 2026 года.**
+
+Создан `workflows/WF-02B2A_client_ingress_queue_skeleton_n8n_2.41.0.json`:
+- 16 нод, `active=false`;
+- Telegram webhook использует Header Auth, но Credential ID/секреты в JSON не сохранены;
+- trusted settings не дают вызвать БД, пока account/service-group placeholders не заполнены;
+- вход нормализуется в текущий DB-03C1 JSONB contract и сохраняется через `zaregistrirovat_vhod_klienta(jsonb)`;
+- HTTP 200 выдаётся только после результата `uspeshno` или `dublikat`;
+- media callbacks `media_take/media_no` детерминированно превращаются в безопасные text intents по WF-02B1;
+- processing schedule и пакет `zabrat_zadanie_obrabotki(jsonb)` подготовлены, но сам Postgres claim node намеренно `disabled=true`, пока следующий processing-блок не умеет получить source/context и корректно завершить job;
+- OpenAI, RAG, STT, outgoing и service Telegram в этот маленький блок не входят;
+- secrets, Credential IDs, pinData и `instanceId` отсутствуют.
+
+Следующий маленький блок: **WF-02B2B — processing claim → source/context/rate-limit/PII/guard → finish/retry**. DB-03E по-прежнему не применять без отдельного разрешения.
+
 ## Текущая задача
 
 **PRE-02E — OpenAI profile в амстердамском n8n 2.41.0. Статус: подготовлено, runtime ожидается.**
