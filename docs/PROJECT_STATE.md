@@ -342,7 +342,7 @@ AI-слой содержит четыре OpenRouter HTTP-вызова: тема
 По фактически применённым SQL DB-03 зафиксирована правильная runtime-схема: client webhook выполняет durable ingress и HTTP 200 только после commit; processing, outgoing, topic/mirror и reminder workers работают отдельно через narrow API, lease/fencing и stable keys. Финальная поставка возвращается к двум логическим workflow с разными client/service Telegram и PostgreSQL Credentials.
 
 Подготовлен post-DB03 gap-fix **DB-03E v0.2**:
-- `poluchit_soderzhimoe_zadaniya(jsonb)` — recoverable raw source только текущему fenced worker для локального PII/STT;
+- `poluchit_soderzhimoe_zadaniya(jsonb)` — recoverable channel identity + raw source только текущему fenced worker для локального rate-limit/guard/PII/STT;
 - `ustanovit_zapret_iniciativy(jsonb)`;
 - `zaprosit_cheloveka(jsonb)`;
 - `obrabotat_sleduyushchee_napominanie(jsonb)`.

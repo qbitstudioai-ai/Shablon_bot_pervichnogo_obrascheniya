@@ -61,6 +61,7 @@ checks AS (
                 THEN pg_catalog.strpos(def, 'stale_lease_owner') > 0
                      AND pg_catalog.strpos(def, 'arenda_istekla') > 0
                      AND pg_catalog.strpos(def, 'payload_ishodnyy') > 0
+                     AND pg_catalog.strpos(def, 'identity_id') > 0
                      AND pg_catalog.strpos(def, 'tekst_ishodnyy') > 0
                      AND pg_catalog.strpos(def, 'FOR UPDATE OF z, d') > 0
                 WHEN 'obrabotat_sleduyushchee_napominanie'

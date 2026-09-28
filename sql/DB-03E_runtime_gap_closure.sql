@@ -161,6 +161,7 @@ RETURNS TABLE (
     povtor_posle timestamptz,
     zadanie_id uuid,
     dialog_id uuid,
+    identifikator_kanala_id uuid,
     sobytie_id uuid,
     soobshchenie_id uuid,
     tip_soobshcheniya text,
@@ -190,7 +191,7 @@ BEGIN
         RETURN QUERY SELECT
             NULL::text, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
             'Ожидается JSON object.'::text, NULL::timestamptz,
-            NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text,
+            NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text,
             NULL::text, NULL::jsonb, NULL::text, NULL::text, NULL::text,
             NULL::text, NULL::bigint;
         RETURN;
@@ -217,7 +218,7 @@ BEGIN
             v_operaciya, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
             'Нужны operation/job/worker/fencing/expected dialog version.'::text,
             NULL::timestamptz,
-            v_job_id, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text,
+            v_job_id, NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text,
             NULL::text, NULL::jsonb, NULL::text, NULL::text, NULL::text,
             NULL::text, NULL::bigint;
         RETURN;
@@ -237,6 +238,7 @@ BEGIN
         d.vladelec AS dialog_owner,
         d.status AS dialog_status,
         i.logicheski_zablokirovan,
+        i.id AS identity_id,
         i.kanal,
         i.akkaunt_kanala_id,
         i.vneshniy_dialog_id,
@@ -264,7 +266,7 @@ BEGIN
             v_operaciya, 'otkaz'::text, 'zadanie_ne_naydeno'::text,
             'Processing job либо его exact source message не найдены.'::text,
             NULL::timestamptz,
-            v_job_id, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text,
+            v_job_id, NULL::uuid, NULL::uuid, NULL::uuid, NULL::uuid, NULL::text,
             NULL::text, NULL::jsonb, NULL::text, NULL::text, NULL::text,
             NULL::text, NULL::bigint;
         RETURN;
@@ -277,7 +279,7 @@ BEGIN
             v_operaciya, 'konflikt'::text, 'stale_lease_owner'::text,
             'Только текущий worker/fencing может читать source payload claimed job.'::text,
             NULL::timestamptz,
-            v_row.job_id, v_row.dialog_id, v_row.sobytie_id,
+            v_row.job_id, v_row.dialog_id, v_row.identity_id, v_row.sobytie_id,
             v_row.message_id, v_row.message_type,
             NULL::text, NULL::jsonb, NULL::text, NULL::text, NULL::text,
             NULL::text, v_row.current_dialog_version;
@@ -289,7 +291,7 @@ BEGIN
             v_operaciya, 'konflikt'::text, 'arenda_istekla'::text,
             'Истёкшая lease не разрешает читать source payload; нужен новый claim.'::text,
             NULL::timestamptz,
-            v_row.job_id, v_row.dialog_id, v_row.sobytie_id,
+            v_row.job_id, v_row.dialog_id, v_row.identity_id, v_row.sobytie_id,
             v_row.message_id, v_row.message_type,
             NULL::text, NULL::jsonb, NULL::text, NULL::text, NULL::text,
             NULL::text, v_row.current_dialog_version;
@@ -302,7 +304,7 @@ BEGIN
             v_operaciya, 'konflikt'::text, 'stale_dialog_version'::text,
             'Source payload запрошен для устаревшей dialog version.'::text,
             NULL::timestamptz,
-            v_row.job_id, v_row.dialog_id, v_row.sobytie_id,
+            v_row.job_id, v_row.dialog_id, v_row.identity_id, v_row.sobytie_id,
             v_row.message_id, v_row.message_type,
             NULL::text, NULL::jsonb, NULL::text, NULL::text, NULL::text,
             NULL::text, v_row.current_dialog_version;
@@ -316,7 +318,7 @@ BEGIN
             v_operaciya, 'otkaz'::text, 'dialog_ne_razreshaet_bot'::text,
             'Текущее состояние dialog/identity больше не разрешает bot processing.'::text,
             NULL::timestamptz,
-            v_row.job_id, v_row.dialog_id, v_row.sobytie_id,
+            v_row.job_id, v_row.dialog_id, v_row.identity_id, v_row.sobytie_id,
             v_row.message_id, v_row.message_type,
             NULL::text, NULL::jsonb, NULL::text,
             v_row.kanal, v_row.akkaunt_kanala_id, v_row.vneshniy_dialog_id,
@@ -328,7 +330,7 @@ BEGIN
         v_operaciya, 'uspeshno'::text, NULL::text,
         'Возвращено только source content текущего fenced processing job для локального PII/STT adapter.'::text,
         NULL::timestamptz,
-        v_row.job_id, v_row.dialog_id, v_row.sobytie_id,
+        v_row.job_id, v_row.dialog_id, v_row.identity_id, v_row.sobytie_id,
         v_row.message_id, v_row.message_type,
         v_row.tekst_ishodnyy,
         v_row.payload_ishodnyy,
@@ -1434,6 +1436,7 @@ BEGIN
 
     IF content1.rezultat <> 'uspeshno'
        OR content1.soobshchenie_id IS DISTINCT FROM r1.soobshchenie_id
+       OR content1.identifikator_kanala_id IS DISTINCT FROM r1.identifikator_kanala_id
        OR content1.tekst_ishodnyy IS DISTINCT FROM 'Больше не присылайте напоминания'
        OR content1.payload_ishodnyy->>'update_id' IS DISTINCT FROM 'db03e_event_1'
        OR content1.kanal IS DISTINCT FROM 'telegram'

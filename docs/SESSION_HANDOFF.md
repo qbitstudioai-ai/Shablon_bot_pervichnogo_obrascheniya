@@ -41,7 +41,7 @@ PRE-02E остаётся `[~]` до реального запуска с test Op
 - `sql/DB-03E_v0.2_verify.sql`.
 
 DB-03E добавляет четыре narrow API, без выдачи direct table DML:
-1. `poluchit_soderzhimoe_zadaniya(jsonb)` — current live worker/fencing получает только source raw text/provider payload своего claimed job для recoverable local PII/STT;
+1. `poluchit_soderzhimoe_zadaniya(jsonb)` — current live worker/fencing получает `identifikator_kanala_id` + source raw text/provider payload своего claimed job для recoverable local rate-limit/guard/PII/STT;
 2. `ustanovit_zapret_iniciativy(jsonb)` — persistent opt-out / explicit opt-in;
 3. `zaprosit_cheloveka(jsonb)` — stable group `nuzhen_chelovek`, owner остаётся bot до service Take;
 4. `obrabotat_sleduyushchee_napominanie(jsonb)` — один due reminder/loss через SKIP LOCKED и существующую DB-03C4 логику.
