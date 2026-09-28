@@ -69,6 +69,6 @@ Migration v0.2 содержит rollback behavior probes, включая exact s
 Завершён маленький offline-блок client ingress/queue skeleton:
 `workflows/WF-02B2A_client_ingress_queue_skeleton_n8n_2.41.0.json`.
 
-Проверено статически: JSON валиден, 16 нод, `active=false`, secrets/Credential IDs/`instanceId` отсутствуют. Durable ingress использует DB-03C1; queue claim node подготовлен под DB-03C3, но намеренно disabled до WF-02B2B.
+Проверено статически: JSON валиден, 14 нод, `active=false`, secrets/Credential IDs/`instanceId` отсутствуют. Durable ingress использует DB-03C1; queue claim node подготовлен под DB-03C3, но намеренно disabled до WF-02B2B.
 
 Следующая небольшая задача: **WF-02B2B — processing claim + exact source/context/rate-limit/PII/guard + finish/retry.** Не расширять одновременно в outgoing/OpenAI/RAG/service Telegram.

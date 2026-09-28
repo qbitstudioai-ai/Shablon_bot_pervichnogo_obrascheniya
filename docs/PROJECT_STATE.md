@@ -363,7 +363,7 @@ DB-03E v0.5 статически проверен в репозитории, н�
 **WF-02B2A — client durable ingress + safe queue skeleton. Статус: завершено 28 сентября 2026 года.**
 
 Создан `workflows/WF-02B2A_client_ingress_queue_skeleton_n8n_2.41.0.json`:
-- 16 нод, `active=false`;
+- 14 нод, `active=false`;
 - Telegram webhook использует Header Auth, но Credential ID/секреты в JSON не сохранены;
 - trusted settings не дают вызвать БД, пока account/service-group placeholders не заполнены;
 - вход нормализуется в текущий DB-03C1 JSONB contract и сохраняется через `zaregistrirovat_vhod_klienta(jsonb)`;
