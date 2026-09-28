@@ -3,17 +3,17 @@
   "nodes": [
     {
       "parameters": {
-        "content": "WF-02B2A — только клиентский durable ingress + безопасный queue skeleton.\n\nНе содержит OpenAI/RAG/STT/outgoing/service Telegram. Queue claim node намеренно disabled до следующего блока processing worker.",
-        "height": 220,
-        "width": 520
+        "content": "WF-02B2A — клиентский durable ingress + безопасный queue skeleton.\n\nOpenAI/RAG/STT/outgoing/service Telegram здесь отсутствуют. Queue claim намеренно disabled до WF-02B2B.",
+        "height": 200,
+        "width": 500
       },
-      "id": "b2a00001-0000-4000-8000-000000000001",
+      "id": "b2a01",
       "name": "Пояснение WF-02B2A",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
         0,
-        -240
+        -220
       ]
     },
     {
@@ -24,7 +24,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "b2a00002-0000-4000-8000-000000000002",
+      "id": "b2a02",
       "name": "Принять вход клиента",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
@@ -35,9 +35,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = {\n  versiya_workflow: 'client-core-wf02b2a-0.1',\n  versiya_prompta: 'pre02e-pending',\n  kanal: 'telegram',\n  akkaunt_kanala_id: 'ЗАПОЛНИТЬ_ID_КЛИЕНТСКОГО_TELEGRAM_БОТА',\n  sluzhebnyy_chat_id: 'ЗАПОЛНИТЬ_ID_СЛУЖЕБНОЙ_FORUM_ГРУППЫ',\n  nachalnyy_etap: 'pervichnyy_kontakt',\n  prioritet: 0\n};\nconst ready =\n  !cfg.akkaunt_kanala_id.startsWith('ЗАПОЛНИТЬ') &&\n  !cfg.sluzhebnyy_chat_id.startsWith('ЗАПОЛНИТЬ');\nreturn $input.all().map(i => ({\n  json: {...i.json, _nastroyki_vhoda: cfg, profil_vhoda_gotov: ready},\n  binary: i.binary\n}));"
+        "jsCode": "const cfg={\nversiya_workflow:'client-core-wf02b2a-0.1',\nversiya_prompta:'pre02e-pending',\nkanal:'telegram',\nakkaunt_kanala_id:'ЗАПОЛНИТЬ_ID_КЛИЕНТСКОГО_TELEGRAM_БОТА',\nsluzhebnyy_chat_id:'ЗАПОЛНИТЬ_ID_СЛУЖЕБНОЙ_FORUM_ГРУППЫ',\nnachalnyy_etap:'pervichnyy_kontakt',prioritet:0};\nconst ready=!cfg.akkaunt_kanala_id.startsWith('ЗАПОЛНИТЬ')&&!cfg.sluzhebnyy_chat_id.startsWith('ЗАПОЛНИТЬ');\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki_vhoda:cfg,profil_vhoda_gotov:ready},binary:i.binary}));"
       },
-      "id": "b2a00003-0000-4000-8000-000000000003",
+      "id": "b2a03",
       "name": "Настройки клиентского входа",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -69,7 +69,7 @@
         },
         "options": {}
       },
-      "id": "b2a00004-0000-4000-8000-000000000004",
+      "id": "b2a04",
       "name": "Профиль входа готов?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -80,9 +80,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const root = $json || {};\nconst cfg = root._nastroyki_vhoda;\nconst body = root.body || {};\nconst m = body.message || body.edited_message || null;\nconst cb = body.callback_query || null;\nconst updateId = body.update_id;\n\nif (updateId === undefined || updateId === null) throw new Error('Нет Telegram update_id');\n\nlet chatId = null;\nlet fromId = null;\nlet messageId = null;\nlet sourceDate = null;\nlet eventType = 'message';\nlet messageType = 'system';\nlet text = '';\nlet fileId = null;\nlet callbackData = null;\n\nif (m) {\n  chatId = m.chat?.id ?? null;\n  fromId = m.from?.id ?? null;\n  messageId = m.message_id ?? null;\n  sourceDate = m.date ? new Date(Number(m.date) * 1000).toISOString() : null;\n\n  if (typeof m.text === 'string') {\n    messageType = 'text'; text = m.text;\n  } else if (m.voice) {\n    messageType = 'voice'; fileId = m.voice.file_id ?? null;\n  } else if (m.photo) {\n    messageType = 'photo'; fileId = m.photo.at(-1)?.file_id ?? null; text = m.caption || '';\n  } else if (m.video) {\n    messageType = 'video'; fileId = m.video.file_id ?? null; text = m.caption || '';\n  } else if (m.document) {\n    messageType = 'document'; fileId = m.document.file_id ?? null; text = m.caption || '';\n  } else if (m.sticker) {\n    messageType = 'sticker'; fileId = m.sticker.file_id ?? null;\n  }\n} else if (cb) {\n  eventType = 'callback';\n  callbackData = String(cb.data || '');\n  chatId = cb.message?.chat?.id ?? null;\n  fromId = cb.from?.id ?? null;\n  messageId = cb.message?.message_id ?? null;\n  sourceDate = cb.message?.date ? new Date(Number(cb.message.date) * 1000).toISOString() : null;\n\n  // Из архитектуры WF-02B1: известные media callbacks детерминированно\n  // превращаются в безопасный text intent; неизвестные остаются system event.\n  if (callbackData === 'media_take') {\n    messageType = 'text';\n    text = 'Позвать менеджера';\n  } else if (callbackData === 'media_no') {\n    messageType = 'text';\n    text = 'Продолжить без менеджера';\n  }\n}\n\nif (chatId === null || fromId === null) throw new Error('Не удалось определить chat_id/from_id');\n\nconst fingerprintParts = [\n  'fp1', String(updateId), String(chatId), String(fromId), String(messageId ?? ''),\n  eventType, messageType, text, String(fileId ?? ''), String(callbackData ?? '')\n];\n\nconst ingress = {\n  versiya_formata: 1,\n  operaciya_id: `tg_client_ingress:${cfg.akkaunt_kanala_id}:${updateId}`,\n  klyuch_idempotentnosti: `telegram:${cfg.akkaunt_kanala_id}:update:${updateId}`,\n  hash_soderzhaniya: fingerprintParts.join('|'),\n  kanal: cfg.kanal,\n  akkaunt_kanala_id: cfg.akkaunt_kanala_id,\n  vneshnee_sobytie_id: String(updateId),\n  vneshniy_polzovatel_id: String(fromId),\n  vneshniy_dialog_id: String(chatId),\n  vneshnee_soobshchenie_id: messageId === null ? null : String(messageId),\n  tip_sobytiya: eventType,\n  tip_soobshcheniya: messageType,\n  tekst_ishodnyy: text,\n  vremya_istochnika: sourceDate,\n  vremya_priema: new Date().toISOString(),\n  trassirovka_id: `telegram:${updateId}`,\n  versiya_workflow: cfg.versiya_workflow,\n  versiya_prompta: cfg.versiya_prompta,\n  payload_ishodnyy: body,\n  sluzhebnyy_chat_id: cfg.sluzhebnyy_chat_id,\n  bezopasnaya_podpis_klienta: `Клиент •••${String(fromId).slice(-4)}`,\n  nachalnyy_etap: cfg.nachalnyy_etap,\n  prioritet: cfg.prioritet\n};\n\nreturn [{json:{db_ingress: ingress}}];"
+        "jsCode": "const root=$json||{},cfg=root._nastroyki_vhoda,body=root.body||{};\nconst m=body.message||body.edited_message||null,cb=body.callback_query||null;\nconst updateId=body.update_id;if(updateId===undefined||updateId===null)throw new Error('Нет Telegram update_id');\nlet chatId=null,fromId=null,messageId=null,sourceDate=null,eventType='message',messageType='system',text='',fileId=null,callbackData=null;\nif(m){chatId=m.chat?.id??null;fromId=m.from?.id??null;messageId=m.message_id??null;sourceDate=m.date?new Date(Number(m.date)*1000).toISOString():null;\nif(typeof m.text==='string'){messageType='text';text=m.text;}else if(m.voice){messageType='voice';fileId=m.voice.file_id??null;}else if(m.photo){messageType='photo';fileId=m.photo.at(-1)?.file_id??null;text=m.caption||'';}else if(m.video){messageType='video';fileId=m.video.file_id??null;text=m.caption||'';}else if(m.document){messageType='document';fileId=m.document.file_id??null;text=m.caption||'';}else if(m.sticker){messageType='sticker';fileId=m.sticker.file_id??null;}}\nelse if(cb){eventType='callback';callbackData=String(cb.data||'');chatId=cb.message?.chat?.id??null;fromId=cb.from?.id??null;messageId=cb.message?.message_id??null;sourceDate=cb.message?.date?new Date(Number(cb.message.date)*1000).toISOString():null;if(callbackData==='media_take'){messageType='text';text='Позвать менеджера';}else if(callbackData==='media_no'){messageType='text';text='Продолжить без менеджера';}}\nif(chatId===null||fromId===null)throw new Error('Не удалось определить chat_id/from_id');\nconst fp=['fp1',String(updateId),String(chatId),String(fromId),String(messageId??''),eventType,messageType,text,String(fileId??''),String(callbackData??'')].join('|');\nconst ingress={versiya_formata:1,operaciya_id:'tg_client_ingress:'+cfg.akkaunt_kanala_id+':'+updateId,klyuch_idempotentnosti:'telegram:'+cfg.akkaunt_kanala_id+':update:'+updateId,hash_soderzhaniya:fp,kanal:cfg.kanal,akkaunt_kanala_id:cfg.akkaunt_kanala_id,vneshnee_sobytie_id:String(updateId),vneshniy_polzovatel_id:String(fromId),vneshniy_dialog_id:String(chatId),vneshnee_soobshchenie_id:messageId===null?null:String(messageId),tip_sobytiya:eventType,tip_soobshcheniya:messageType,tekst_ishodnyy:text,vremya_istochnika:sourceDate,vremya_priema:new Date().toISOString(),trassirovka_id:'telegram:'+updateId,versiya_workflow:cfg.versiya_workflow,versiya_prompta:cfg.versiya_prompta,payload_ishodnyy:body,sluzhebnyy_chat_id:cfg.sluzhebnyy_chat_id,bezopasnaya_podpis_klienta:'Клиент •••'+String(fromId).slice(-4),nachalnyy_etap:cfg.nachalnyy_etap,prioritet:cfg.prioritet};\nreturn [{json:{db_ingress:ingress}}];"
       },
-      "id": "b2a00005-0000-4000-8000-000000000005",
+      "id": "b2a05",
       "name": "Нормализовать вход клиента",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -100,7 +100,7 @@
           "queryReplacement": "={{ [JSON.stringify($json.db_ingress)] }}"
         }
       },
-      "id": "b2a00006-0000-4000-8000-000000000006",
+      "id": "b2a06",
       "name": "Сохранить вход и поставить в очередь",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
@@ -119,4 +119,262 @@
             "version": 3
           },
           "combinator": "or",
-          "co
+          "conditions": [
+            {
+              "leftValue": "={{ $json.rezultat }}",
+              "rightValue": "uspeshno",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "leftValue": "={{ $json.rezultat }}",
+              "rightValue": "dublikat",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2a07",
+      "name": "Durable ingress принят?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "b2a08",
+      "name": "Подтвердить durable приём",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1580,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "b2a09",
+      "name": "Не подтверждать ошибочный вход",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1580,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 503
+        }
+      },
+      "id": "b2a10",
+      "name": "Профиль ещё не настроен",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        780,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "b2a11",
+      "name": "Проверять очередь обработки",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{db_claim:{operaciya_id:'claim:qbit-test-client-processing-1:'+new Date().toISOString(),worker_id:'qbit-test-client-processing-1',arenda_sekund:120}}}];"
+      },
+      "id": "b2a12",
+      "name": "Подготовить claim очереди",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.* from qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify($json.db_claim)] }}"
+        }
+      },
+      "id": "b2a13",
+      "name": "Забрать следующее задание",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        540,
+        480
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "Queue claim node disabled=true. Включать только в WF-02B2B после подключения source/context/guard и гарантированного finish/retry.",
+        "height": 140,
+        "width": 460
+      },
+      "id": "b2a14",
+      "name": "Queue claim пока выключен",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        520,
+        650
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Принять вход клиента": {
+      "main": [
+        [
+          {
+            "node": "Настройки клиентского входа",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Настройки клиентского входа": {
+      "main": [
+        [
+          {
+            "node": "Профиль входа готов?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Профиль входа готов?": {
+      "main": [
+        [
+          {
+            "node": "Нормализовать вход клиента",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Профиль ещё не настроен",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нормализовать вход клиента": {
+      "main": [
+        [
+          {
+            "node": "Сохранить вход и поставить в очередь",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить вход и поставить в очередь": {
+      "main": [
+        [
+          {
+            "node": "Durable ingress принят?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durable ingress принят?": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить durable приём",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Не подтверждать ошибочный вход",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверять очередь обработки": {
+      "main": [
+        [
+          {
+            "node": "Подготовить claim очереди",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить claim очереди": {
+      "main": [
+        [
+          {
+            "node": "Забрать следующее задание",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b2a00000-0000-4000-8000-000000000002",
+  "meta": {},
+  "tags": []
+}
