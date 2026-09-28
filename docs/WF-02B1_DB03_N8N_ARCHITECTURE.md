@@ -119,3 +119,15 @@ DB ingress не принимает `callback` как message type. Извест�
 ## Критерий WF-02B1
 
 Определены durable ingress, processing lease/fencing, outgoing sender, service commands, topic/mirror workers, callback normalization и DB-03E boundary. Production, Supabase и Credentials не менялись.
+
+## CAS-состояние служебного Telegram
+
+При подготовке WF-02B2 обнаружено, что Take/Return/manual reply требуют `ozhidaemaya_versiya_dialoga`, а service role намеренно не имеет SELECT на `dialogi`. Версия из старой кнопки или догадка недопустимы.
+
+DB-03E v0.3 добавляет `poluchit_sostoyanie_operatora(jsonb)` только для `qbit_test_sluzhebnyy`. Функция принимает известный `dialog_id` либо trusted `sluzhebnyy_chat_id + message_thread_id` из service webhook и возвращает только operator state: topic mapping, owner/status/stage, current manager UUID, dialog version и wait generation. Текст клиента, PII, память и вложения не возвращаются.
+
+Правило n8n:
+- перед рендерингом Take/Return service worker получает current state;
+- callback содержит version: `take:<dialog_id>:<version>` / `return:<dialog_id>:<version>`;
+- stale callback штатно получает conflict в DB-03D2;
+- обычное сообщение менеджера в forum topic сначала резолвит state по chat/thread, затем `sozdat_ruchnoe_ishodyashchee` получает эту expected version.

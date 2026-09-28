@@ -34,19 +34,20 @@ PRE-02E остаётся `[~]` до реального запуска с test Op
 - два финальных workflow с разными client/service Credentials;
 - RAG gated до DB-05.
 
-### DB-03E v0.2
+### DB-03E v0.3
 
 Подготовлены, но **не применены**:
 - `sql/DB-03E_runtime_gap_closure.sql`;
-- `sql/DB-03E_v0.2_verify.sql`.
+- `sql/DB-03E_v0.3_verify.sql`.
 
-DB-03E добавляет четыре narrow API, без выдачи direct table DML:
+DB-03E добавляет пять narrow API, без выдачи direct table DML:
 1. `poluchit_soderzhimoe_zadaniya(jsonb)` — current live worker/fencing получает `identifikator_kanala_id` + source raw text/provider payload своего claimed job для recoverable local rate-limit/guard/PII/STT;
-2. `ustanovit_zapret_iniciativy(jsonb)` — persistent opt-out / explicit opt-in;
-3. `zaprosit_cheloveka(jsonb)` — stable group `nuzhen_chelovek`, owner остаётся bot до service Take;
-4. `obrabotat_sleduyushchee_napominanie(jsonb)` — один due reminder/loss через SKIP LOCKED и существующую DB-03C4 логику.
+2. `poluchit_sostoyanie_operatora(jsonb)` — service-only narrow state/version по известному dialog или forum topic для CAS Take/Return/manual reply, без client content/PII;
+3. `ustanovit_zapret_iniciativy(jsonb)` — persistent opt-out / explicit opt-in;
+4. `zaprosit_cheloveka(jsonb)` — stable group `nuzhen_chelovek`, owner остаётся bot до service Take;
+5. `obrabotat_sleduyushchee_napominanie(jsonb)` — один due reminder/loss через SKIP LOCKED и существующую DB-03C4 логику.
 
-Migration v0.2 содержит rollback behavior probes, включая exact source-content read; verifier read-only проверяет 4 функции, metadata, privileges и отсутствие runtime direct DML.
+Migration v0.2 содержит rollback behavior probes, включая exact source-content read; verifier read-only проверяет 5 функций, metadata, privileges и отсутствие runtime direct DML.
 
 ## Что запрещено считать готовым
 

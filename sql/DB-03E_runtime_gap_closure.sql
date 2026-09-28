@@ -1,4 +1,4 @@
--- DB-03E v0.2: runtime gap closure for n8n
+-- DB-03E v0.3: runtime gap closure for n8n
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Date: 2026-09-28
 --
@@ -10,8 +10,9 @@
 -- REQUIRES
 --   DB-01..DB-03D2 and DB-SCHEMA-01F already applied/verified.
 --
--- ADDS 4 NARROW SECURITY DEFINER FUNCTIONS
+-- ADDS 5 NARROW SECURITY DEFINER FUNCTIONS
 --   poluchit_soderzhimoe_zadaniya(jsonb)
+--   poluchit_sostoyanie_operatora(jsonb)
 --   ustanovit_zapret_iniciativy(jsonb)
 --   zaprosit_cheloveka(jsonb)
 --   obrabotat_sleduyushchee_napominanie(jsonb)
@@ -123,6 +124,7 @@ BEGIN
 
     FOREACH v_target IN ARRAY ARRAY[
         'poluchit_soderzhimoe_zadaniya',
+        'poluchit_sostoyanie_operatora',
         'ustanovit_zapret_iniciativy',
         'zaprosit_cheloveka',
         'obrabotat_sleduyushchee_napominanie'
@@ -348,7 +350,136 @@ COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_zadan
 RESET ROLE;
 
 -- ===========================================================================
--- 2. PERSISTENT INITIATIVE OPT-OUT / EXPLICIT OPT-IN
+-- 2. READ NARROW OPERATOR STATE FOR CAS BUTTONS / MANUAL REPLY
+-- ===========================================================================
+
+SET LOCAL ROLE qbit_test_owner;
+
+CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(
+    p_dannye jsonb
+)
+RETURNS TABLE (
+    operaciya_id text,
+    rezultat text,
+    kod_oshibki text,
+    opisanie text,
+    povtor_posle timestamptz,
+    dialog_id uuid,
+    sluzhebnyy_chat_id text,
+    message_thread_id text,
+    status_temy text,
+    vladelec text,
+    status_dialoga text,
+    etap text,
+    tekushchiy_menedzher_id uuid,
+    versiya_dialoga bigint,
+    pokolenie_ozhidaniya bigint
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, qbit_bot_pervichnogo_obrascheniya
+AS $fn$
+#variable_conflict use_column
+DECLARE
+    v_operaciya text;
+    v_dialog_id uuid;
+    v_chat text;
+    v_thread text;
+    v_row record;
+BEGIN
+    IF p_dannye IS NULL OR jsonb_typeof(p_dannye) <> 'object' THEN
+        RETURN QUERY SELECT
+            NULL::text, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
+            'Ожидается JSON object.'::text, NULL::timestamptz,
+            NULL::uuid, NULL::text, NULL::text, NULL::text,
+            NULL::text, NULL::text, NULL::text, NULL::uuid,
+            NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    v_operaciya := NULLIF(btrim(p_dannye->>'operaciya_id'), '');
+    v_dialog_id := NULLIF(p_dannye->>'dialog_id', '')::uuid;
+    v_chat := NULLIF(btrim(p_dannye->>'sluzhebnyy_chat_id'), '');
+    v_thread := NULLIF(btrim(p_dannye->>'message_thread_id'), '');
+
+    IF v_operaciya IS NULL
+       OR (
+            v_dialog_id IS NULL
+            AND (v_chat IS NULL OR v_thread IS NULL)
+       )
+       OR (
+            (v_chat IS NULL) IS DISTINCT FROM (v_thread IS NULL)
+       ) THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'nekorrektnyy_vhod'::text,
+            'Нужны operation и dialog_id либо trusted service chat+thread.'::text,
+            NULL::timestamptz,
+            v_dialog_id, v_chat, v_thread, NULL::text,
+            NULL::text, NULL::text, NULL::text, NULL::uuid,
+            NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    SELECT
+        t.dialog_id,
+        t.sluzhebnyy_chat_id,
+        t.message_thread_id,
+        t.status AS topic_status,
+        d.vladelec,
+        d.status AS dialog_status,
+        d.etap,
+        d.tekushchiy_menedzher_id,
+        d.versiya_dialoga,
+        d.pokolenie_ozhidaniya
+      INTO v_row
+      FROM qbit_bot_pervichnogo_obrascheniya.operator_telegram_temy AS t
+      JOIN qbit_bot_pervichnogo_obrascheniya.dialogi AS d
+        ON d.id = t.dialog_id
+     WHERE (v_dialog_id IS NULL OR t.dialog_id = v_dialog_id)
+       AND (
+            v_chat IS NULL
+            OR (
+                t.sluzhebnyy_chat_id = v_chat
+                AND t.message_thread_id = v_thread
+            )
+       )
+     LIMIT 1;
+
+    IF NOT FOUND THEN
+        RETURN QUERY SELECT
+            v_operaciya, 'otkaz'::text, 'operator_sostoyanie_ne_naydeno'::text,
+            'Operator topic/dialog mapping не найден или trusted chat/thread не совпал.'::text,
+            NULL::timestamptz,
+            v_dialog_id, v_chat, v_thread, NULL::text,
+            NULL::text, NULL::text, NULL::text, NULL::uuid,
+            NULL::bigint, NULL::bigint;
+        RETURN;
+    END IF;
+
+    RETURN QUERY SELECT
+        v_operaciya, 'uspeshno'::text, NULL::text,
+        'Возвращено только operator state для CAS callback/manual reply; client content и PII не раскрываются.'::text,
+        NULL::timestamptz,
+        v_row.dialog_id,
+        v_row.sluzhebnyy_chat_id,
+        v_row.message_thread_id,
+        v_row.topic_status,
+        v_row.vladelec,
+        v_row.dialog_status,
+        v_row.etap,
+        v_row.tekushchiy_menedzher_id,
+        v_row.versiya_dialoga,
+        v_row.pokolenie_ozhidaniya;
+END
+$fn$;
+
+COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb) IS
+'DB-03E v0.3: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
+
+RESET ROLE;
+
+-- ===========================================================================
+-- 3. PERSISTENT INITIATIVE OPT-OUT / EXPLICIT OPT-IN
 -- ===========================================================================
 
 SET LOCAL ROLE qbit_test_owner;
@@ -1020,7 +1151,7 @@ COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(jsonb) 
 'DB-03E: current fenced bot worker creates stable group nuzhen_chelovek mirror intent, cancels bot wait/reminders/internal job and unstarted bot actions, moves stage to peredacha_cheloveku, but deliberately keeps owner=bot until DB-03D2 Take.';
 
 -- ===========================================================================
--- 3. ATOMIC DUE REMINDER / LOSS DISCOVERY
+-- 5. ATOMIC DUE REMINDER / LOSS DISCOVERY
 -- ===========================================================================
 
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(
@@ -1234,15 +1365,17 @@ COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_na
 RESET ROLE;
 
 -- ===========================================================================
--- 5. PRIVILEGES + STATIC SECURITY ASSERTIONS
+-- 6. PRIVILEGES + STATIC SECURITY ASSERTIONS
 -- ===========================================================================
 
 REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_zadaniya(jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(jsonb) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_zadaniya(jsonb) TO qbit_test_bot;
+GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb) TO qbit_test_sluzhebnyy;
 GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy(jsonb) TO qbit_test_bot;
 GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka(jsonb) TO qbit_test_bot;
 GRANT EXECUTE ON FUNCTION qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(jsonb) TO qbit_test_bot;
@@ -1261,6 +1394,7 @@ BEGIN
          WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'poluchit_soderzhimoe_zadaniya',
+                'poluchit_sostoyanie_operatora',
                 'ustanovit_zapret_iniciativy',
                 'zaprosit_cheloveka',
                 'obrabotat_sleduyushchee_napominanie'
@@ -1294,18 +1428,27 @@ BEGIN
             RAISE EXCEPTION 'PUBLIC unexpectedly has EXECUTE on %', v_fn.proname;
         END IF;
 
-        IF NOT pg_catalog.has_function_privilege(
-            'qbit_test_bot', v_fn.oid, 'EXECUTE'
-        ) THEN
-            RAISE EXCEPTION 'qbit_test_bot lacks EXECUTE on %', v_fn.proname;
-        END IF;
-
-        IF pg_catalog.has_function_privilege(
-            'qbit_test_sluzhebnyy', v_fn.oid, 'EXECUTE'
-        ) THEN
-            RAISE EXCEPTION
-                'qbit_test_sluzhebnyy unexpectedly has EXECUTE on client DB-03E function %',
-                v_fn.proname;
+        IF v_fn.proname = 'poluchit_sostoyanie_operatora' THEN
+            IF NOT pg_catalog.has_function_privilege(
+                'qbit_test_sluzhebnyy', v_fn.oid, 'EXECUTE'
+            )
+            OR pg_catalog.has_function_privilege(
+                'qbit_test_bot', v_fn.oid, 'EXECUTE'
+            ) THEN
+                RAISE EXCEPTION
+                    'DB-03E operator-state privilege split is wrong';
+            END IF;
+        ELSE
+            IF NOT pg_catalog.has_function_privilege(
+                'qbit_test_bot', v_fn.oid, 'EXECUTE'
+            )
+            OR pg_catalog.has_function_privilege(
+                'qbit_test_sluzhebnyy', v_fn.oid, 'EXECUTE'
+            ) THEN
+                RAISE EXCEPTION
+                    'DB-03E client function privilege split is wrong for %',
+                    v_fn.proname;
+            END IF;
         END IF;
     END LOOP;
 
@@ -1316,13 +1459,14 @@ BEGIN
          WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'poluchit_soderzhimoe_zadaniya',
+                'poluchit_sostoyanie_operatora',
                 'ustanovit_zapret_iniciativy',
                 'zaprosit_cheloveka',
                 'obrabotat_sleduyushchee_napominanie'
            )
            AND p.prosecdef
-    ) <> 4 THEN
-        RAISE EXCEPTION 'DB-03E expected exactly 4 SECURITY DEFINER functions';
+    ) <> 5 THEN
+        RAISE EXCEPTION 'DB-03E expected exactly 5 SECURITY DEFINER functions';
     END IF;
 
     FOREACH v_role IN ARRAY ARRAY[
@@ -1353,7 +1497,7 @@ END
 $db03e$;
 
 -- ===========================================================================
--- 6. DISPOSABLE BEHAVIOR PROBE
+-- 7. DISPOSABLE BEHAVIOR PROBE
 -- ===========================================================================
 
 SAVEPOINT db03e_probe;
@@ -1363,6 +1507,7 @@ DECLARE
     r1 record;
     c1 record;
     content1 record;
+    operator_state record;
     optout1 record;
     optout_dup record;
     r2 record;
@@ -1445,6 +1590,25 @@ BEGIN
         RAISE EXCEPTION
             'DB-03E fenced source-content read failed: %',
             row_to_json(content1);
+    END IF;
+
+    SELECT *
+      INTO operator_state
+      FROM qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(
+        jsonb_build_object(
+            'operaciya_id', 'db03e_operator_state_1',
+            'dialog_id', c1.dialog_id
+        )
+      );
+
+    IF operator_state.rezultat <> 'uspeshno'
+       OR operator_state.dialog_id IS DISTINCT FROM c1.dialog_id
+       OR operator_state.vladelec IS DISTINCT FROM 'bot'
+       OR operator_state.versiya_dialoga IS DISTINCT FROM c1.versiya_dialoga
+       OR operator_state.sluzhebnyy_chat_id IS DISTINCT FROM 'db03e_service_group' THEN
+        RAISE EXCEPTION
+            'DB-03E narrow operator-state lookup failed: %',
+            row_to_json(operator_state);
     END IF;
 
     SELECT *
@@ -1855,7 +2019,7 @@ ROLLBACK TO SAVEPOINT db03e_probe;
 RELEASE SAVEPOINT db03e_probe;
 
 -- ===========================================================================
--- 7. POST-PROBE ASSERTIONS
+-- 8. POST-PROBE ASSERTIONS
 -- ===========================================================================
 
 DO $db03e$
@@ -1890,7 +2054,7 @@ $db03e$;
 COMMIT;
 
 -- ===========================================================================
--- 8. SINGLE RESULT SET FOR SUPABASE STUDIO
+-- 9. SINGLE RESULT SET FOR SUPABASE STUDIO
 -- ===========================================================================
 
 SELECT jsonb_build_object(
@@ -1905,6 +2069,7 @@ SELECT jsonb_build_object(
          WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
            AND p.proname IN (
                 'poluchit_soderzhimoe_zadaniya',
+                'poluchit_sostoyanie_operatora',
                 'ustanovit_zapret_iniciativy',
                 'zaprosit_cheloveka',
                 'obrabotat_sleduyushchee_napominanie'
@@ -1931,9 +2096,19 @@ SELECT jsonb_build_object(
         'qbit_test_bot',
         'qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(jsonb)',
         'EXECUTE'
+    )
+    AND NOT pg_catalog.has_function_privilege(
+        'qbit_test_bot',
+        'qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb)',
+        'EXECUTE'
     ),
-    'service_execute_denied',
-    NOT pg_catalog.has_function_privilege(
+    'service_execute_ok',
+    pg_catalog.has_function_privilege(
+        'qbit_test_sluzhebnyy',
+        'qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb)',
+        'EXECUTE'
+    )
+    AND NOT pg_catalog.has_function_privilege(
         'qbit_test_sluzhebnyy',
         'qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_zadaniya(jsonb)',
         'EXECUTE'
@@ -1978,6 +2153,6 @@ SELECT jsonb_build_object(
          WHERE i.akkaunt_kanala_id = 'db03e_client_bot'
     ),
     'production_untouched', true,
-    'migration_version', 'DB-03E_v0.2',
+    'migration_version', 'DB-03E_v0.3',
     'next_stage', 'PRE-02E_runtime_then_WF-02B2'
 ) AS db03e_result;
