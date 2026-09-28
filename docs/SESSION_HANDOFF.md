@@ -72,3 +72,13 @@ Migration v0.2 содержит rollback behavior probes, включая exact s
 Проверено статически: JSON валиден, 14 нод, `active=false`, secrets/Credential IDs/`instanceId` отсутствуют. Durable ingress использует DB-03C1; queue claim node подготовлен под DB-03C3, но намеренно disabled до WF-02B2B.
 
 Следующая небольшая задача: **WF-02B2B — processing claim + exact source/context/rate-limit/PII/guard + finish/retry.** Не расширять одновременно в outgoing/OpenAI/RAG/service Telegram.
+
+
+### WF-02B2B
+
+Offline завершён client processing shell:
+`workflows/WF-02B2B_client_processing_shell_n8n_2.41.0.json`.
+
+Он доводит безопасную локальную цепочку до guard gate и всегда формирует retry для rate-limit, voice/STT pending, PII/system errors и PRE-02E guard pending. Queue claim остаётся disabled до применения DB-03E.
+
+Следующий небольшой блок: **WF-02B2C — OpenAI thematic guard после PRE-02E runtime verification**. Не добавлять одновременно RAG/outgoing/service workflow.

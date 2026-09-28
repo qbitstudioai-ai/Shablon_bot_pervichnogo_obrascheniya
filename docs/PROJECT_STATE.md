@@ -375,6 +375,24 @@ DB-03E v0.5 статически проверен в репозитории, н�
 
 Следующий маленький блок: **WF-02B2B — processing claim → source/context/rate-limit/PII/guard → finish/retry**. DB-03E по-прежнему не применять без отдельного разрешения.
 
+
+## Последний завершённый небольшой workflow-блок
+
+**WF-02B2B — безопасный processing shell до OpenAI guard. Статус: завершено offline 28 сентября 2026 года.**
+
+Создан `workflows/WF-02B2B_client_processing_shell_n8n_2.41.0.json`. Цепочка:
+`claim → fenced exact source (DB-03E) → context → rate-limit → local PII → save deidentification → guard gate → finish/retry`.
+
+Безопасные ограничения:
+- workflow `active=false`;
+- `Забрать следующее задание` остаётся `disabled=true`, пока DB-03E v0.5 не применён и не проверен на Supabase;
+- voice не передаётся внешнему AI и возвращается в `povtor` с `local_stt_pending` до отдельного STT-блока;
+- OpenAI guard не имитируется: до PRE-02E normal path возвращается в `povtor` с `pre02e_guard_pending`;
+- rate-limit и PII/system errors также формируют fenced retry через `zavershit_zadanie_obrabotki`;
+- OpenRouter/RAG/outgoing/service Telegram отсутствуют.
+
+Следующий маленький блок: **WF-02B2C — реальный OpenAI thematic guard после runtime verification PRE-02E**.
+
 ## Текущая задача
 
 **PRE-02E — OpenAI profile в амстердамском n8n 2.41.0. Статус: подготовлено, runtime ожидается.**
