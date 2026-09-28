@@ -34,21 +34,22 @@ PRE-02E остаётся `[~]` до реального запуска с test Op
 - два финальных workflow с разными client/service Credentials;
 - RAG gated до DB-05.
 
-### DB-03E v0.4
+### DB-03E v0.5
 
 Подготовлены, но **не применены**:
 - `sql/DB-03E_runtime_gap_closure.sql`;
-- `sql/DB-03E_v0.4_verify.sql`.
+- `sql/DB-03E_v0.5_verify.sql`.
 
-DB-03E добавляет шесть narrow API, без выдачи direct table DML:
+DB-03E добавляет семь narrow API, без выдачи direct table DML:
 1. `poluchit_soderzhimoe_zadaniya(jsonb)` — current live worker/fencing получает `identifikator_kanala_id` + source raw text/provider payload своего claimed job для recoverable local rate-limit/guard/PII/STT;
 2. `poluchit_sostoyanie_operatora(jsonb)` — service-only narrow state/version по известному dialog или forum topic для CAS Take/Return/manual reply, без client content/PII;
 3. `sozdat_preduprezhdenie_tematiky(jsonb)` — durable warning action для exact thematic violation; blocking third warning остаётся sendable только через DB-verified exception;
-4. `ustanovit_zapret_iniciativy(jsonb)` — persistent opt-out / explicit opt-in;
-5. `zaprosit_cheloveka(jsonb)` — stable group `nuzhen_chelovek`, owner остаётся bot до service Take;
-6. `obrabotat_sleduyushchee_napominanie(jsonb)` — один due reminder/loss через SKIP LOCKED и существующую DB-03C4 логику.
+4. `poluchit_soderzhimoe_ishodyashchego(jsonb)` — fenced exact outgoing text/payload + final pre-send state recheck; sender не получает table SELECT;
+5. `ustanovit_zapret_iniciativy(jsonb)` — persistent opt-out / explicit opt-in;
+6. `zaprosit_cheloveka(jsonb)` — stable group `nuzhen_chelovek`, owner остаётся bot до service Take;
+7. `obrabotat_sleduyushchee_napominanie(jsonb)` — один due reminder/loss через SKIP LOCKED и существующую DB-03C4 логику.
 
-Migration v0.2 содержит rollback behavior probes, включая exact source-content read; verifier read-only проверяет 6 функций, metadata, privileges и отсутствие runtime direct DML.
+Migration v0.2 содержит rollback behavior probes, включая exact source-content read; verifier read-only проверяет 7 функций, metadata, privileges и отсутствие runtime direct DML.
 
 ## Что запрещено считать готовым
 

@@ -143,3 +143,10 @@ DB-03E v0.4 закрывает это без общего обхода block:
 - произвольный bot action при block по-прежнему отменяется;
 - new input/stale version/Take/closed dialog имеют приоритет и могут отменить warning;
 - confirmed/unknown фиксируются обычным DB-03C4 result API.
+
+
+## Содержимое outgoing action перед внешним API
+
+Claim `zabrat_ishodyashchee_deystvie` намеренно не раскрывал текст из `soobshcheniya`, а bot runtime role не имеет table SELECT. Поэтому WF-02B2 sender не мог получить текст без нарушения privilege model.
+
+DB-03E v0.5 добавляет `poluchit_soderzhimoe_ishodyashchego(jsonb)`: только текущий live sender worker/fencing получает exact text своего claimed action. Функция повторно проверяет dialog version, owner, manager ownership, logical block/third-warning exception и initiative opt-out. Если state изменился между claim и внешним API, action отменяется до Telegram. После возврата payload остаётся неизбежное короткое окно между последней DB-проверкой и внешним API; абсолютная атомарность с Telegram по-прежнему не обещается.

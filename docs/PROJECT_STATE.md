@@ -341,20 +341,21 @@ AI-слой содержит четыре OpenRouter HTTP-вызова: тема
 
 По фактически применённым SQL DB-03 зафиксирована правильная runtime-схема: client webhook выполняет durable ingress и HTTP 200 только после commit; processing, outgoing, topic/mirror и reminder workers работают отдельно через narrow API, lease/fencing и stable keys. Финальная поставка возвращается к двум логическим workflow с разными client/service Telegram и PostgreSQL Credentials.
 
-Подготовлен post-DB03 gap-fix **DB-03E v0.4**:
+Подготовлен post-DB03 gap-fix **DB-03E v0.5**:
 - `poluchit_soderzhimoe_zadaniya(jsonb)` — recoverable channel identity + raw source только текущему fenced worker для локального rate-limit/guard/PII/STT;
 - `poluchit_sostoyanie_operatora(jsonb)` — service-only owner/status/stage/current manager/version по известному dialog/topic без переписки/PII; основа CAS Take/Return/manual reply;
 - `sozdat_preduprezhdenie_tematiky(jsonb)` — stable warning intent для exact recorded violation; третье предупреждение разрешено sender-у после логической блокировки только если БД подтверждает связь с тем самым blocking violation;
+- `poluchit_soderzhimoe_ishodyashchego(jsonb)` — current sender lease получает exact message text/payload своего action и проходит final owner/version/block/opt-out recheck непосредственно перед внешним API; stale action отменяется до Telegram;
 - `ustanovit_zapret_iniciativy(jsonb)`;
 - `zaprosit_cheloveka(jsonb)`;
 - `obrabotat_sleduyushchee_napominanie(jsonb)`.
 
 Файлы:
 - `sql/DB-03E_runtime_gap_closure.sql`;
-- `sql/DB-03E_v0.4_verify.sql`;
+- `sql/DB-03E_v0.5_verify.sql`;
 - `docs/WF-02B1_DB03_N8N_ARCHITECTURE.md`.
 
-DB-03E v0.4 статически проверен в репозитории, но **на Supabase не применён**. Прямые права SELECT/INSERT/UPDATE/DELETE runtime-ролям не добавляются. Для применения DB-03E в test нужен отдельный явный приказ Павла; после применения обязателен read-only verifier.
+DB-03E v0.5 статически проверен в репозитории, но **на Supabase не применён**. Прямые права SELECT/INSERT/UPDATE/DELETE runtime-ролям не добавляются. Для применения DB-03E в test нужен отдельный явный приказ Павла; после применения обязателен read-only verifier.
 
 ## Текущая задача
 
