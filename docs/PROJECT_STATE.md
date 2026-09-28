@@ -335,11 +335,24 @@ AI-слой содержит четыре OpenRouter HTTP-вызова: тема
 
 Полная карта и критерии WF-02B сохранены в [WF-02A_WORKFLOW_AUDIT](WF-02A_WORKFLOW_AUDIT.md). Supabase, Credentials, production и рабочий трафик в WF-02A не менялись.
 
-## Следующая задача
+## Текущая задача
 
-**PRE-02E — выбрать и runtime-проверить OpenAI profile в амстердамском n8n 2.41.0.**
+**PRE-02E — OpenAI profile в амстердамском n8n 2.41.0. Статус: подготовлено, runtime ожидается.**
 
-Нужно определить конкретный LLM model ID, embedding model ID и фактическую размерность, выполнить разрешённые LLM + document/query embedding smoke-tests и убедиться, что секреты не попадают в workflow/GitHub. Supabase и DB-04/DB-05 до фиксации этого профиля не менять; полный WF-02B не начинать автоматически в этой же сессии.
+28 сентября 2026 года по актуальной официальной документации выбран candidate profile:
+- guard/planner: `gpt-6-luna`;
+- grounded клиентский ответ: `gpt-6-sol`;
+- document/query embeddings: `text-embedding-3-large`, candidate dimension `1024`.
+
+Размерность 1024 выбрана осознанно: OpenAI поддерживает уменьшение `text-embedding-3-large` через `dimensions`, а обычный pgvector HNSW `vector` имеет лимит 2000 dimensions; default 3072 в этот профиль не помещается. Но dimension **ещё не считается фактически подтверждённой**, пока n8n smoke-test не вернёт векторы длины 1024.
+
+Созданы:
+- `docs/PRE-02E_OPENAI_PROFILE.md`;
+- `workflows/PRE-02E_openai_profile_smoke_n8n_2.41.0.json`.
+
+Smoke workflow неактивен, использует только синтетические данные, Responses API со Structured Outputs и `store=false`, отдельно проверяет Luna, Sol, document embedding и query embedding. Secrets, Authorization, Credential IDs и `instanceId` в файл не включены.
+
+**Оставшийся критерий PRE-02E:** фактически запустить smoke workflow в амстердамском n8n 2.41.0 с test OpenAI Credential и получить `pre02e_status=runtime_verified`. До этого PRE-02E не закрывать, DB-04/DB-05 не начинать и полный WF-02B не считать разрешённым по зависимости.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

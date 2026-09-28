@@ -1,12 +1,12 @@
 # Профиль обработки PRE-02
 
-Статус: в работе. Выбор провайдера и моделей зафиксирован; runtime-проверка API и калибровка порога поиска ещё не выполнены.
+Статус: в работе. Провайдер OpenAI зафиксирован; PRE-02E candidate profile выбран и smoke workflow подготовлен, но runtime-проверка в амстердамском n8n ещё не выполнена. PRE-02C/PRE-02D также не закрыты.
 
 ## Внешний AI-провайдер
 
 28 сентября 2026 года Павел отказался от OpenRouter как целевого профиля и перенёс рабочий n8n на сервер в Амстердаме. Новый целевой провайдер для **LLM и embeddings — OpenAI**.
 
-Точный LLM model ID, embedding model ID, размерность, стоимость и runtime-настройки ещё не зафиксированы и должны быть выбраны в новой подзадаче PRE-02E по актуальной официальной документации и smoke-test из n8n. На момент решения официальная документация OpenAI подтверждает endpoint `/v1/embeddings` и модели `text-embedding-3-small`, `text-embedding-3-large`; выбор между ними не делается в этой сессии.
+В PRE-02E выбран **кандидат**: `gpt-6-luna` для guard/planner, `gpt-6-sol` для grounded клиентского ответа и `text-embedding-3-large` с `dimensions=1024` для document/query embeddings. Выбор сделан по актуальной официальной документации OpenAI и ограничению pgvector HNSW для обычного `vector` до 2000 dimensions. Профиль ещё не считается runtime-проверенным: до фактического smoke-test в n8n model IDs и dimension не фиксируются в DB-04/DB-05.
 
 Supabase/pgvector остаётся на российском сервере. DB-04/DB-05 ещё не создавались, поэтому переход с Qwen/OpenRouter на OpenAI сейчас **не требует изменения существующего DB-03**. Размерность будущих vector-полей фиксируется только после PRE-02E.
 
@@ -14,7 +14,7 @@ Supabase/pgvector остаётся на российском сервере. DB-
 
 ## LLM
 
-Целевой провайдер: **OpenAI**. Конкретная модель выбирается в PRE-02E. CORE по-прежнему требует структурированный и проверяемый результат; LLM не получает права выбирать schema, Credential, адресата или выполнять исходящее действие самостоятельно.
+Целевой провайдер: **OpenAI**. PRE-02E candidate: `gpt-6-luna` для частых guard/planner вызовов и `gpt-6-sol` для grounded клиентского ответа. LLM вызываются через Responses API со Structured Outputs; для новых запросов `store=false`. CORE по-прежнему требует структурированный и проверяемый результат; LLM не получает права выбирать schema, Credential, адресата или выполнять исходящее действие самостоятельно. Runtime-доступность моделей ещё должна быть подтверждена smoke-test.
 
 ## Embeddings
 
@@ -27,11 +27,11 @@ Supabase/pgvector остаётся на российском сервере. DB-
 - векторы и similarity search хранятся/выполняются только в российском Supabase/pgvector;
 - смешивать разные embedding-профили в одном активном индексе нельзя.
 
-Точный model ID и размерность определяются до DB-04/DB-05.
+PRE-02E candidate: `text-embedding-3-large`, `dimensions=1024`, одинаково для document chunks и query embeddings. Default 3072 не подходит обычному pgvector `vector` HNSW лимиту 2000 dimensions; 1024 официально поддерживается параметром OpenAI `dimensions`. Это значение становится DB-профилем только после успешного runtime smoke-test.
 
 ## Подключение n8n
 
-Рабочий n8n находится в Амстердаме. В новой сессии нужно проверить фактическую версию n8n, штатные OpenAI nodes/Credentials этой версии и выбрать наиболее простой переносимый способ для LLM и embeddings. API keys в JSON не сохраняются.
+Рабочий n8n находится в Амстердаме; фактическая версия подтверждена Павлом: **2.41.0**. Для PRE-02E подготовлен переносимый HTTP Request adapter через штатный credential type `openAiApi`: Responses API для LLM и `/v1/embeddings` для embeddings. API keys/Credential IDs в JSON не сохраняются. Файл smoke-test: `workflows/PRE-02E_openai_profile_smoke_n8n_2.41.0.json`; runtime ещё не выполнен.
 
 ## Голос и локальный STT
 
@@ -107,7 +107,7 @@ Supabase/pgvector остаётся на российском сервере. DB-
 
 OpenRouter-путь PRE-02A/PRE-02B остановлен после смены провайдера и сохраняется только как история проверки. Актуальный путь продолжает новая задача PRE-02E:
 
-- **PRE-02E** — по текущему workflow и официальной документации выбрать OpenAI LLM/embedding profile, проверить Credentials и smoke-test LLM + document/query embeddings из амстердамского n8n, зафиксировать фактическую размерность;
+- **PRE-02E** — candidate profile уже выбран и smoke workflow подготовлен: Luna/Sol + `text-embedding-3-large/1024`; остаётся фактический запуск в амстердамском n8n 2.41.0 и проверка Credential/API/model access;
 - **PRE-02C** — после выбора OpenAI embedding-профиля уточнить tokenizer/chunking runtime;
 - **PRE-02D** — после PRE-02E/PRE-02C прогнать контрольный набор и откалибровать similarity threshold.
 
@@ -123,7 +123,7 @@ OpenRouter-путь PRE-02A/PRE-02B остановлен после смены �
 
 ## Что осталось до закрытия PRE-02
 
-1. PRE-02E: выбрать и runtime-проверить OpenAI LLM + embedding profile в амстердамском n8n; отдельно проверить document embedding и query embedding и зафиксировать размерность.
+1. PRE-02E: импортировать подготовленный smoke workflow, подключить test OpenAI Credential и получить `pre02e_status=runtime_verified`; только после этого считать Luna/Sol + `text-embedding-3-large/1024` фактически подтверждённым профилем.
 2. PRE-02C: согласовать tokenizer/chunking с выбранным OpenAI embedding-профилем.
 3. PRE-02D: прогнать контрольный набор и выбрать similarity threshold.
 4. Только после этого начинать DB-04/DB-05 и фиксировать vector dimension в SQL.

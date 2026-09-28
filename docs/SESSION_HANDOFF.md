@@ -4,36 +4,51 @@
 
 ## Где остановились
 
-**WF-02A завершена.** Свежий workflow после переноса n8n в Амстердам полностью проверен на уровне JSON и сопоставлен с действующим DB-03 контрактом.
+**WF-02A завершена. PRE-02E подготовлена, но ещё не закрыта runtime-проверкой.**
+
+Актуальный main до этого изменения: `6aa6ebefa0e7f0fe46f2b5ba1622fc01bc294a94`.
 
 Фактическая версия амстердамского n8n подтверждена Павлом: **2.41.0**.
 
-Источник аудита: `Шаблон — служебный Telegram и перехват диалогов — версия 0.1.json`. В нём 168 нод; `active=false`; `pinData` пуст; клиентский и служебный/операторский pipeline находятся в одном workflow. Согласованную бизнес-логику нужно максимально сохранить.
+По актуальной официальной документации подготовлен candidate OpenAI profile:
+- guard/planner — `gpt-6-luna`;
+- grounded клиентский ответ — `gpt-6-sol`;
+- document/query embeddings — `text-embedding-3-large`, `dimensions=1024`.
 
-Главный вывод: текущий JSON нельзя считать совместимым с DB-03. Старые PostgreSQL-функции и соседняя логика должны быть перестроены под DB-03 JSONB API, включая worker id, lease/fencing number, expected dialog version, stable idempotency keys и разделение результатов внешней отправки `confirmed/retry/unknown`.
+1024 теперь является осознанным candidate, а не наследием старого Qwen workflow: OpenAI поддерживает параметр `dimensions`, а обычный pgvector HNSW `vector` индексирует до 2000 dimensions. Default 3072 для `text-embedding-3-large` поэтому не подходит текущей HNSW-архитектуре. Окончательно 1024 фиксируется только после runtime.
 
-Четыре AI-вызова сейчас идут через OpenRouter: тематический контроль, план поиска, embedding поискового запроса и решение менеджера. Целевой провайдер — OpenAI, но конкретные model IDs и vector dimension **ещё не выбраны**. Старое значение `1024` не переносить как решение.
+Подготовлены:
+- `docs/PRE-02E_OPENAI_PROFILE.md`;
+- `workflows/PRE-02E_openai_profile_smoke_n8n_2.41.0.json`.
 
-Knowledge/RAG-ветку пока не оживлять: DB-04/DB-05 не начинались, а `poisk_aktivnyh_znaniy(...vector(1024)...)` относится к будущему DB-05. Порядок: PRE-02E → затем DB-04/DB-05 и WF-02B в согласованной последовательности.
+Smoke workflow:
+- `active=false`;
+- 10 нод;
+- синтетические тестовые данные;
+- LLM через `POST /v1/responses`;
+- Structured Outputs;
+- `store=false`;
+- embeddings через `POST /v1/embeddings`;
+- два отдельных embedding-вызова;
+- финальная проверка dimension=1024;
+- API key, Bearer/Authorization, Credential IDs и `instanceId` отсутствуют.
 
-Проверка экспорта: явных секретов, API keys, Authorization/Bearer, Credential IDs, pinData и реальных сообщений не найдено. `meta.instanceId` присутствует и должен быть удалён из канонического переносимого экспорта. Отсутствие `credentials` в JSON означает, что живые подключения Credentials этим файлом не подтверждены.
+В n8n 2.41.0 штатный OpenAI Credential type — `openAiApi`. В четырёх HTTP Request нодах после импорта нужно выбрать один и тот же **test OpenAI Credential**. Ключ хранится только в Credentials UI.
 
-Локальный STT указан как `http://stt-local:8000/v1/transcriptions`. После переноса n8n в Амстердам доступность этого адреса до российского/локального STT не доказана; проверить отдельно. Сырой voice автоматически в OpenAI не отправлять.
+## Текущий блокирующий критерий
 
-Подробная карта: `docs/WF-02A_WORKFLOW_AUDIT.md`.
+PRE-02E остаётся `[~]` до фактического запуска smoke workflow в амстердамском n8n и результата последней ноды:
 
-Canonical qBit schema остаётся `qbit_bot_pervichnogo_obrascheniya`; DB-01/DB-02/DB-03 проверены. Supabase сейчас не менять.
+`pre02e_status = runtime_verified`.
 
-## Следующая одна задача
+Если модель недоступна account-у или API возвращает ошибку, не подменять её автоматически: сохранить точный error и пересмотреть profile по фактической доступности.
 
-**PRE-02E — OpenAI runtime profile для n8n 2.41.0.**
+## После успешного runtime
 
-В новой сессии:
-1. проверить актуальный `main`, README, PROJECT_STATE, этот handoff и `docs/specs/PROCESSING_PROFILE.md`;
-2. выбрать конкретный OpenAI LLM model ID и embedding model ID по актуальной документации;
-3. выбрать и фактически проверить размерность embeddings, не наследуя `1024` из старого workflow;
-4. выполнить разрешённые smoke-tests LLM, document embedding и query embedding в амстердамском n8n;
-5. зафиксировать способ подключения без секретов в workflow/GitHub;
-6. обновить PRE-02E/PROJECT_STATE/handoff и завершить сессию.
+1. Зафиксировать PRE-02E как `[x]` и dimension=1024 как проверенный profile.
+2. Перейти к PRE-02C tokenizer/chunking.
+3. Затем PRE-02D retrieval calibration.
+4. Только после закрытия PRE-02 проектировать DB-04/DB-05 и интегрировать knowledge branch.
+5. WF-02B может готовиться только с учётом проверенного OpenAI profile и DB-03; не считать knowledge/RAG ветку рабочей до DB-05.
 
-Не выполнять в PRE-02E без отдельного разрешения Павла: production changes, переключение рабочего трафика, удаление данных/серверов, перенос Supabase. DB-04/DB-05 и полный WF-02B не начинать автоматически.
+Supabase, production, рабочий трафик, реальные Credentials и серверы в подготовке PRE-02E не менялись.

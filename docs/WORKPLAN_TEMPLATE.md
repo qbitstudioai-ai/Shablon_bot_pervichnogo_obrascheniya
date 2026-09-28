@@ -29,7 +29,7 @@ DOC-03 не требует писать SQL. Частные сведения к�
 | [~] PRE-02B | PRE-02A | Исторический OpenRouter/Qwen embedding-путь: остановлен до runtime после решения 28.09.2026 перейти на OpenAI; будущая vector dimension по нему не фиксируется |
 | [ ] PRE-02C | PRE-02E | После выбора OpenAI embedding model проверены parser/tokenizer runtime и воспроизводимый chunking; зафиксирован способ исполнения без секретов |
 | [ ] PRE-02D | PRE-02E, PRE-02C | На минимум 60 обезличенных сценариях прогнан контрольный набор; threshold проверен в диапазоне 0.45–0.85 шагом 0.05, выбран профиль и сохранены метрики retrieval/ошибок |
-| [~] PRE-02E | PRE-01 | В амстердамском n8n выбран и runtime-проверен OpenAI profile: конкретный LLM model ID, embedding model ID и размерность; выполнены LLM smoke-test, document embedding и query embedding; секреты не попали в workflow/GitHub; только после этого разрешено проектировать DB-04/DB-05 vector-поля |
+| [~] PRE-02E | PRE-01 | 28.09.2026 candidate подготовлен: `gpt-6-luna` guard/planner, `gpt-6-sol` grounded answer, `text-embedding-3-large` / 1024; создан безопасный `workflows/PRE-02E_openai_profile_smoke_n8n_2.41.0.json` без secrets/Credential IDs. Статус остаётся `[~]` до фактического `pre02e_status=runtime_verified` в амстердамском n8n 2.41.0; DB-04/DB-05 до этого не начинать |
 | [ ] PRE-03 | PRE-01 | Определены сроки хранения, резервные копии, восстановление, внешний мониторинг, канал аварийного оповещения, ограничения затрат и нагрузка для тестов |
 
 Модель и порог не выбираются «по памяти». Ограничения проверяются по официальным источникам и пробным документам. Название Astru, выбранной для управления проектом в чате, само по себе не задаёт модель будущего клиентского бота или embeddings.
