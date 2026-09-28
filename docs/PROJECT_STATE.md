@@ -341,17 +341,18 @@ AI-слой содержит четыре OpenRouter HTTP-вызова: тема
 
 По фактически применённым SQL DB-03 зафиксирована правильная runtime-схема: client webhook выполняет durable ingress и HTTP 200 только после commit; processing, outgoing, topic/mirror и reminder workers работают отдельно через narrow API, lease/fencing и stable keys. Финальная поставка возвращается к двум логическим workflow с разными client/service Telegram и PostgreSQL Credentials.
 
-Подготовлен post-DB03 gap-fix **DB-03E**:
+Подготовлен post-DB03 gap-fix **DB-03E v0.2**:
+- `poluchit_soderzhimoe_zadaniya(jsonb)` — recoverable raw source только текущему fenced worker для локального PII/STT;
 - `ustanovit_zapret_iniciativy(jsonb)`;
 - `zaprosit_cheloveka(jsonb)`;
 - `obrabotat_sleduyushchee_napominanie(jsonb)`.
 
 Файлы:
 - `sql/DB-03E_runtime_gap_closure.sql`;
-- `sql/DB-03E_v0.1_verify.sql`;
+- `sql/DB-03E_v0.2_verify.sql`;
 - `docs/WF-02B1_DB03_N8N_ARCHITECTURE.md`.
 
-DB-03E статически проверен в репозитории, но **на Supabase не применён**. Прямые права SELECT/INSERT/UPDATE/DELETE runtime-ролям не добавляются. Для применения DB-03E в test нужен отдельный явный приказ Павла; после применения обязателен read-only verifier.
+DB-03E v0.2 статически проверен в репозитории, но **на Supabase не применён**. Прямые права SELECT/INSERT/UPDATE/DELETE runtime-ролям не добавляются. Для применения DB-03E в test нужен отдельный явный приказ Павла; после применения обязателен read-only verifier.
 
 ## Текущая задача
 
@@ -372,7 +373,7 @@ Smoke workflow неактивен, использует только синте�
 
 **Оставшийся критерий PRE-02E:** фактически запустить smoke workflow в амстердамском n8n 2.41.0 с test OpenAI Credential и получить `pre02e_status=runtime_verified`. До этого PRE-02E не закрывать, DB-04/DB-05 не начинать и полный WF-02B не считать разрешённым по зависимости.
 
-**Параллельный blocker DB-03E:** SQL подготовлен, но не применён. WF-02B2 можно проектировать по контракту, однако runtime workflow нельзя считать проверенным до отдельного разрешённого применения DB-03E и успешного verifier.
+**Параллельный blocker DB-03E:** SQL подготовлен, но не применён. Перед сборкой WF-02B2 дополнительно обнаружен и закрыт в v0.2 recovery-gap: отдельный processing execution теперь сможет получить raw source content своего claimed job через fenced narrow API, не имея table SELECT. WF-02B2 можно проектировать по контракту, однако runtime workflow нельзя считать проверенным до отдельного разрешённого применения DB-03E и успешного verifier.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

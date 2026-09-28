@@ -35,6 +35,8 @@ Schedule worker вызывает `zabrat_zadanie_obrabotki({operaciya_id, worker
 
 Долгий вызов при необходимости продлевает аренду через `prodlit_arendu_zadaniya(jsonb)`. Завершение/повтор — только через `zavershit_zadanie_obrabotki(jsonb)`. Stale worker/version не переписывает новый state.
 
+До PII/STT worker вызывает `poluchit_soderzhimoe_zadaniya(jsonb)`. Функция выдаёт raw text/provider payload только текущему live worker по job + fencing + expected dialog version. Это нужно для восстановления после перезапуска n8n: сам claim намеренно не несёт raw content, а AI-safe context содержит только уже обезличенный текст. Возвращённый raw payload остаётся локальным и не передаётся в OpenAI.
+
 ## PII / context / guard
 
 Используются текущие DB-03 API:
@@ -103,13 +105,14 @@ DB ingress не принимает `callback` как message type. Извест�
 ## DB-03E
 
 Выявленные runtime gaps закрываются без прямого DML:
+- recoverable read exact source content текущего claimed job для локального PII/STT;
 - persistent opt-out/explicit opt-in;
 - stable group `nuzhen_chelovek` intent без преждевременной смены owner;
 - due reminder/loss discovery.
 
 Файлы:
-- `sql/DB-03E_runtime_gap_closure.sql`;
-- `sql/DB-03E_v0.1_verify.sql`.
+- `sql/DB-03E_runtime_gap_closure.sql` v0.2;
+- `sql/DB-03E_v0.2_verify.sql`.
 
 Они подготовлены в репозитории, но **не применяются к Supabase без отдельного разрешения Павла**.
 

@@ -1,4 +1,4 @@
--- DB-03E v0.1 read-only verifier
+-- DB-03E v0.2 read-only verifier
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Safe to run only AFTER DB-03E migration is explicitly authorized and applied.
 -- Makes no changes.
@@ -18,6 +18,7 @@ WITH funcs AS (
       ON r.oid = p.proowner
     WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
       AND p.proname IN (
+            'poluchit_soderzhimoe_zadaniya',
             'ustanovit_zapret_iniciativy',
             'zaprosit_cheloveka',
             'obrabotat_sleduyushchee_napominanie'
@@ -25,7 +26,7 @@ WITH funcs AS (
 ),
 checks AS (
     SELECT
-        count(*) = 3 AS functions_present,
+        count(*) = 4 AS functions_present,
         bool_and(prosecdef) AS security_definer_ok,
         bool_and(owner_name = 'qbit_test_owner') AS owner_ok,
         bool_and(
@@ -56,6 +57,12 @@ checks AS (
         ) AS public_execute_denied,
         bool_and(
             CASE proname
+                WHEN 'poluchit_soderzhimoe_zadaniya'
+                THEN pg_catalog.strpos(def, 'stale_lease_owner') > 0
+                     AND pg_catalog.strpos(def, 'arenda_istekla') > 0
+                     AND pg_catalog.strpos(def, 'payload_ishodnyy') > 0
+                     AND pg_catalog.strpos(def, 'tekst_ishodnyy') > 0
+                     AND pg_catalog.strpos(def, 'FOR UPDATE OF z, d') > 0
                 WHEN 'obrabotat_sleduyushchee_napominanie'
                 THEN pg_catalog.strpos(def, 'FOR UPDATE SKIP LOCKED') > 0
                      AND pg_catalog.strpos(def, 'podgotovit_napominanie') > 0
@@ -93,7 +100,7 @@ dml AS (
     ) AS runtime_direct_dml_denied
 )
 SELECT jsonb_build_object(
-    'verifier_version', 'DB-03E_v0.1_read_only',
+    'verifier_version', 'DB-03E_v0.2_read_only',
     'db03e_status',
     CASE
         WHEN c.functions_present
