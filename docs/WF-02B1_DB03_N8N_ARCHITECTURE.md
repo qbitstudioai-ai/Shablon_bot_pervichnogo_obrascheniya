@@ -131,3 +131,15 @@ DB-03E v0.3 добавляет `poluchit_sostoyanie_operatora(jsonb)` тольк
 - callback содержит version: `take:<dialog_id>:<version>` / `return:<dialog_id>:<version>`;
 - stale callback штатно получает conflict в DB-03D2;
 - обычное сообщение менеджера в forum topic сначала резолвит state по chat/thread, затем `sozdat_ruchnoe_ishodyashchee` получает эту expected version.
+
+
+## Третье тематическое предупреждение
+
+Нормативная спецификация требует: нарушение №1 → warning1, №2 → warning2, №3 → warning3 + logical block. DB-03C2 включает block непосредственно при третьем violation, поэтому обычный outgoing claim раньше отменял бы warning3 как сообщение заблокированной identity.
+
+DB-03E v0.4 закрывает это без общего обхода block:
+- `sozdat_preduprezhdenie_tematiky(jsonb)` создаёт stable action только по exact записанному violation;
+- `zabrat_ishodyashchee_deystvie(jsonb)` обновлён так, что blocked identity допускает только action, чей payload ссылается на реальный `narusheniya_tematiky` с `privelo_k_blokirovke=true` и сообщение помечено `tematicheskoe_preduprezhdenie`;
+- произвольный bot action при block по-прежнему отменяется;
+- new input/stale version/Take/closed dialog имеют приоритет и могут отменить warning;
+- confirmed/unknown фиксируются обычным DB-03C4 result API.
