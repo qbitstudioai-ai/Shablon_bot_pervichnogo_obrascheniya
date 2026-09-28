@@ -1,62 +1,39 @@
 # SESSION HANDOFF
 
-Обновлено: 25 сентября 2026.
+Обновлено: 28 сентября 2026.
 
 ## Где остановились
 
-Текущий Supabase-этап завершён.
+**WF-02A завершена.** Свежий workflow после переноса n8n в Амстердам полностью проверен на уровне JSON и сопоставлен с действующим DB-03 контрактом.
 
-DB-03 полностью завершён и проверен. DB-SCHEMA-01 и DB-SCHEMA-01F также закрыты.
+Фактическая версия амстердамского n8n подтверждена Павлом: **2.41.0**.
 
-Canonical qBit schema:
-`qbit_bot_pervichnogo_obrascheniya`.
+Источник аудита: `Шаблон — служебный Telegram и перехват диалогов — версия 0.1.json`. В нём 168 нод; `active=false`; `pinData` пуст; клиентский и служебный/операторский pipeline находятся в одном workflow. Согласованную бизнес-логику нужно максимально сохранить.
 
-Роли `qbit_test_*` намеренно не переименовывались.
+Главный вывод: текущий JSON нельзя считать совместимым с DB-03. Старые PostgreSQL-функции и соседняя логика должны быть перестроены под DB-03 JSONB API, включая worker id, lease/fencing number, expected dialog version, stable idempotency keys и разделение результатов внешней отправки `confirmed/retry/unknown`.
 
-Финальный серверный verifier:
-`sql/DB-SCHEMA-01F_v0.4_verify_renamed_schema.sql`.
+Четыре AI-вызова сейчас идут через OpenRouter: тематический контроль, план поиска, embedding поискового запроса и решение менеджера. Целевой провайдер — OpenAI, но конкретные model IDs и vector dimension **ещё не выбраны**. Старое значение `1024` не переносить как решение.
 
-Павел успешно выполнил его в Supabase Studio. Подтверждено:
-- `verifier_version=DB-SCHEMA-01F_v0.4_fresh_path`;
-- `db_schema_01f_status=verified`;
-- old `qbit_test` absent;
-- new schema present;
-- owner `qbit_test_owner`;
-- 25 tables;
-- 28 SECURITY DEFINER functions;
-- EXECUTE distribution bot=17 / service=10 / dash_admin=1;
-- runtime direct DML denied;
-- temporary CREATE ON DATABASE revoked;
-- canary `kompaniya_001_test` present;
-- production `qbit` is not required and is currently absent;
-- `supabase_stage_complete=true`;
-- `next_stage=PRE-02_n8n_openrouter`.
+Knowledge/RAG-ветку пока не оживлять: DB-04/DB-05 не начинались, а `poisk_aktivnyh_znaniy(...vector(1024)...)` относится к будущему DB-05. Порядок: PRE-02E → затем DB-04/DB-05 и WF-02B в согласованной последовательности.
 
-Старый `sql/DB-SCHEMA-01_rename_qbit_schema.sql` и промежуточные verifier v0.1–v0.3 больше не запускать.
+Проверка экспорта: явных секретов, API keys, Authorization/Bearer, Credential IDs, pinData и реальных сообщений не найдено. `meta.instanceId` присутствует и должен быть удалён из канонического переносимого экспорта. Отсутствие `credentials` в JSON означает, что живые подключения Credentials этим файлом не подтверждены.
+
+Локальный STT указан как `http://stt-local:8000/v1/transcriptions`. После переноса n8n в Амстердам доступность этого адреса до российского/локального STT не доказана; проверить отдельно. Сырой voice автоматически в OpenAI не отправлять.
+
+Подробная карта: `docs/WF-02A_WORKFLOW_AUDIT.md`.
+
+Canonical qBit schema остаётся `qbit_bot_pervichnogo_obrascheniya`; DB-01/DB-02/DB-03 проверены. Supabase сейчас не менять.
 
 ## Следующая одна задача
 
-**WF-02A — аудит свежего workflow после переноса n8n в Амстердам и карта переделки под OpenAI + DB-03.**
+**PRE-02E — OpenAI runtime profile для n8n 2.41.0.**
 
-Актуальное решение Павла на 28 сентября 2026:
-- весь рабочий n8n перенесён на сервер в Амстердаме;
-- Supabase/PostgreSQL/pgvector и две test schema пока остаются на российском сервере;
-- OpenRouter/Qwen больше не целевой AI-профиль;
-- LLM и embeddings должны быть от OpenAI;
-- согласованную логику и порядок существующего pipeline максимально сохранить.
+В новой сессии:
+1. проверить актуальный `main`, README, PROJECT_STATE, этот handoff и `docs/specs/PROCESSING_PROFILE.md`;
+2. выбрать конкретный OpenAI LLM model ID и embedding model ID по актуальной документации;
+3. выбрать и фактически проверить размерность embeddings, не наследуя `1024` из старого workflow;
+4. выполнить разрешённые smoke-tests LLM, document embedding и query embedding в амстердамском n8n;
+5. зафиксировать способ подключения без секретов в workflow/GitHub;
+6. обновить PRE-02E/PROJECT_STATE/handoff и завершить сессию.
 
-Supabase сейчас **не менять**: DB-01/DB-02/DB-03 применены и проверены, DB-04/DB-05 ещё не начинались. Поэтому knowledge vector dimension пока не фиксировать. После выбора OpenAI embedding profile в PRE-02E можно проектировать DB-04/DB-05 без переделки уже созданных knowledge tables.
-
-В новой сессии Павел передаёт **свежий JSON-экспорт фактически работающего/перенесённого workflow из амстердамского n8n**. Первая подзадача WF-02A:
-1. проверить `main` и этот handoff;
-2. определить фактическую версию n8n из экспорта/со слов Павла;
-3. прочитать весь JSON и сохранить согласованную бизнес-логику pipeline;
-4. составить точную карту: какие PostgreSQL-ноды переводятся на DB-03 JSONB API, какие OpenRouter/Qwen ноды заменяются OpenAI, какие будущие DB-04/DB-05 ветки пока не должны исполняться;
-5. проверить экспорт на secrets, Credential IDs, instanceId и реальные данные;
-6. не переписывать сразу весь workflow, если объём велик — сначала разделить WF-02 на безопасные подзадачи и закончить только одну.
-
-Параллельная AI-подзадача **PRE-02E** должна до DB-04/DB-05 зафиксировать конкретный OpenAI LLM model, embedding model и vector dimension и проверить LLM + document/query embedding smoke-tests.
-
-Официально подтверждено на 28.09.2026: OpenAI API поддерживает `/v1/embeddings` и модели `text-embedding-3-small`, `text-embedding-3-large`; конкретный выбор не делать по памяти. OpenAI API customer content по умолчанию не используется для обучения, но стандартные abuse-monitoring logs могут храниться до 30 дней.
-
-Production, рабочий трафик, удаление старого российского сервера и перенос Supabase не выполнять без отдельного разрешения Павла.
+Не выполнять в PRE-02E без отдельного разрешения Павла: production changes, переключение рабочего трафика, удаление данных/серверов, перенос Supabase. DB-04/DB-05 и полный WF-02B не начинать автоматически.
