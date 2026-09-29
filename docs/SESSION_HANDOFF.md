@@ -82,3 +82,13 @@ Offline завершён client processing shell:
 Он доводит безопасную локальную цепочку до guard gate и всегда формирует retry для rate-limit, voice/STT pending, PII/system errors и PRE-02E guard pending. Queue claim остаётся disabled до применения DB-03E.
 
 Следующий небольшой блок: **WF-02B2C — OpenAI thematic guard после PRE-02E runtime verification**. Не добавлять одновременно RAG/outgoing/service workflow.
+
+
+### WF-02B2B1
+
+Offline добавлен local STT transport:
+`workflows/WF-02B2B1_client_processing_local_stt_gate_n8n_2.41.0.json`.
+
+Voice path: Telegram file → local multipart STT → DB-03C1 transcription state → общий processing. Маршрут закрыт `stt_runtime_verified=false` до проверки доступности `stt-local` из Amsterdam n8n. Raw voice во внешний AI не уходит. Claim также остаётся disabled до DB-03E apply+verify.
+
+WF-02B2C OpenAI guard по-прежнему не запускать до PRE-02E runtime verification.

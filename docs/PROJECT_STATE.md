@@ -393,6 +393,24 @@ DB-03E v0.5 статически проверен в репозитории, н�
 
 Следующий маленький блок: **WF-02B2C — реальный OpenAI thematic guard после runtime verification PRE-02E**.
 
+
+## Последний завершённый небольшой workflow-блок
+
+**WF-02B2B1 — local STT transport gate. Статус: завершено offline 29 сентября 2026 года.**
+
+Создан `workflows/WF-02B2B1_client_processing_local_stt_gate_n8n_2.41.0.json`. Для voice добавлен перенос старой проверенной структуры transport-ветки:
+`Telegram resource:file → binary merge → multipart POST http://stt-local:8000/v1/transcriptions → parse → sohranit_transkripciyu_golosa(jsonb) → общий processing`.
+
+Безопасность:
+- `stt_runtime_verified=false` — маршрут фактически закрыт до отдельной проверки доступности local STT из Amsterdam n8n;
+- до проверки voice возвращается через `zavershit_zadanie_obrabotki` в `povtor` с `local_stt_route_pending`;
+- лимиты 20 MiB / 300 секунд сохранены;
+- STT error сохраняется как `oshibka`, затем job возвращается в retry;
+- сырой voice не отправляется OpenAI;
+- workflow `active=false`, processing claim остаётся `disabled=true` до server-verified DB-03E.
+
+Следующий независимый блок по client workflow можно делать отдельно; WF-02B2C (OpenAI guard) всё ещё требует PRE-02E runtime verification.
+
 ## Текущая задача
 
 **PRE-02E — OpenAI profile в амстердамском n8n 2.41.0. Статус: подготовлено, runtime ожидается.**
