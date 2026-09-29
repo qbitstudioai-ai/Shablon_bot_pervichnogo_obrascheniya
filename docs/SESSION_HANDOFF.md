@@ -54,10 +54,26 @@ Queue claim остаётся disabled до DB-03E apply+verify. Значения
 
 PRE-02E остаётся runtime-unverified до фактического запуска с OpenAI Credential в n8n.
 
+## WF-02B2E завершён offline
+
+В том же полном JSON:
+- planner → OpenAI Responses API;
+- model: `gpt-6-luna`;
+- `store=false`;
+- strict Structured Output: 1–3 queries, 1–5 required_points;
+- parser адаптирован к Responses output и сохраняет fallback на обезличенный исходный запрос;
+- OpenAI Credential ID/API key в export отсутствуют;
+- guard остаётся OpenAI;
+- query embedding остаётся OpenRouter/Qwen;
+- основной answer/outgoing не менялись;
+- 168 нод / 138 connection keys сохранены.
+
+PRE-02E остаётся runtime-unverified.
+
 ## Следующая задача
 
-**WF-02B2E — planner OpenAI.**
+**WF-02B2F — query embedding OpenAI.**
 
-Менять только planner OpenRouter call + parser. Embedding/RAG query, основной answer/outgoing пока не менять.
+Менять только embedding поискового запроса и parser вектора. DB-05 search, основной answer/outgoing пока не включать.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.

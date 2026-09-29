@@ -435,11 +435,28 @@ OpenAI Credential ID и API key в JSON не закреплены. Credential в
 
 Planner и основной answer пока остаются на OpenRouter; embedding остаётся старым. Структура workflow: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify. PRE-02E остаётся runtime-unverified.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2E — planner OpenAI. Статус: завершено offline 29 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Изменены только planner-настройка и три существующие planner-ноды:
+- добавлен отдельный `model.planner='gpt-6-luna'`;
+- подготовка плана использует OpenAI Responses API payload, `store=false` и strict `text.format/json_schema`;
+- schema ограничивает план до 1–3 `queries` и 1–5 `required_points`;
+- `Построить план поиска` теперь вызывает `https://api.openai.com/v1/responses` через OpenAI Credential n8n;
+- parser читает Responses output; при error/refusal/invalid сохраняется прежняя безопасная логика fallback: один обезличенный пользовательский запрос.
+
+Guard остаётся на OpenAI. Query embedding всё ещё OpenRouter/Qwen, основной answer всё ещё OpenRouter. RAG/DB-05 не включался.
+
+Структура workflow не изменилась: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify. PRE-02E всё ещё runtime-unverified.
+
 ## Текущая задача
 
-**WF-02B2E — planner OpenAI.**
+**WF-02B2F — query embedding OpenAI.**
 
-Краткий состав: заменить только старый OpenRouter-вызов построения плана поиска на OpenAI Responses API Structured Output и адаптировать parser. Embedding/RAG query, основной клиентский answer и outgoing пока не менять.
+Краткий состав: заменить только OpenRouter/Qwen embedding поискового запроса на OpenAI `text-embedding-3-large`, candidate `dimensions=1024`, и адаптировать разбор вектора. Сам поиск DB-05 не включать, основной answer и outgoing пока не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
