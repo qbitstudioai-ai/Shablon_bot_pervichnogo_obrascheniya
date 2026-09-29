@@ -67,7 +67,7 @@
     },
     {
       "parameters": {
-        "content": "## БЛОК 4. RAG\nДо 3 поисковых запросов → Qwen embedding 1024 → pgvector только по опубликованным знаниям своей компании → до 8 evidence → DeepSeek structured output.\nПорог similarity задаётся только после калибровки.",
+        "content": "## БЛОК 4. RAG\nДо 3 поисковых запросов → OpenAI text-embedding-3-large, candidate 1024 dimensions → pgvector только по опубликованным знаниям своей компании → до 8 evidence → structured answer.\nПорог similarity задаётся только после калибровки. DB-05 search пока не считается готовым.",
         "height": 520,
         "width": 2200
       },
@@ -276,7 +276,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,region_telefona:null,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{guard:'gpt-6-luna',planner:'gpt-6-luna',llm:'deepseek/deepseek-v4.1-flash',embedding:'qwen/qwen3-embedding-8b',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Boolean(cfg.bezopasnost?.region_telefona)&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
+        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,region_telefona:null,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{guard:'gpt-6-luna',planner:'gpt-6-luna',llm:'deepseek/deepseek-v4.1-flash',embedding:'text-embedding-3-large',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Boolean(cfg.bezopasnost?.region_telefona)&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
       },
       "id": "ac9588f3-e428-4d29-a76a-98f289ec9af9",
       "name": "Настройки компании",
@@ -1737,12 +1737,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://openrouter.ai/api/v1/embeddings",
+        "url": "https://api.openai.com/v1/embeddings",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "openRouterApi",
+        "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {model:$json._nastroyki.model.embedding,input:$json.poiskovyy_zapros,dimensions:$json._nastroyki.model.razmernost} }}",
+        "jsonBody": "={{ {model:$json._nastroyki.model.embedding,input:$json.poiskovyy_zapros,dimensions:$json._nastroyki.model.razmernost,encoding_format:'float'} }}",
         "options": {
           "timeout": 120000
         }
@@ -1758,7 +1758,8 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 1200,
-      "continueOnFail": true
+      "continueOnFail": true,
+      "notes": "WF-02B2F: OpenAI query embedding. Candidate dimensions=1024 until runtime/retrieval verification. После импорта выбрать OpenAI Credential в UI n8n; Credential ID в JSON не закрепляется."
     },
     {
       "parameters": {
@@ -1777,7 +1778,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const x=$json,e=x.data?.[0]?.embedding,n=Number(x._nastroyki.model.razmernost);if(!Array.isArray(e)||e.length!==n)throw new Error('Некорректный embedding');return [{json:{...x,vector_stroka:'['+e.map(Number).join(',')+']'}}];"
+        "jsCode": "const x=$json||{};\nif(x.error){throw new Error('OpenAI embedding error: '+String(x.error?.message||x.error));}\nconst e=x.data?.[0]?.embedding;\nconst n=Number(x._nastroyki?.model?.razmernost);\nif(!Number.isInteger(n)||n<=0)throw new Error('Не задана корректная размерность embedding');\nif(!Array.isArray(e)||e.length!==n)throw new Error('Некорректная размерность embedding: '+String(Array.isArray(e)?e.length:'нет вектора')+' вместо '+String(n));\nconst nums=e.map(Number);\nif(nums.some(v=>!Number.isFinite(v)))throw new Error('Embedding содержит нечисловое значение');\nreturn [{json:{...x,embedding_model:x.model||x._nastroyki?.model?.embedding||null,embedding_dimensions:nums.length,vector_stroka:'['+nums.join(',')+']'}}];"
       },
       "id": "fd7e2158-deb7-45d7-96a7-7036bfb21905",
       "name": "Проверить размерность вектора",

@@ -70,10 +70,24 @@ PRE-02E остаётся runtime-unverified до фактического зап
 
 PRE-02E остаётся runtime-unverified.
 
+## WF-02B2F завершён offline
+
+В том же полном JSON:
+- query embedding → OpenAI `/v1/embeddings`;
+- model: `text-embedding-3-large`;
+- candidate `dimensions=1024`, `encoding_format=float`;
+- parser проверяет точную размерность и числовые значения;
+- DB-05 search node не менялся и search не включался;
+- guard/planner остаются OpenAI;
+- основной answer/outgoing не менялись;
+- 168 нод / 138 connection keys сохранены.
+
+PRE-02E остаётся runtime-unverified; 1024 и retrieval quality ещё должны быть подтверждены фактическим запуском.
+
 ## Следующая задача
 
-**WF-02B2F — query embedding OpenAI.**
+**WF-02B2G — основной LLM-ответ OpenAI.**
 
-Менять только embedding поискового запроса и parser вектора. DB-05 search, основной answer/outgoing пока не включать.
+Менять только `Сформировать решение менеджера` и parser ответа. Outgoing/DB-03C4 пока не менять; RAG остаётся gated до DB-05.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.

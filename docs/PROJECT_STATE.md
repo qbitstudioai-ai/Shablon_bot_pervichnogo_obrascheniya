@@ -452,11 +452,29 @@ Guard остаётся на OpenAI. Query embedding всё ещё OpenRouter/Qwe
 
 Структура workflow не изменилась: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify. PRE-02E всё ещё runtime-unverified.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2F — query embedding OpenAI. Статус: завершено offline 29 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Изменён только query embedding-участок:
+- `model.embedding` заменён с Qwen на `text-embedding-3-large`;
+- размерность пока остаётся candidate `1024`;
+- `Создать вектор поискового запроса` вызывает `https://api.openai.com/v1/embeddings` через OpenAI Credential n8n;
+- запрос передаёт `dimensions=1024` и `encoding_format='float'`;
+- parser проверяет, что `data[0].embedding` существует, состоит из чисел и содержит ровно 1024 значения;
+- sticky-note поиска обновлён, чтобы больше не описывать Qwen как текущий embedding.
+
+`Найти опубликованные знания` не менялся и DB-05 search не включался. Основной клиентский LLM-ответ и outgoing не менялись. Guard и planner остаются на OpenAI.
+
+Структура workflow сохранена: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify. Candidate 1024 и качество retrieval требуют runtime-проверки; PRE-02E остаётся runtime-unverified.
+
 ## Текущая задача
 
-**WF-02B2F — query embedding OpenAI.**
+**WF-02B2G — основной LLM-ответ OpenAI.**
 
-Краткий состав: заменить только OpenRouter/Qwen embedding поискового запроса на OpenAI `text-embedding-3-large`, candidate `dimensions=1024`, и адаптировать разбор вектора. Сам поиск DB-05 не включать, основной answer и outgoing пока не менять.
+Краткий состав: заменить только `Сформировать решение менеджера` и parser его структурированного ответа с OpenRouter на OpenAI Responses API. Outgoing и DB-03C4 пока не менять; RAG остаётся gated до DB-05.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
