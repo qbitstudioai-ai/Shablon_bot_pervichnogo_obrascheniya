@@ -276,7 +276,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{llm:'deepseek/deepseek-v4.1-flash',embedding:'qwen/qwen3-embedding-8b',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
+        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,region_telefona:null,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{llm:'deepseek/deepseek-v4.1-flash',embedding:'qwen/qwen3-embedding-8b',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Boolean(cfg.bezopasnost?.region_telefona)&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
       },
       "id": "ac9588f3-e428-4d29-a76a-98f289ec9af9",
       "name": "Настройки компании",
@@ -976,10 +976,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with r as (select * from sohranit_transkripciyu_golosa($1::uuid,$2::text)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$3::jsonb as kontekst;",
+        "query": "with r as (select * from qbit_bot_pervichnogo_obrascheniya.sohranit_transkripciyu_golosa($1::jsonb)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$2::jsonb as kontekst;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.zadanie_id,$json.tekst,JSON.stringify($json)] }}"
+          "queryReplacement": "={{ [\n      JSON.stringify({\n        operaciya_id:'stt:gotova:'+String($json.soobshchenie_id_teksta),\n        soobshchenie_id:$json.soobshchenie_id_teksta,\n        status:'gotova',\n        tekst_transkripcii:$json.tekst,\n        tekst_obezlichennyy:null,\n        dvizhok:'local-stt-http',\n        versiya_dvizhka:null,\n        popytki:Number($json._claim?.popytki||0),\n        vremya_zaversheniya:new Date().toISOString()\n      }),\n      JSON.stringify($json)\n    ] }}"
         }
       },
       "id": "3e2359ce-1a86-475f-952c-681439460dc8",
@@ -989,11 +989,12 @@
       "position": [
         16608,
         4560
-      ]
+      ],
+      "notes": "WF-02B2C: successful local STT persists via DB-03C1 sohranit_transkripciyu_golosa(jsonb). Voice transport itself is unchanged."
     },
     {
       "parameters": {
-        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{}),tekst:$json.kontekst?.tekst}}];"
+        "jsCode": "const k=$json.kontekst||{},r=$json.rezultat_bazy||{};\nreturn [{json:{...k,stt_rezultat:r,tekst:k.tekst,tekst_ishodnyy_dlya_obrabotki:k.tekst}}];"
       },
       "id": "12fc3535-31f6-45cb-823e-31a3a7095f45",
       "name": "Восстановить сообщение после голоса",
@@ -1165,7 +1166,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const x=$json||{};let text=String(x.tekst_ishodnyy_dlya_obrabotki??x.tekst??'');const known=(x.pii_slovar&&typeof x.pii_slovar==='object')?{...x.pii_slovar}:{},cand=[];function esc(s){return String(s).replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&')}function next(t,v){const e=Object.entries(known).find(([k,z])=>k.startsWith(t+'_')&&String(z)===String(v));if(e)return e[0];let n=1,k;do{k=`${t}_${String(n++).padStart(2,'0')}`}while(Object.prototype.hasOwnProperty.call(known,k));known[k]=v;cand.push({tip:t,token:k,znachenie:v});return k}for(const [k,v] of Object.entries(known)){if(v&&String(v).length>=2)text=text.replace(new RegExp(esc(v),'gi'),k)}text=text.replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi,m=>next('EMAIL',m));text=text.replace(/(?<!\\w)(?:\\+?\\d[\\d\\s().-]{8,}\\d)(?!\\w)/g,m=>next('PHONE',m));text=text.replace(/(?<!\\w)@[A-Za-z0-9_]{5,32}\\b/g,m=>next('USERNAME',m));text=text.replace(/\\b(меня\\s+зовут|мо[её]\\s+имя)\\s+([А-ЯЁA-Z][А-ЯЁA-Za-zа-яё-]{1,40})/gi,(m,p,n)=>`${p} ${next('PERSON',n)}`);return [{json:{...x,tekst_bez_pii:text.trim(),pii_kandidaty:cand,pii_slovar:known}}];"
+        "jsCode": "const x=$json||{};\nlet text=String(x.tekst_ishodnyy_dlya_obrabotki??x.tekst??'');\nconst existing=Array.isArray(x.pii_slovar)?x.pii_slovar:[];\nconst known={};\nfor(const z of existing){\n  const p=String(z?.psevdometka||'').trim();\n  const v=z?.znachenie_zashchishchennoe;\n  if(p&&v!==null&&v!==undefined&&String(v)!=='') known[p]=String(v);\n}\nconst candidates=[];\nconst used=new Set(Object.keys(known));\nfunction esc(s){return String(s).replace(/[-/\\^$*+?.()|[\\]{}]/g,'\\\\$&')}\nfunction existingToken(tip,val){\n  for(const z of existing){\n    if(String(z?.tip_pii||'')===tip&&String(z?.znachenie_zashchishchennoe||'')===String(val)) return String(z.psevdometka||'');\n  }\n  return '';\n}\nfunction next(prefix,tip,val,extra={}){\n  const old=existingToken(tip,val);\n  if(old) return old;\n  let n=1,p;\n  do{p='<'+prefix+'_'+n+'>';n++;}while(used.has(p));\n  used.add(p);\n  known[p]=String(val);\n  candidates.push({tip_pii:tip,psevdometka:p,znachenie_zashchishchennoe:String(val),...extra});\n  return p;\n}\nfor(const [p,v] of Object.entries(known)){\n  if(String(v).length>=2) text=text.replace(new RegExp(esc(v),'gi'),p);\n}\ntext=text.replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi,m=>next('EMAIL','email',m));\ntext=text.replace(/(?<!\\w)(?:\\+?\\d[\\d\\s().-]{8,}\\d)(?!\\w)/g,m=>next('TELEFON','telefon',m,{region_telefona:x._nastroyki?.bezopasnost?.region_telefona||null}));\ntext=text.replace(/(?<!\\w)@[A-Za-z0-9_]{5,32}\\b/g,m=>next('USERNAME','telegram_username',m));\ntext=text.replace(/\\b(меня\\s+зовут|мо[её]\\s+имя)\\s+([А-ЯЁA-Z][А-ЯЁA-Za-zа-яё-]{1,40})/gi,(m,p,n)=>p+' '+next('PERSON','imya',n));\nreturn [{json:{...x,tekst_bez_pii:text.trim(),pii_kandidaty:candidates,pii_slovar:[...existing,...candidates]}}];"
       },
       "id": "cc4b32e0-f288-4320-b7a2-4772c0986bd1",
       "name": "Локально обезличить сообщение",
@@ -1179,10 +1180,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with r as (select * from sohranit_lokalnye_dannye($1::uuid,$2::jsonb,$3::text)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$4::jsonb as kontekst;",
+        "query": "with r as (select * from qbit_bot_pervichnogo_obrascheniya.sohranit_obezlichivanie($1::jsonb)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$2::jsonb as kontekst;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.zadanie_id,JSON.stringify($json.pii_kandidaty||[]),$json.tekst_bez_pii,JSON.stringify($json)] }}"
+          "queryReplacement": "={{ [\n      JSON.stringify({\n        operaciya_id:'pii:'+String($json.soobshchenie_id_teksta),\n        soobshchenie_id:$json.soobshchenie_id_teksta,\n        tekst_obezlichennyy:$json.tekst_bez_pii,\n        sootvetstviya:$json.pii_kandidaty||[],\n        region_telefona:$json._nastroyki?.bezopasnost?.region_telefona||null\n      }),\n      JSON.stringify($json)\n    ] }}"
         }
       },
       "id": "b684a0e5-6d96-4264-b4da-e559b1e16efa",
@@ -1192,11 +1193,12 @@
       "position": [
         17616,
         4848
-      ]
+      ],
+      "notes": "WF-02B2C: local detector remains in n8n; safe text and new reverse-map entries persist via DB-03C1 sohranit_obezlichivanie(jsonb)."
     },
     {
       "parameters": {
-        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{})}}];"
+        "jsCode": "const k=$json.kontekst||{},r=$json.rezultat_bazy||{};\nreturn [{json:{...k,pii_rezultat:r}}];"
       },
       "id": "b0bb856e-f24b-4f8c-aa8c-6670ac044841",
       "name": "Восстановить контекст после локальных данных",

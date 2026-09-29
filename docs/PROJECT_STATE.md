@@ -401,11 +401,27 @@ Queue claim остаётся `disabled=true`: DB-03E v0.5 ещё не приме
 
 Media/STT/AI/outgoing/reminders/service не менялись.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2C — voice/STT + локальное PII-сохранение. Статус: завершено offline 29 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Изменён только существующий voice/PII-участок:
+- успешный local STT сохраняется через `sohranit_transkripciyu_golosa(jsonb)` по exact `soobshchenie_id`;
+- локальный PII-detector понимает reverse-map DB-03 формата `[{tip_pii,psevdometka,znachenie_zashchishchennoe}]`;
+- новые соответствия и обезличенный текст сохраняются через `sohranit_obezlichivanie(jsonb)`;
+- existing local STT HTTP transport, media branches, AI и outgoing не менялись.
+
+В `Настройки компании` добавлена trusted-настройка `bezopasnost.region_telefona:null`. Регион не выдумывался; пока он не заполнен, профиль компании не считается готовым.
+
+Структура сохранена: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify.
+
 ## Текущая задача
 
-**WF-02B2C — voice/STT + локальное PII-сохранение.**
+**WF-02B2D — thematic guard OpenAI.**
 
-Краткий состав: заменить только старые DB-вызовы сохранения транскрипции и обезличивания на текущие JSONB API. Media-ветки, AI и outgoing пока не менять.
+Краткий состав: в этом же полном workflow заменить только старый OpenRouter-вызов thematic guard на OpenAI Structured Output и адаптировать parser результата. Embeddings/RAG, основной answer и outgoing пока не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

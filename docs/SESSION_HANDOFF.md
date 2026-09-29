@@ -30,10 +30,20 @@
 
 Queue claim остаётся disabled до DB-03E apply+verify. Значения rate-limit оставлены обязательными null-настройками, их нельзя угадывать.
 
+## WF-02B2C завершён offline
+
+В том же полном JSON:
+- successful local STT → `sohranit_transkripciyu_golosa(jsonb)`;
+- local PII detector адаптирован к DB reverse-map;
+- de-identification → `sohranit_obezlichivanie(jsonb)`;
+- `bezopasnost.region_telefona` добавлен как обязательная trusted null-настройка;
+- 168 нод / 138 connection keys сохранены;
+- AI/outgoing/media transport не менялись.
+
 ## Следующая задача
 
-**WF-02B2C — voice/STT + локальное PII-сохранение.**
+**WF-02B2D — thematic guard OpenAI.**
 
-Работать только в том же полном JSON. AI/outgoing пока не менять.
+Менять только guard-вызов и parser в том же полном workflow. Embeddings/RAG/основной answer/outgoing пока не менять.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.
