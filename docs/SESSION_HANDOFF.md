@@ -40,10 +40,24 @@ Queue claim остаётся disabled до DB-03E apply+verify. Значения
 - 168 нод / 138 connection keys сохранены;
 - AI/outgoing/media transport не менялись.
 
+## WF-02B2D завершён offline
+
+В том же полном JSON:
+- thematic guard → OpenAI Responses API;
+- model: `gpt-6-luna`;
+- `store=false`;
+- strict Structured Output через `text.format/json_schema`;
+- parser адаптирован к Responses output и fail-closed handoff;
+- OpenAI Credential ID/API key в export отсутствуют;
+- planner, embedding, основной answer и outgoing не менялись;
+- 168 нод / 138 connection keys сохранены.
+
+PRE-02E остаётся runtime-unverified до фактического запуска с OpenAI Credential в n8n.
+
 ## Следующая задача
 
-**WF-02B2D — thematic guard OpenAI.**
+**WF-02B2E — planner OpenAI.**
 
-Менять только guard-вызов и parser в том же полном workflow. Embeddings/RAG/основной answer/outgoing пока не менять.
+Менять только planner OpenRouter call + parser. Embedding/RAG query, основной answer/outgoing пока не менять.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.

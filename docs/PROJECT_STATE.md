@@ -417,11 +417,29 @@ Media/STT/AI/outgoing/reminders/service не менялись.
 
 Структура сохранена: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2D — thematic guard OpenAI. Статус: завершено offline 29 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Изменены только три существующие guard-ноды и настройка модели:
+- подготовка guard формирует OpenAI Responses payload;
+- модель guard вынесена отдельно: `model.guard='gpt-6-luna'`;
+- используется `store=false`, `max_output_tokens` и strict `text.format/json_schema`;
+- HTTP-вызов идёт на `https://api.openai.com/v1/responses` через OpenAI Credential n8n;
+- parser читает Responses output и проверяет допустимое действие, причину, уверенность и RAG flag;
+- error, refusal, incomplete или некорректная структура безопасно дают `peredat_cheloveku`.
+
+OpenAI Credential ID и API key в JSON не закреплены. Credential выбирается в UI n8n после импорта.
+
+Planner и основной answer пока остаются на OpenRouter; embedding остаётся старым. Структура workflow: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify. PRE-02E остаётся runtime-unverified.
+
 ## Текущая задача
 
-**WF-02B2D — thematic guard OpenAI.**
+**WF-02B2E — planner OpenAI.**
 
-Краткий состав: в этом же полном workflow заменить только старый OpenRouter-вызов thematic guard на OpenAI Structured Output и адаптировать parser результата. Embeddings/RAG, основной answer и outgoing пока не менять.
+Краткий состав: заменить только старый OpenRouter-вызов построения плана поиска на OpenAI Responses API Structured Output и адаптировать parser. Embedding/RAG query, основной клиентский answer и outgoing пока не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
