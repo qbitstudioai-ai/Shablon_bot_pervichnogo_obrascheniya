@@ -82,7 +82,7 @@
     },
     {
       "parameters": {
-        "content": "## БЛОК 5. БЕЗОПАСНАЯ ОТПРАВКА\nСохранить намерение → ещё раз проверить owner/version/new input/block → отправить → подтвердить → обновить память/этап/напоминания.\nПерехват человеком блокирует даже уже подготовленный AI-ответ.",
+        "content": "## БЛОК 5. ИСХОДЯЩАЯ ОТПРАВКА\nСначала сохраняется логическое outgoing intent. Отдельный sender забирает action с lease/fencing, DB-03E делает финальную перепроверку непосредственно перед Telegram, затем подтверждённый или неизвестный результат сохраняется отдельно.\nBlind retry при неизвестном результате внешнего API запрещён.",
         "height": 560,
         "width": 2350,
         "color": 7
@@ -276,7 +276,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,region_telefona:null,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{guard:'gpt-6-luna',planner:'gpt-6-luna',answer:'gpt-6-sol',embedding:'text-embedding-3-large',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Boolean(cfg.bezopasnost?.region_telefona)&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
+        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,region_telefona:null,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,okno_napominaniya_minut:null,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{guard:'gpt-6-luna',planner:'gpt-6-luna',answer:'gpt-6-sol',embedding:'text-embedding-3-large',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{},rem=cfg.napominaniya||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Boolean(cfg.bezopasnost?.region_telefona)&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0&&Number.isInteger(rem.okno_napominaniya_minut)&&rem.okno_napominaniya_minut>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
       },
       "id": "ac9588f3-e428-4d29-a76a-98f289ec9af9",
       "name": "Настройки компании",
@@ -1923,10 +1923,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with r as (select * from sohranit_ishodyashchee_deystvie($1::uuid,$2::uuid,$3::bigint,$4::text,$5::text,$6::jsonb,$7::bigint)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$8::jsonb as kontekst;",
+        "query": "select r.*, $2::jsonb as kontekst from qbit_bot_pervichnogo_obrascheniya.sozdat_ishodyashchee_deystvie($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.dialog_id,$json.zadanie_id,$json.chat_id,$json.tekst_otveta,$json.tip_otveta,JSON.stringify($json.reshenie||{}),$json.versiya_sostoyaniya,JSON.stringify($json)] }}"
+          "queryReplacement": "={{ [\n      JSON.stringify((()=>{\n        const cfg=$json._nastroyki||{};\n        const rem=cfg.napominaniya||{};\n        const wait=Boolean($json.reshenie?.ozhidaet_otvet||$json.pokazat_knopki_media);\n        const nextStage=String($json.reshenie?.sleduyushchiy_etap||'');\n        const effects={};\n        if(nextStage&&(cfg.prodazhi?.etapy||[]).includes(nextStage)) effects.novyy_etap=nextStage;\n        if(wait){\n          effects.napominanie_1_sekund=Number(rem.pervoe_minut)*60;\n          effects.napominanie_2_sekund=Number(rem.vtoroe_minut)*60;\n          effects.okno_napominaniya_sekund=Number(rem.okno_napominaniya_minut)*60;\n          effects.poterya_posle_sekund=Number(rem.poterya_posle_vtorogo_minut)*60;\n        }\n        const dialogId=$json.dialog_id||$json._claim?.dialog_id;\n        const jobId=$json.zadanie_id||$json._claim?.zadanie_id;\n        const version=Number($json.versiya_dialoga??$json.versiya_sostoyaniya??$json._claim?.versiya_dialoga);\n        const source=$json._source||{};\n        const tip=String($json.tip_otveta||'otvet_bota');\n        return {\n          operaciya_id:'out:create:'+String(jobId)+':'+tip,\n          klyuch_povtora:'bot:'+String(dialogId)+':'+String(jobId)+':'+tip,\n          vid_deystviya:'soobshchenie',\n          istochnik:'bot',\n          dialog_id:dialogId,\n          ozhidaemaya_versiya_dialoga:version,\n          iniciativnoe:false,\n          kanal:source.kanal||$json.kanal||cfg.kanal||'telegram',\n          akkaunt_kanala_id:source.akkaunt_kanala_id||$json.akkaunt_kanala_id,\n          vneshniy_dialog_id:source.vneshniy_dialog_id||$json.vneshniy_dialog_id,\n          vneshnee_otvet_na_id:source.vneshnee_soobshchenie_id||null,\n          tekst_ishodnyy:String($json.tekst_otveta||''),\n          tekst_obezlichennyy:String($json.tekst_otveta||''),\n          ozhidaetsya_otvet:wait,\n          prichina_resheniya:String($json.reshenie?.prichina_etapa||tip),\n          payload:{\n            tip_otveta:tip,\n            reshenie:$json.reshenie||{},\n            pokazat_knopki_media:Boolean($json.pokazat_knopki_media),\n            tematicheskoe_preduprezhdenie:tip==='preduprezhdenie',\n            narushenie_id:$json.narushenie_id||null,\n            nomer_narusheniya:$json.nomer_narusheniya||null\n          },\n          effekty_posle_podtverzhdeniya:effects\n        };\n      })()),\n      JSON.stringify($json)\n    ] }}"
         }
       },
       "id": "6c8c64d6-eaa8-4f37-9010-33a30c3df163",
@@ -1936,16 +1936,36 @@
       "position": [
         25408,
         5168
-      ]
+      ],
+      "notes": "WF-02B2H: создаёт durable outgoing intent. После create processing не вызывает Telegram напрямую; sender идёт отдельной веткой очереди."
     },
     {
       "parameters": {
-        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{})}}];"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.rezultat === 'uspeshno' && !$json.kod_oshibki && Boolean($json.deystvie_id) && typeof $json.tekst_ishodnyy === 'string' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
       },
       "id": "6fcc71e3-6296-4cd2-87f1-e31afe770bc8",
-      "name": "Восстановить исходящее действие",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "name": "Final recheck разрешает отправку?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
       "position": [
         25712,
         5168
@@ -1954,27 +1974,30 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with r as (select * from proverit_pravo_otpravki($1::uuid)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$2::jsonb as kontekst;",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\", $3::boolean as profil_kompanii_gotov from qbit_bot_pervichnogo_obrascheniya.zabrat_ishodyashchee_deystvie($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.deystvie_id,JSON.stringify($json)] }}"
+          "queryReplacement": "={{ [JSON.stringify({operaciya_id:'out:claim:'+$execution.id,worker_id:'n8n:'+$json._nastroyki.kompaniya_kod+':'+$json._nastroyki.sreda+':client-outgoing',arenda_sekund:120}),JSON.stringify($json._nastroyki),$json.profil_kompanii_gotov] }}"
         }
       },
       "id": "ed634625-7555-403c-9354-485934f21100",
-      "name": "Перепроверить право отправки",
+      "name": "Взять исходящее действие",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         26016,
         5168
-      ]
+      ],
+      "alwaysOutputData": true,
+      "disabled": true,
+      "notes": "WF-02B2H SAFETY GATE: sender claim. Не включать до DB-03E apply+verify; после включения этот один gate активирует sender queue."
     },
     {
       "parameters": {
-        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{})}}];"
+        "jsCode": "const x=$json||{};\nconst ok=x.rezultat==='uspeshno'&&Boolean(x.deystvie_id)&&Boolean(x.vladelec_arendy)&&Number(x.nomer_vladeniya)>0;\nreturn [{json:{...x,est_ishodyashchee_deystvie:ok,_out_claim:ok?{\n  deystvie_id:x.deystvie_id,\n  dialog_id:x.dialog_id,\n  soobshchenie_id:x.soobshchenie_id,\n  worker_id:x.vladelec_arendy,\n  nomer_vladeniya:x.nomer_vladeniya,\n  versiya_dialoga:x.versiya_dialoga,\n  arenda_do:x.arenda_do,\n  popytki:x.popytki\n}:null}}];"
       },
       "id": "0285ced0-58a3-481b-8685-268ce89ab0e0",
-      "name": "Восстановить проверенное действие",
+      "name": "Проверить наличие исходящего действия",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -1994,7 +2017,7 @@
           "combinator": "and",
           "conditions": [
             {
-              "leftValue": "={{ Boolean($json.mozhno_otpravit) }}",
+              "leftValue": "={{ $json.est_ishodyashchee_deystvie === true }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -2006,7 +2029,7 @@
         "options": {}
       },
       "id": "a97ec842-2e54-4bd5-a135-ebbbb836fea6",
-      "name": "Можно отправлять сообщение?",
+      "name": "Есть исходящее действие?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
@@ -2017,26 +2040,27 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select * from otmenit_ishodyashchee_deystvie($1::uuid,$2::text);",
+        "query": "select r.*, clock_timestamp() as sender_vremya_zaprosa, $2::jsonb as \"_nastroyki\", $3::jsonb as \"_out_claim\" from qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_ishodyashchego($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.deystvie_id,$json.prichina_zapreta||'sostoyanie_izmenilos'] }}"
+          "queryReplacement": "={{ [\n      JSON.stringify({\n        operaciya_id:'out:content:'+String($json._out_claim.deystvie_id)+':'+String($json._out_claim.nomer_vladeniya),\n        deystvie_id:$json._out_claim.deystvie_id,\n        worker_id:$json._out_claim.worker_id,\n        nomer_vladeniya:$json._out_claim.nomer_vladeniya\n      }),\n      JSON.stringify($json._nastroyki),\n      JSON.stringify($json._out_claim)\n    ] }}"
         }
       },
       "id": "efd89d96-1c82-4541-a3b7-f0b785df098d",
-      "name": "Отменить устаревшее действие",
+      "name": "Получить содержимое исходящего",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         26912,
         5440
-      ]
+      ],
+      "notes": "WF-02B2H: DB-03E final pre-send recheck. При stale/owner/block/opt-out action отменяется в БД до внешнего API."
     },
     {
       "parameters": {
-        "chatId": "={{ $json.chat_id }}",
-        "text": "={{ $json.tekst_otveta }}",
-        "replyMarkup": "={{ $json.pokazat_knopki_media ? 'inlineKeyboard' : 'none' }}",
+        "chatId": "={{ $json.vneshniy_dialog_id }}",
+        "text": "={{ $json.tekst_ishodnyy }}",
+        "replyMarkup": "={{ $json.payload?.pokazat_knopki_media ? 'inlineKeyboard' : 'none' }}",
         "forceReply": {},
         "inlineKeyboard": {
           "rows": [
@@ -2075,7 +2099,8 @@
         5008
       ],
       "webhookId": "a203bc33-a1c7-4ed5-9fc4-91d96588c360",
-      "continueOnFail": true
+      "continueOnFail": true,
+      "notes": "WF-02B2H: внешний API вызывается только после DB-03E final recheck. Сам sender закрыт disabled-gate на node «Взять исходящее действие»."
     },
     {
       "parameters": {
@@ -2094,7 +2119,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const x=$json||{},m=x.message_id??x.result?.message_id??null,o=m!==null&&m!==undefined;return [{json:{...x,otpravka_podtverzhdena:o,telegram_message_id:m,oshibka_otpravki:o?null:(x.error?.message||x.message||'rezultat_ne_podtverzhden')}}];"
+        "jsCode": "const x=$json||{};\nconst mid=x.message_id??x.result?.message_id??null;\nconst ok=mid!==null&&mid!==undefined&&String(mid)!=='';\nreturn [{json:{\n  ...x,\n  otpravka_podtverzhdena:ok,\n  telegram_message_id:ok?String(mid):null,\n  sender_vremya_podtverzhdeniya:new Date().toISOString(),\n  oshibka_otpravki:ok?null:String(x.error?.message||x.message||'telegram_result_unknown')\n}}];"
       },
       "id": "ce4814ad-15c7-4c5c-a00b-d7920dde4e66",
       "name": "Определить результат отправки",
@@ -2140,10 +2165,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select * from podtverdit_otpravku_i_obnovit($1::uuid,$2::bigint,$3::jsonb);",
+        "query": "select * from qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego($1::jsonb);",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.deystvie_id,$json.telegram_message_id,JSON.stringify($json)] }}"
+          "queryReplacement": "={{ [JSON.stringify({\n      operaciya_id:'out:confirm:'+String($json.deystvie_id)+':'+String($json.nomer_vladeniya),\n      deystvie_id:$json.deystvie_id,\n      worker_id:$json.vladelec_arendy,\n      nomer_vladeniya:$json.nomer_vladeniya,\n      status:'podtverzhdeno',\n      vneshniy_id:String($json.telegram_message_id),\n      vremya_zaprosa:$json.sender_vremya_zaprosa,\n      vremya_podtverzhdeniya:$json.sender_vremya_podtverzhdeniya\n    })] }}"
         }
       },
       "id": "63e9ecb7-65e2-482b-9777-e105a6871842",
@@ -2153,15 +2178,16 @@
       "position": [
         28112,
         4992
-      ]
+      ],
+      "notes": "WF-02B2H: подтверждённый внешний message_id фиксируется отдельно; только после этого DB применяет разрешённые эффекты/напоминания."
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select * from otmetit_neizvestnuyu_otpravku($1::uuid,$2::jsonb);",
+        "query": "select * from qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego($1::jsonb);",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.deystvie_id,JSON.stringify({oshibka:$json.oshibka_otpravki})] }}"
+          "queryReplacement": "={{ [JSON.stringify({\n      operaciya_id:'out:unknown:'+String($json.deystvie_id)+':'+String($json.nomer_vladeniya),\n      deystvie_id:$json.deystvie_id,\n      worker_id:$json.vladelec_arendy,\n      nomer_vladeniya:$json.nomer_vladeniya,\n      status:'neizvestno',\n      vremya_zaprosa:$json.sender_vremya_zaprosa,\n      kod_oshibki:'telegram_result_unknown',\n      opisanie_oshibki:String($json.oshibka_otpravki||'Внешний результат Telegram не подтверждён')\n    })] }}"
         }
       },
       "id": "1281a731-0852-4c58-8448-cb764b8d036e",
@@ -2171,7 +2197,8 @@
       "position": [
         28112,
         5360
-      ]
+      ],
+      "notes": "WF-02B2H: неоднозначный transport result сохраняется как neizvestno; автоматический blind retry не выполняется."
     },
     {
       "parameters": {
@@ -4007,6 +4034,11 @@
             "node": "Взять следующее задание",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Взять исходящее действие",
+            "type": "main",
+            "index": 0
           }
         ],
         [
@@ -4832,69 +4864,7 @@
     },
     "Сохранить намерение отправки": {
       "main": [
-        [
-          {
-            "node": "Восстановить исходящее действие",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Восстановить исходящее действие": {
-      "main": [
-        [
-          {
-            "node": "Перепроверить право отправки",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Перепроверить право отправки": {
-      "main": [
-        [
-          {
-            "node": "Восстановить проверенное действие",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Восстановить проверенное действие": {
-      "main": [
-        [
-          {
-            "node": "Можно отправлять сообщение?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Можно отправлять сообщение?": {
-      "main": [
-        [
-          {
-            "node": "Отправить сообщение клиенту",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Совместить действие и ответ канала",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Отменить устаревшее действие",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Отправить сообщение клиенту": {
@@ -4974,7 +4944,7 @@
       "main": [
         [
           {
-            "node": "Перепроверить право отправки",
+            "node": "Взять исходящее действие",
             "type": "main",
             "index": 0
           }
@@ -5756,6 +5726,68 @@
           }
         ],
         []
+      ]
+    },
+    "Взять исходящее действие": {
+      "main": [
+        [
+          {
+            "node": "Проверить наличие исходящего действия",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить наличие исходящего действия": {
+      "main": [
+        [
+          {
+            "node": "Есть исходящее действие?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Есть исходящее действие?": {
+      "main": [
+        [
+          {
+            "node": "Получить содержимое исходящего",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Final recheck разрешает отправку?": {
+      "main": [
+        [
+          {
+            "node": "Отправить сообщение клиенту",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить действие и ответ канала",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Получить содержимое исходящего": {
+      "main": [
+        [
+          {
+            "node": "Final recheck разрешает отправку?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

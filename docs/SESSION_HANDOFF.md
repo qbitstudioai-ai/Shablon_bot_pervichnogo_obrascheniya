@@ -100,10 +100,24 @@ PRE-02E остаётся runtime-unverified; 1024 и retrieval quality ещё д
 
 PRE-02E остаётся runtime-unverified до запуска в n8n.
 
+## WF-02B2H завершён offline
+
+В том же полном JSON:
+- outgoing intent → `sozdat_ishodyashchee_deystvie(jsonb)`;
+- sender claim → `zabrat_ishodyashchee_deystvie(jsonb)`;
+- final pre-send recheck → DB-03E `poluchit_soderzhimoe_ishodyashchego(jsonb)`;
+- external confirmed/unknown → `zafiksirovat_rezultat_ishodyashchego(jsonb)`;
+- unknown result не retry-ится вслепую;
+- `Взять исходящее действие` остаётся disabled до DB-03E apply+verify;
+- processing claim также disabled;
+- добавлена обязательная trusted-настройка `napominaniya.okno_napominaniya_minut=null`;
+- ручной manager send не менялся;
+- 168 нод / 139 connection keys.
+
 ## Следующая задача
 
-**WF-02B2H — bot outgoing по текущему DB-контракту.**
+**WF-02B2I — DB-действия guard/handoff/opt-out.**
 
-Менять только save/send/confirm-unknown bot outgoing. Telegram sender не включать до DB-03E apply+verify.
+Менять только тематическое нарушение/предупреждение, запрос человека и opt-out. AI, sender и service Telegram не менять.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.

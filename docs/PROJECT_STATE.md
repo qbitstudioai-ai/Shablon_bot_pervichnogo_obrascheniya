@@ -488,11 +488,32 @@ OpenRouter, OpenRouter Credential type и DeepSeek полностью удале
 
 Outgoing/DB-03C4 в этом блоке не менялись. RAG search остаётся gated до DB-05. Структура: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify. PRE-02E остаётся runtime-unverified до фактического запуска в n8n.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2H — bot outgoing по текущему DB-контракту. Статус: завершено offline 29 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Старый inline send заменён на durable sender flow:
+- `Сохранить намерение отправки` вызывает `sozdat_ishodyashchee_deystvie(jsonb)` и больше не вызывает Telegram напрямую;
+- общий 5-секундный queue trigger теперь имеет отдельную sender-ветку;
+- sender claim: `zabrat_ishodyashchee_deystvie(jsonb)` с lease/fencing;
+- непосредственно перед Telegram вызывается DB-03E `poluchit_soderzhimoe_ishodyashchego(jsonb)`; stale/owner/block/opt-out отменяются до внешнего API;
+- Telegram получает только текст/chat из final recheck;
+- подтверждённый внешний message ID и неоднозначный результат сохраняются через `zafiksirovat_rezultat_ishodyashchego(jsonb)`;
+- неоднозначный transport result фиксируется как `neizvestno`; blind retry не выполняется.
+
+Sender закрыт одним safety gate: node `Взять исходящее действие` имеет `disabled=true`. Его нельзя включать до DB-03E apply+verify. Processing claim также остаётся disabled.
+
+DB-03C4 требует trusted reminder window. В `Настройки компании` добавлено `napominaniya.okno_napominaniya_minut:null`; значение не выдумано и стало обязательным для готового профиля.
+
+Структура: **168 нод, 139 connection keys**. Runtime Telegram/DB sender не проверялся. Ручной ответ менеджера в WF-02B2H не менялся.
+
 ## Текущая задача
 
-**WF-02B2H — bot outgoing по текущему DB-контракту.**
+**WF-02B2I — DB-действия guard/handoff/opt-out.**
 
-Краткий состав: заменить только старые сохранение/отправку/подтверждение bot-ответа на DB-03C4/DB-03E fenced outgoing contract. Telegram sender не включать до применения и проверки DB-03E.
+Краткий состав: в том же полном workflow заменить только старые DB-вызовы тематического нарушения/предупреждения, передачи человеку и запрета инициативы на текущие DB-03C2/DB-03E функции. AI, sender и служебный Telegram пока не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
