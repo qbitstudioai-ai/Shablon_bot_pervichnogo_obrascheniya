@@ -358,79 +358,27 @@ AI-слой содержит четыре OpenRouter HTTP-вызова: тема
 DB-03E v0.5 статически проверен в репозитории, но **на Supabase не применён**. Прямые права SELECT/INSERT/UPDATE/DELETE runtime-ролям не добавляются. Для применения DB-03E в test нужен отдельный явный приказ Павла; после применения обязателен read-only verifier.
 
 
-## Последний завершённый небольшой workflow-блок
-
-**WF-02B2A — client durable ingress + safe queue skeleton. Статус: завершено 28 сентября 2026 года.**
-
-Создан `workflows/WF-02B2A_client_ingress_queue_skeleton_n8n_2.41.0.json`:
-- 14 нод, `active=false`;
-- Telegram webhook использует Header Auth, но Credential ID/секреты в JSON не сохранены;
-- trusted settings не дают вызвать БД, пока account/service-group placeholders не заполнены;
-- вход нормализуется в текущий DB-03C1 JSONB contract и сохраняется через `zaregistrirovat_vhod_klienta(jsonb)`;
-- HTTP 200 выдаётся только после результата `uspeshno` или `dublikat`;
-- media callbacks `media_take/media_no` детерминированно превращаются в безопасные text intents по WF-02B1;
-- processing schedule и пакет `zabrat_zadanie_obrabotki(jsonb)` подготовлены, но сам Postgres claim node намеренно `disabled=true`, пока следующий processing-блок не умеет получить source/context и корректно завершить job;
-- OpenAI, RAG, STT, outgoing и service Telegram в этот маленький блок не входят;
-- secrets, Credential IDs, pinData и `instanceId` отсутствуют.
-
-Следующий маленький блок: **WF-02B2B — processing claim → source/context/rate-limit/PII/guard → finish/retry**. DB-03E по-прежнему не применять без отдельного разрешения.
 
 
-## Последний завершённый небольшой workflow-блок
-
-**WF-02B2B — безопасный processing shell до OpenAI guard. Статус: завершено offline 28 сентября 2026 года.**
-
-Создан `workflows/WF-02B2B_client_processing_shell_n8n_2.41.0.json`. Цепочка:
-`claim → fenced exact source (DB-03E) → context → rate-limit → local PII → save deidentification → guard gate → finish/retry`.
-
-Безопасные ограничения:
-- workflow `active=false`;
-- `Забрать следующее задание` остаётся `disabled=true`, пока DB-03E v0.5 не применён и не проверен на Supabase;
-- voice не передаётся внешнему AI и возвращается в `povtor` с `local_stt_pending` до отдельного STT-блока;
-- OpenAI guard не имитируется: до PRE-02E normal path возвращается в `povtor` с `pre02e_guard_pending`;
-- rate-limit и PII/system errors также формируют fenced retry через `zavershit_zadanie_obrabotki`;
-- OpenRouter/RAG/outgoing/service Telegram отсутствуют.
-
-Следующий маленький блок: **WF-02B2C — реальный OpenAI thematic guard после runtime verification PRE-02E**.
-
-
-## Последний завершённый небольшой workflow-блок
-
-**WF-02B2B1 — local STT transport gate. Статус: завершено offline 29 сентября 2026 года.**
-
-Создан `workflows/WF-02B2B1_client_processing_local_stt_gate_n8n_2.41.0.json`. Для voice добавлен перенос старой проверенной структуры transport-ветки:
-`Telegram resource:file → binary merge → multipart POST http://stt-local:8000/v1/transcriptions → parse → sohranit_transkripciyu_golosa(jsonb) → общий processing`.
-
-Безопасность:
-- `stt_runtime_verified=false` — маршрут фактически закрыт до отдельной проверки доступности local STT из Amsterdam n8n;
-- до проверки voice возвращается через `zavershit_zadanie_obrabotki` в `povtor` с `local_stt_route_pending`;
-- лимиты 20 MiB / 300 секунд сохранены;
-- STT error сохраняется как `oshibka`, затем job возвращается в retry;
-- сырой voice не отправляется OpenAI;
-- workflow `active=false`, processing claim остаётся `disabled=true` до server-verified DB-03E.
-
-Следующий независимый блок по client workflow можно делать отдельно; WF-02B2C (OpenAI guard) всё ещё требует PRE-02E runtime verification.
 
 ## Текущая задача
 
-**PRE-02E — OpenAI profile в амстердамском n8n 2.41.0. Статус: подготовлено, runtime ожидается.**
+**WF-02B2 — модернизация свежего исходного workflow, без временных копий.**
 
-28 сентября 2026 года по актуальной официальной документации выбран candidate profile:
-- guard/planner: `gpt-6-luna`;
-- grounded клиентский ответ: `gpt-6-sol`;
-- document/query embeddings: `text-embedding-3-large`, candidate dimension `1024`.
+Единственная основа — свежий экспорт `Шаблон — служебный Telegram и перехват диалогов — версия 0.1.json`, который был проверен в WF-02A: 168 нод, 135 ключей connections, client + service/operator pipeline в одном workflow.
 
-Размерность 1024 выбрана осознанно: OpenAI поддерживает уменьшение `text-embedding-3-large` через `dimensions`, а обычный pgvector HNSW `vector` имеет лимит 2000 dimensions; default 3072 в этот профиль не помещается. Но dimension **ещё не считается фактически подтверждённой**, пока n8n smoke-test не вернёт векторы длины 1024.
+Принятое направление:
+- не строить новый укороченный workflow с нуля;
+- сохранять исходные ноды, связи, визуальную структуру и согласованную бизнес-логику насколько это возможно;
+- последовательно заменить старые PostgreSQL-вызовы на фактически реализованный DB-03/DB-03E API;
+- заменить OpenRouter/Qwen AI-часть на OpenAI;
+- проверять OpenAI/embeddings прямо на каноническом переделанном workflow, без отдельных smoke-workflow;
+- RAG/активный поиск знаний не считать рабочим до DB-05;
+- DB-03E остаётся подготовленным, но не применённым на Supabase до отдельного разрешения Павла.
 
-Созданы:
-- `docs/PRE-02E_OPENAI_PROFILE.md`;
-- `workflows/PRE-02E_openai_profile_smoke_n8n_2.41.0.json`.
+Следующий маленький шаг: **WF-02B2A — клиентский вход + получение задания из очереди прямо внутри копии исходного 168-node workflow.**
 
-Smoke workflow неактивен, использует только синтетические данные, Responses API со Structured Outputs и `store=false`, отдельно проверяет Luna, Sol, document embedding и query embedding. Secrets, Authorization, Credential IDs и `instanceId` в файл не включены.
-
-**Оставшийся критерий PRE-02E:** фактически запустить smoke workflow в амстердамском n8n 2.41.0 с test OpenAI Credential и получить `pre02e_status=runtime_verified`. До этого PRE-02E не закрывать, DB-04/DB-05 не начинать и полный WF-02B не считать разрешённым по зависимости.
-
-**Параллельный blocker DB-03E:** SQL подготовлен, но не применён. Перед сборкой WF-02B2 дополнительно обнаружен и закрыт в v0.2 recovery-gap: отдельный processing execution теперь сможет получить raw source content своего claimed job через fenced narrow API, не имея table SELECT. WF-02B2 можно проектировать по контракту, однако runtime workflow нельзя считать проверенным до отдельного разрешённого применения DB-03E и успешного verifier.
+PRE-02E остаётся кандидатом: `gpt-6-luna` для guard/planner, `gpt-6-sol` для grounded answer, `text-embedding-3-large` с candidate dimension 1024. Runtime-проверка будет выполнена в каноническом workflow, а не отдельным тестовым JSON.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
