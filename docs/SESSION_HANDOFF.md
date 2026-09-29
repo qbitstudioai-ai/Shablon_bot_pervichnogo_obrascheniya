@@ -84,10 +84,26 @@ PRE-02E остаётся runtime-unverified.
 
 PRE-02E остаётся runtime-unverified; 1024 и retrieval quality ещё должны быть подтверждены фактическим запуском.
 
+## WF-02B2G завершён offline
+
+В том же полном JSON:
+- основной answer → OpenAI Responses API;
+- model: `gpt-6-sol`;
+- `store=false`;
+- strict Structured Output сохранён по полям текущего решения;
+- parser адаптирован к Responses output и fail-closed handoff;
+- OpenRouter/DeepSeek полностью удалены из workflow;
+- guard/planner/answer = OpenAI Responses; query embedding = OpenAI embeddings;
+- outgoing/DB-03C4 не менялись;
+- RAG search остаётся gated до DB-05;
+- 168 нод / 138 connection keys сохранены.
+
+PRE-02E остаётся runtime-unverified до запуска в n8n.
+
 ## Следующая задача
 
-**WF-02B2G — основной LLM-ответ OpenAI.**
+**WF-02B2H — bot outgoing по текущему DB-контракту.**
 
-Менять только `Сформировать решение менеджера` и parser ответа. Outgoing/DB-03C4 пока не менять; RAG остаётся gated до DB-05.
+Менять только save/send/confirm-unknown bot outgoing. Telegram sender не включать до DB-03E apply+verify.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.

@@ -470,11 +470,29 @@ Guard остаётся на OpenAI. Query embedding всё ещё OpenRouter/Qwe
 
 Структура workflow сохранена: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify. Candidate 1024 и качество retrieval требуют runtime-проверки; PRE-02E остаётся runtime-unverified.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2G — основной LLM-ответ OpenAI. Статус: завершено offline 29 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Изменён только основной answer-участок и связанная настройка:
+- старый `model.llm=DeepSeek` заменён на `model.answer='gpt-6-sol'`;
+- подготовка решения формирует OpenAI Responses payload с `store=false` и strict `text.format/json_schema`;
+- схема сохраняет прежние поля решения: ответ, следующий этап, ожидание ответа, handoff, завершение, целевое действие и три вспомогательных массива;
+- вспомогательные массивы временно строго определены как массивы строк, потому что текущий workflow отдельно их не обрабатывает;
+- `Сформировать решение менеджера` вызывает `https://api.openai.com/v1/responses` через OpenAI Credential n8n;
+- parser читает Responses output, проверяет этап и типы полей; error/refusal/incomplete/invalid безопасно переводят диалог менеджеру.
+
+OpenRouter, OpenRouter Credential type и DeepSeek полностью удалены из канонического workflow. Guard/planner/answer работают через OpenAI Responses API, query embedding — через OpenAI embeddings.
+
+Outgoing/DB-03C4 в этом блоке не менялись. RAG search остаётся gated до DB-05. Структура: **168 нод, 138 connection keys**. Queue claim остаётся disabled до DB-03E apply+verify. PRE-02E остаётся runtime-unverified до фактического запуска в n8n.
+
 ## Текущая задача
 
-**WF-02B2G — основной LLM-ответ OpenAI.**
+**WF-02B2H — bot outgoing по текущему DB-контракту.**
 
-Краткий состав: заменить только `Сформировать решение менеджера` и parser его структурированного ответа с OpenRouter на OpenAI Responses API. Outgoing и DB-03C4 пока не менять; RAG остаётся gated до DB-05.
+Краткий состав: заменить только старые сохранение/отправку/подтверждение bot-ответа на DB-03C4/DB-03E fenced outgoing contract. Telegram sender не включать до применения и проверки DB-03E.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
