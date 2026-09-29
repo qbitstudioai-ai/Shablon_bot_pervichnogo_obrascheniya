@@ -380,11 +380,32 @@ Queue claim пока `disabled=true`: следующие старые ноды �
 
 AI/OpenRouter, local STT, media, outgoing, reminders и service/operator части в WF-02B2A не менялись. `meta.instanceId` удалён; Credential IDs и secrets в export не добавлены.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2B — начало обработки задания. Статус: завершено offline 29 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Начало processing переведено на текущий DB-контракт:
+- exact source — `poluchit_soderzhimoe_zadaniya(jsonb)`;
+- owner/block/current context — `poluchit_kontekst_dialoga(jsonb)`;
+- rate-limit — `proverit_limit_chastoty(jsonb)`;
+- превышенный rate-limit сразу освобождает lease через fenced `zavershit_zadanie_obrabotki(status=povtor)`;
+- данные source/context возвращаются в совместимом виде для существующего switch форматов.
+
+Сохранены **168 нод**. Connection keys стали **138**, потому что три старые terminal DB-ноды этого же участка теперь продолжают последовательную DB-цепочку; новых нод не добавлено.
+
+В `Настройки компании` добавлены обязательные `bezopasnost.limit_chastoty.okno_sekund` и `limit_soobshcheniy` со значением `null`: бизнес-значения не выдумывались. Пока они не заполнены, профиль компании не считается готовым.
+
+Queue claim остаётся `disabled=true`: DB-03E v0.5 ещё не применён на Supabase. Source/context conflict безопасно прекращает текущую ветку без внешней отправки; просроченный lease затем обрабатывается DB claim/reclaim logic.
+
+Media/STT/AI/outgoing/reminders/service не менялись.
+
 ## Текущая задача
 
-**WF-02B2B — первые ноды processing после queue claim.**
+**WF-02B2C — voice/STT + локальное PII-сохранение.**
 
-Краткий состав: в этом же полном workflow получить exact source/context для claimed job и заменить старые block/owner/rate-limit проверки на текущий DB-03/DB-03E контракт. Media/STT/AI/outgoing пока не менять.
+Краткий состав: заменить только старые DB-вызовы сохранения транскрипции и обезличивания на текущие JSONB API. Media-ветки, AI и outgoing пока не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

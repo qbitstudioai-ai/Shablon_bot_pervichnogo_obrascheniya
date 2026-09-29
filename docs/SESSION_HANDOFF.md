@@ -18,10 +18,22 @@
 - AI/STT/media/outgoing/reminders/service часть не менялась;
 - `instanceId`, secrets и Credential IDs в канонический export не добавлены.
 
+## WF-02B2B завершён offline
+
+В том же каноническом полном JSON:
+- source → `poluchit_soderzhimoe_zadaniya(jsonb)`;
+- context/owner/block → `poluchit_kontekst_dialoga(jsonb)`;
+- rate-limit → `proverit_limit_chastoty(jsonb)`;
+- denied rate-limit → fenced retry через `zavershit_zadanie_obrabotki`;
+- 168 нод сохранены; connection keys = 138;
+- media/STT/AI/outgoing не менялись.
+
+Queue claim остаётся disabled до DB-03E apply+verify. Значения rate-limit оставлены обязательными null-настройками, их нельзя угадывать.
+
 ## Следующая задача
 
-**WF-02B2B — exact source/context + block/owner/rate-limit после queue claim.**
+**WF-02B2C — voice/STT + локальное PII-сохранение.**
 
-Работать только в том же каноническом полном JSON. Не создавать отдельные smoke/skeleton workflow. Media/STT/AI/outgoing пока не менять.
+Работать только в том же полном JSON. AI/outgoing пока не менять.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.

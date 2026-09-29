@@ -276,7 +276,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{llm:'deepseek/deepseek-v4.1-flash',embedding:'qwen/qwen3-embedding-8b',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id));\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
+        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{llm:'deepseek/deepseek-v4.1-flash',embedding:'qwen/qwen3-embedding-8b',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
       },
       "id": "ac9588f3-e428-4d29-a76a-98f289ec9af9",
       "name": "Настройки компании",
@@ -479,11 +479,11 @@
       ],
       "alwaysOutputData": true,
       "disabled": true,
-      "notes": "WF-02B2A: DB-03 claim настроен, но временно disabled до следующего блока, который адаптирует downstream processing и обязательный finish/retry."
+      "notes": "WF-02B2B: начало processing готово offline. Не включать до применения и проверки DB-03E."
     },
     {
       "parameters": {
-        "jsCode": "const j=$json||{};return [{json:{...j,est_zadanie:j.rezultat==='uspeshno'&&Boolean(j.zadanie_id),db03_claim_gotov:j.rezultat==='uspeshno'}}];"
+        "jsCode": "const j=$json||{};\nconst est=j.rezultat==='uspeshno'&&Boolean(j.zadanie_id);\nconst claim=est?{\n  zadanie_id:j.zadanie_id,\n  dialog_id:j.dialog_id,\n  sobytie_id:j.sobytie_id,\n  worker_id:j.vladelec_arendy,\n  nomer_vladeniya:j.nomer_vladeniya,\n  versiya_dialoga:j.versiya_dialoga,\n  arenda_do:j.arenda_do,\n  popytki:j.popytki\n}:null;\nreturn [{json:{...j,est_zadanie:est,_claim:claim}}];"
       },
       "id": "d50e9fc4-3b0b-4e9b-b69e-a33787e5ceb4",
       "name": "Проверить наличие задания",
@@ -528,31 +528,17 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "combinator": "and",
-          "conditions": [
-            {
-              "leftValue": "={{ Boolean($json.zablokirovan) }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ]
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_claim\", $3::jsonb as \"_nastroyki\", $4::boolean as profil_kompanii_gotov from qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_zadaniya($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [\n  JSON.stringify({\n    operaciya_id:'source:'+String($json._claim.zadanie_id)+':'+String($json._claim.nomer_vladeniya),\n    zadanie_id:$json._claim.zadanie_id,\n    worker_id:$json._claim.worker_id,\n    nomer_vladeniya:$json._claim.nomer_vladeniya,\n    ozhidaemaya_versiya_dialoga:$json._claim.versiya_dialoga\n  }),\n  JSON.stringify($json._claim),\n  JSON.stringify($json._nastroyki),\n  $json.profil_kompanii_gotov\n] }}"
+        }
       },
       "id": "c1e4b8cf-6465-4605-8dbc-1df6b5e97b6c",
-      "name": "Пользователь заблокирован?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
+      "name": "Получить содержимое задания",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
       "position": [
         12896,
         4624
@@ -560,17 +546,31 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select * from zavershit_zadanie_bez_otveta($1::uuid,'polzovatel_zablokirovan');",
-        "options": {
-          "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.zadanie_id] }}"
-        }
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.rezultat === 'uspeshno' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
       },
       "id": "efbeb407-3fff-42de-b32b-8343c654fb2f",
-      "name": "Завершить вход заблокированного",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
+      "name": "Source разрешает обработку?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
       "position": [
         13184,
         4432
@@ -578,31 +578,17 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "combinator": "and",
-          "conditions": [
-            {
-              "leftValue": "={{ $json.vladelec_dialoga === 'chelovek' }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ]
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_source\", $3::jsonb as \"_claim\", $4::jsonb as \"_nastroyki\", $5::boolean as profil_kompanii_gotov from qbit_bot_pervichnogo_obrascheniya.poluchit_kontekst_dialoga($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [\n  JSON.stringify({\n    operaciya_id:'context:'+String($json._claim.zadanie_id)+':'+String($json._claim.nomer_vladeniya),\n    dialog_id:$json._claim.dialog_id,\n    zadanie_id:$json._claim.zadanie_id,\n    ozhidaemaya_versiya_dialoga:$json._claim.versiya_dialoga\n  }),\n  JSON.stringify({\n    identifikator_kanala_id:$json.identifikator_kanala_id,\n    soobshchenie_id:$json.soobshchenie_id,\n    tip_soobshcheniya:$json.tip_soobshcheniya,\n    tekst_ishodnyy:$json.tekst_ishodnyy,\n    payload_ishodnyy:$json.payload_ishodnyy,\n    vneshnee_soobshchenie_id:$json.vneshnee_soobshchenie_id,\n    kanal:$json.kanal,\n    akkaunt_kanala_id:$json.akkaunt_kanala_id,\n    vneshniy_dialog_id:$json.vneshniy_dialog_id\n  }),\n  JSON.stringify($json._claim),\n  JSON.stringify($json._nastroyki),\n  $json.profil_kompanii_gotov\n] }}"
+        }
       },
       "id": "c61b549c-4f9f-4f97-bdc8-a4b993ff2e2c",
-      "name": "Диалог уже у менеджера?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
+      "name": "Получить контекст диалога",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
       "position": [
         13184,
         4720
@@ -610,20 +596,52 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "select * from peredat_vhod_menedzheru($1::uuid);",
-        "options": {
-          "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.zadanie_id] }}"
-        }
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.rezultat === 'uspeshno' && $json.mozhno_ai === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
       },
       "id": "c562ed31-8bd5-4a61-862d-5469d90d06df",
-      "name": "Передать новый вход менеджеру",
+      "name": "Контекст разрешает обработку?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        13488,
+        4528
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH lim AS (\n  SELECT * FROM qbit_bot_pervichnogo_obrascheniya.proverit_limit_chastoty($1::jsonb)\n),\nfin AS (\n  SELECT f.*\n    FROM lim\n    CROSS JOIN LATERAL qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki(\n      jsonb_build_object(\n        'operaciya_id','finish:rate:' || $2::text || ':' || $3::text,\n        'zadanie_id',$2::text,\n        'worker_id',$4::text,\n        'nomer_vladeniya',$3::bigint,\n        'ozhidaemaya_versiya_dialoga',$5::bigint,\n        'status','povtor',\n        'sleduyushchiy_zapusk',lim.povtor_posle,\n        'kod_oshibki','limit_chastoty',\n        'opisanie_oshibki','Processing отложен до окончания окна rate-limit.'\n      )\n    ) AS f\n   WHERE lim.rezultat='uspeshno'\n     AND lim.razresheno=false\n     AND lim.povtor_posle IS NOT NULL\n),\np AS (\n  SELECT $6::jsonb AS source,$7::jsonb AS context,$8::jsonb AS claim,$9::jsonb AS settings,$10::boolean AS profile_ready\n)\nSELECT\n  lim.*,\n  (SELECT to_jsonb(fin) FROM fin LIMIT 1) AS rezultat_finish,\n  p.source AS \"_source\",\n  p.context AS \"_context\",\n  p.claim AS \"_claim\",\n  p.settings AS \"_nastroyki\",\n  p.profile_ready AS profil_kompanii_gotov,\n  (p.claim->>'zadanie_id')::uuid AS zadanie_id,\n  (p.claim->>'dialog_id')::uuid AS dialog_id,\n  (p.claim->>'versiya_dialoga')::bigint AS versiya_sostoyaniya,\n  p.source->>'soobshchenie_id' AS soobshchenie_id_teksta,\n  p.source->>'tekst_ishodnyy' AS tekst,\n  p.source->>'tekst_ishodnyy' AS tekst_ishodnyy_dlya_obrabotki,\n  CASE p.source->>'tip_soobshcheniya'\n    WHEN 'text' THEN 'text'\n    WHEN 'voice' THEN 'golos'\n    WHEN 'photo' THEN 'foto'\n    WHEN 'video' THEN 'video'\n    WHEN 'document' THEN 'dokument'\n    WHEN 'sticker' THEN 'stiker'\n    ELSE 'drugoe'\n  END AS tip_kontenta,\n  COALESCE(\n    p.source->'payload_ishodnyy'->'message'->'voice'->>'file_id',\n    p.source->'payload_ishodnyy'->'message'->'photo'-> -1 ->>'file_id',\n    p.source->'payload_ishodnyy'->'message'->'video'->>'file_id',\n    p.source->'payload_ishodnyy'->'message'->'document'->>'file_id',\n    p.source->'payload_ishodnyy'->'message'->'sticker'->>'file_id',\n    p.source->'payload_ishodnyy'->'edited_message'->'voice'->>'file_id',\n    p.source->'payload_ishodnyy'->'edited_message'->'video'->>'file_id',\n    p.source->'payload_ishodnyy'->'edited_message'->'document'->>'file_id'\n  ) AS file_id,\n  COALESCE(\n    p.source->'payload_ishodnyy'->'message'->'voice'->>'file_size',\n    p.source->'payload_ishodnyy'->'message'->'photo'-> -1 ->>'file_size',\n    p.source->'payload_ishodnyy'->'message'->'video'->>'file_size',\n    p.source->'payload_ishodnyy'->'message'->'document'->>'file_size'\n  )::bigint AS file_size,\n  COALESCE(\n    p.source->'payload_ishodnyy'->'message'->'voice'->>'duration',\n    p.source->'payload_ishodnyy'->'message'->'video'->>'duration'\n  )::integer AS duration,\n  COALESCE(\n    p.source->'payload_ishodnyy'->'message'->'voice'->>'mime_type',\n    p.source->'payload_ishodnyy'->'message'->'video'->>'mime_type',\n    p.source->'payload_ishodnyy'->'message'->'document'->>'mime_type'\n  ) AS mime_type,\n  p.context->>'vladelec' AS vladelec_dialoga,\n  COALESCE((p.context->>'logicheski_zablokirovan')::boolean,false) AS zablokirovan,\n  p.context->'ai_kontekst' AS ai_kontekst,\n  p.context->'lokalnye_pii' AS lokalnye_pii,\n  p.context->'ai_kontekst'->'pamyat'->>'rezyume' AS rezume_dialoga,\n  COALESCE(p.context->'ai_kontekst'->'pamyat'->'poslednie_soobshcheniya','[]'::jsonb) AS pamyat_okno,\n  COALESCE(p.context->'ai_kontekst'->'fakty','{}'::jsonb) AS vazhnye_fakty,\n  COALESCE(p.context->'lokalnye_pii'->'sootvetstviya','[]'::jsonb) AS pii_slovar\nFROM lim CROSS JOIN p;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [\n  JSON.stringify({\n    operaciya_id:'rate:'+String($json._claim.zadanie_id)+':'+String($json._claim.nomer_vladeniya),\n    identifikator_kanala_id:$json._source.identifikator_kanala_id,\n    okno_sekund:$json._nastroyki.bezopasnost?.limit_chastoty?.okno_sekund,\n    limit_soobshcheniy:$json._nastroyki.bezopasnost?.limit_chastoty?.limit_soobshcheniy,\n    vremya_proverki:new Date().toISOString()\n  }),\n  $json._claim.zadanie_id,\n  $json._claim.nomer_vladeniya,\n  $json._claim.worker_id,\n  $json._claim.versiya_dialoga,\n  JSON.stringify($json._source),\n  JSON.stringify({\n    rezultat:$json.rezultat,\n    kod_oshibki:$json.kod_oshibki,\n    versiya_dialoga:$json.versiya_dialoga,\n    versiya_pamyati:$json.versiya_pamyati,\n    vladelec:$json.vladelec,\n    status_dialoga:$json.status_dialoga,\n    logicheski_zablokirovan:$json.logicheski_zablokirovan,\n    mozhno_ai:$json.mozhno_ai,\n    ai_kontekst:$json.ai_kontekst,\n    lokalnye_pii:$json.lokalnye_pii\n  }),\n  JSON.stringify($json._claim),\n  JSON.stringify($json._nastroyki),\n  $json.profil_kompanii_gotov\n] }}"
+        }
+      },
+      "id": "23103ac7-3d09-43b9-9bb0-3fffa8e41bfe",
+      "name": "Проверить лимит частоты",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         13488,
-        4528
+        4832
       ]
     },
     {
@@ -638,7 +656,7 @@
           "combinator": "and",
           "conditions": [
             {
-              "leftValue": "={{ Boolean($json.ogranichit_chastotu) }}",
+              "leftValue": "={{ $json.rezultat === 'uspeshno' && $json.razresheno === true }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -649,28 +667,10 @@
         },
         "options": {}
       },
-      "id": "23103ac7-3d09-43b9-9bb0-3fffa8e41bfe",
-      "name": "Превышен лимит частоты?",
+      "id": "261f50f5-9105-4344-92a8-967ee657378e",
+      "name": "Лимит частоты разрешает?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [
-        13488,
-        4832
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "select * from zavershit_zadanie_bez_otveta($1::uuid,'ogranichenie_chastoty');",
-        "options": {
-          "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.zadanie_id] }}"
-        }
-      },
-      "id": "261f50f5-9105-4344-92a8-967ee657378e",
-      "name": "Завершить по ограничению частоты",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
       "position": [
         13792,
         4624
@@ -4072,65 +4072,12 @@
       "main": [
         [
           {
-            "node": "Пользователь заблокирован?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Пользователь заблокирован?": {
-      "main": [
-        [
-          {
-            "node": "Завершить вход заблокированного",
+            "node": "Получить содержимое задания",
             "type": "main",
             "index": 0
           }
         ],
-        [
-          {
-            "node": "Диалог уже у менеджера?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Диалог уже у менеджера?": {
-      "main": [
-        [
-          {
-            "node": "Передать новый вход менеджеру",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Превышен лимит частоты?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Превышен лимит частоты?": {
-      "main": [
-        [
-          {
-            "node": "Завершить по ограничению частоты",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Развести формат сообщения",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Развести формат сообщения": {
@@ -5734,6 +5681,75 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Получить содержимое задания": {
+      "main": [
+        [
+          {
+            "node": "Source разрешает обработку?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Получить контекст диалога": {
+      "main": [
+        [
+          {
+            "node": "Контекст разрешает обработку?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить лимит частоты": {
+      "main": [
+        [
+          {
+            "node": "Лимит частоты разрешает?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Source разрешает обработку?": {
+      "main": [
+        [
+          {
+            "node": "Получить контекст диалога",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Контекст разрешает обработку?": {
+      "main": [
+        [
+          {
+            "node": "Проверить лимит частоты",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Лимит частоты разрешает?": {
+      "main": [
+        [
+          {
+            "node": "Развести формат сообщения",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },
