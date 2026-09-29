@@ -1,0 +1,5752 @@
+{
+  "name": "Шаблон — служебный Telegram и перехват диалогов — версия 0.2",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## БЛОК 0. НАСТРОЙКА НОВОЙ КОМПАНИИ\nМеняется одна нода «Настройки компании» и Credentials.\n\nОбязательно настроить бизнес, темы, целевое действие, клиентский и служебный Telegram, закрытую супергруппу с темами, менеджеров, PostgreSQL, OpenRouter, локальный STT и порог RAG.\n\nWorkflow импортируется неактивным. Секретов и реальных ID в шаблоне нет.",
+        "height": 650,
+        "width": 1800,
+        "color": 5
+      },
+      "id": "75038ccf-bedb-404c-bb75-a5d78d51336e",
+      "name": "Памятка по переносу",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        9712,
+        3632
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## БЛОК 1. НАДЁЖНЫЙ ВХОД\nСначала Telegram update сохраняется в PostgreSQL и ставится в очередь. Только после commit возвращается HTTP 200.\n\nПервое сообщение также создаёт событие зеркала для операторской темы.",
+        "height": 460,
+        "width": 1700,
+        "color": 4
+      },
+      "id": "c407f769-64b0-42ad-aeb0-46eca5bc4eff",
+      "name": "Пояснение надёжного входа",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        11616,
+        3632
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## БЛОК 2. ФОРМАТЫ СООБЩЕНИЙ\nТекст — обычная обработка.\nГолос — локальная транскрипция на российском сервере, затем PII-очистка.\nФото/видео — AI не анализирует: клиенту предлагается позвать менеджера, а медиа зеркалируется в служебную тему.",
+        "height": 520,
+        "width": 2300,
+        "color": 2
+      },
+      "id": "dac54c4d-124f-4e53-a493-60bc5aaa20de",
+      "name": "Пояснение форматов",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        13504,
+        3568
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## БЛОК 3. ПАМЯТЬ, PII И GUARD\n5 последних сообщений + резюме + долговечные факты.\nPII удаляется до внешнего AI.\nGuard различает нормальный вопрос, smalltalk, уточнение, off-topic, injection, передачу человеку и запрет инициативы. Три подтверждённых нарушения → логическая блокировка.",
+        "height": 600,
+        "width": 2500,
+        "color": 6
+      },
+      "id": "ab4fecf9-93ff-4f56-bb47-d1917b4fdd5e",
+      "name": "Пояснение контроля",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        16112,
+        3568
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## БЛОК 4. RAG\nДо 3 поисковых запросов → Qwen embedding 1024 → pgvector только по опубликованным знаниям своей компании → до 8 evidence → DeepSeek structured output.\nПорог similarity задаётся только после калибровки.",
+        "height": 520,
+        "width": 2200
+      },
+      "id": "b8568115-995d-4045-a752-487865735f6a",
+      "name": "Пояснение поиска",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        18816,
+        3568
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## БЛОК 5. БЕЗОПАСНАЯ ОТПРАВКА\nСохранить намерение → ещё раз проверить owner/version/new input/block → отправить → подтвердить → обновить память/этап/напоминания.\nПерехват человеком блокирует даже уже подготовленный AI-ответ.",
+        "height": 560,
+        "width": 2350,
+        "color": 7
+      },
+      "id": "fb32e669-688d-406b-aff7-a8865cff6b76",
+      "name": "Пояснение отправки",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        21312,
+        3568
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## БЛОК 6. ОПЕРАТОРСКОЕ ЗЕРКАЛО\nС первого сообщения создаётся одна Telegram-тема на один клиентский диалог.\nТуда зеркалируются клиент, бот, голос, фото и видео.\nПри создании темы есть кнопка «Забрать диалог».\nПри handoff приходит сигнал в тему и личный сигнал ответственному менеджеру.",
+        "height": 700,
+        "width": 2600,
+        "color": 3
+      },
+      "id": "5c66b1bc-c372-400e-8ffd-c1693d478234",
+      "name": "Пояснение операторской темы",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        23808,
+        6080
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## БЛОК 7. НАПОМИНАНИЯ\nqBit стартово 3 часа и 12 часов. Перед отправкой повторно проверяются новый вход, owner, блокировка, запрет инициативы и завершение.",
+        "height": 400,
+        "width": 2100,
+        "color": 5
+      },
+      "id": "458ca6ad-7d7c-4b30-b145-adc1954ce486",
+      "name": "Пояснение напоминаний",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        11616,
+        6176
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## БЛОК 8. DB-КОНТРАКТ DRAFT\nПомимо CORE-функций нужны:\n`sohranit_transkripciyu_golosa`, `vzyat_sobytie_zerkala_operatora`, `sohranit_temu_operatora`, `podtverdit_zerkalo_operatora`, `otmetit_oshibku_zerkala_operatora`.\n\nЗеркало не блокирует клиентский webhook.",
+        "height": 760,
+        "width": 2200,
+        "color": 0
+      },
+      "id": "c68daa6d-bfaf-44fb-8efe-812e7a9dff53",
+      "name": "Пояснение контракта базы",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        26560,
+        6080
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qbit-test-telegram-v2",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "45cb4279-e1c6-40c6-b872-805541e57164",
+      "name": "Принять вход клиента",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        9856,
+        4320
+      ],
+      "webhookId": "dcae1dfb-fbb8-4f9f-9e4f-d6f2e0d20fe0"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'vhod_klienta'},binary:i.binary}));"
+      },
+      "id": "ae14898c-a42f-4aad-85df-61a38b95deca",
+      "name": "Пометить вход клиента",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10128,
+        4320
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "1ccc04fa-92bc-40a1-a46d-99796d78ebc2",
+      "name": "Проверять очередь",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        9856,
+        4832
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'ochered'}}));"
+      },
+      "id": "744bf467-3f66-475c-8016-78870d4c35fd",
+      "name": "Пометить очередь",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10128,
+        4832
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "b004ce98-875a-40f0-b503-e6a367362163",
+      "name": "Проверять напоминания",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        9856,
+        5328
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'napominaniya'}}));"
+      },
+      "id": "2bb29677-826f-4b60-aefa-9621da150aab",
+      "name": "Пометить напоминания",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10128,
+        5328
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 3
+            }
+          ]
+        }
+      },
+      "id": "083a4250-776e-4a7a-86ca-2f49b0ff6a16",
+      "name": "Проверять зеркало оператору",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        23904,
+        6432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'zerkalo_operatoru'}}));"
+      },
+      "id": "ee4d75a0-8395-4823-b21f-1ba87224d0b3",
+      "name": "Пометить зеркало оператору",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24192,
+        6432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{llm:'deepseek/deepseek-v4.1-flash',embedding:'qwen/qwen3-embedding-8b',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id));\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
+      },
+      "id": "ac9588f3-e428-4d29-a76a-98f289ec9af9",
+      "name": "Настройки компании",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10464,
+        5120
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_zapuska }}",
+                    "rightValue": "vhod_klienta",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_zapuska }}",
+                    "rightValue": "ochered",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_zapuska }}",
+                    "rightValue": "napominaniya",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_zapuska }}",
+                    "rightValue": "zerkalo_operatoru",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "прочее"
+        }
+      },
+      "id": "d95e9841-41f9-4e32-b0d5-7dd1bc38272d",
+      "name": "Развести тип запуска",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        10768,
+        5120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const root=$json||{},body=root.body||{},m=body.message||body.edited_message||null,cb=body.callback_query||null,cfg=root._nastroyki||{};\nlet tip='drugoe',dbTip='system',text='',chat=null,from=null,mid=null,file=null,size=null,dur=null,mime=null,cbid=null,sourceDate=null,eventType='message';\nif(m){\n  chat=m.chat?.id??null;from=m.from?.id??null;mid=m.message_id??null;\n  sourceDate=m.date?new Date(Number(m.date)*1000).toISOString():null;\n  if(typeof m.text==='string'){tip='text';dbTip='text';text=m.text;}\n  else if(m.voice){tip='golos';dbTip='voice';file=m.voice.file_id;size=m.voice.file_size??null;dur=m.voice.duration??null;mime=m.voice.mime_type||'audio/ogg';}\n  else if(m.photo){tip='foto';dbTip='photo';const p=m.photo[m.photo.length-1];file=p?.file_id||null;size=p?.file_size??null;text=m.caption||'';}\n  else if(m.video){tip='video';dbTip='video';file=m.video.file_id;size=m.video.file_size??null;dur=m.video.duration??null;mime=m.video.mime_type||'video/mp4';text=m.caption||'';}\n  else if(m.document){tip='dokument';dbTip='document';file=m.document.file_id;size=m.document.file_size??null;mime=m.document.mime_type||null;text=m.caption||'';}\n  else if(m.sticker){tip='stiker';dbTip='sticker';file=m.sticker.file_id;}\n}else if(cb){\n  eventType='callback';tip='callback';cbid=cb.id||null;chat=cb.message?.chat?.id??null;from=cb.from?.id??null;mid=cb.message?.message_id??null;\n  sourceDate=cb.message?.date?new Date(Number(cb.message.date)*1000).toISOString():null;\n  const data=String(cb.data||'');\n  if(data==='media_take'||data.startsWith('media_take:')){dbTip='text';text='Позвать менеджера';}\n  else if(data==='media_no'||data.startsWith('media_no:')){dbTip='text';text='Продолжить без менеджера';}\n  else{dbTip='system';text='';}\n}\nif(body.update_id===undefined||body.update_id===null)throw new Error('Нет Telegram update_id');\nif(chat===null||from===null)throw new Error('Не удалось определить chat_id/from_id');\nconst accountId=`${cfg.kompaniya_kod||'company'}:${cfg.sreda||'env'}:${cfg.kanal||'telegram'}:client`;\nconst rawFingerprint=`telegram:${body.update_id}:${JSON.stringify(body)}`;\nconst telegram={update_id:body.update_id,chat_id:chat,from_id:from,message_id:mid,tip_kontenta:tip,tekst:text,file_id:file,file_size:size,duration:dur,mime_type:mime,callback_query_id:cbid,raw:body};\nconst db_vhod={\n  versiya_formata:1,\n  operaciya_id:`tg_client_ingress:${accountId}:${body.update_id}`,\n  klyuch_idempotentnosti:`telegram:${accountId}:update:${body.update_id}`,\n  hash_soderzhaniya:rawFingerprint,\n  kanal:cfg.kanal||'telegram',\n  akkaunt_kanala_id:accountId,\n  vneshnee_sobytie_id:String(body.update_id),\n  vneshniy_polzovatel_id:String(from),\n  vneshniy_dialog_id:String(chat),\n  vneshnee_soobshchenie_id:mid===null?null:String(mid),\n  tip_sobytiya:eventType,\n  tip_soobshcheniya:dbTip,\n  tekst_ishodnyy:text,\n  vremya_istochnika:sourceDate,\n  vremya_priema:new Date().toISOString(),\n  trassirovka_id:`telegram:${accountId}:${body.update_id}`,\n  versiya_workflow:String(cfg.versiya_shablona||'client-core-draft-0.2'),\n  versiya_prompta:'ai-migration-pending-v0.2',\n  payload_ishodnyy:body,\n  sluzhebnyy_chat_id:cfg.operator?.sluzhebnaya_gruppa_id===null||cfg.operator?.sluzhebnaya_gruppa_id===undefined?'':String(cfg.operator.sluzhebnaya_gruppa_id),\n  bezopasnaya_podpis_klienta:`Клиент •••${String(from).slice(-4)}`,\n  nachalnyy_etap:'novoe_obrashchenie',\n  prioritet:0\n};\nreturn [{json:{_nastroyki:cfg,profil_kompanii_gotov:root.profil_kompanii_gotov,telegram,db_vhod}}];"
+      },
+      "id": "90a2fcca-0c6b-4a95-b418-1417f1ed100c",
+      "name": "Нормализовать вход клиента",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11104,
+        4368
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\", $3::boolean as profil_kompanii_gotov from qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_vhod_klienta($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify($json.db_vhod),JSON.stringify($json._nastroyki),$json.profil_kompanii_gotov] }}"
+        }
+      },
+      "id": "32b7edbe-0f96-40a0-b986-9dd02cda6b50",
+      "name": "Сохранить вход и поставить в очередь",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        11408,
+        4368
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": "={{ ['uspeshno','dublikat'].includes($json.rezultat) ? 200 : 500 }}"
+        }
+      },
+      "id": "3304828f-8f9a-4011-9860-ef20a50c2c87",
+      "name": "Подтвердить приём клиенту",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        11712,
+        4368
+      ],
+      "notes": "WF-02B2A: HTTP 200 только после durable результата uspeshno/dublikat. Иной результат возвращает 500."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select null::uuid as zadanie_id where false;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [] }}"
+        }
+      },
+      "id": "74e6ce62-b59d-463b-9a7f-e703711dd9bd",
+      "name": "Не брать job сразу после webhook",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        12016,
+        4368
+      ],
+      "alwaysOutputData": true,
+      "disabled": true,
+      "notes": "WF-02B2A: DB-03 не позволяет claim конкретного job из webhook. Обработка начинается только отдельной очередью."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\", $3::boolean as profil_kompanii_gotov from qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify({operaciya_id:'claim:'+$execution.id,worker_id:'n8n:'+$json._nastroyki.kompaniya_kod+':'+$json._nastroyki.sreda+':client-processing',arenda_sekund:120}),JSON.stringify($json._nastroyki),$json.profil_kompanii_gotov] }}"
+        }
+      },
+      "id": "f58a5456-e2a9-4dac-96cf-aff9332f9da7",
+      "name": "Взять следующее задание",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        11104,
+        4832
+      ],
+      "alwaysOutputData": true,
+      "disabled": true,
+      "notes": "WF-02B2A: DB-03 claim настроен, но временно disabled до следующего блока, который адаптирует downstream processing и обязательный finish/retry."
+    },
+    {
+      "parameters": {
+        "jsCode": "const j=$json||{};return [{json:{...j,est_zadanie:j.rezultat==='uspeshno'&&Boolean(j.zadanie_id),db03_claim_gotov:j.rezultat==='uspeshno'}}];"
+      },
+      "id": "d50e9fc4-3b0b-4e9b-b69e-a33787e5ceb4",
+      "name": "Проверить наличие задания",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12304,
+        4624
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.est_zadanie }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d088a3a4-aa38-4e19-8040-62e4dac78ae8",
+      "name": "Есть задание?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        12592,
+        4624
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json.zablokirovan) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c1e4b8cf-6465-4605-8dbc-1df6b5e97b6c",
+      "name": "Пользователь заблокирован?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        12896,
+        4624
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from zavershit_zadanie_bez_otveta($1::uuid,'polzovatel_zablokirovan');",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.zadanie_id] }}"
+        }
+      },
+      "id": "efbeb407-3fff-42de-b32b-8343c654fb2f",
+      "name": "Завершить вход заблокированного",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        13184,
+        4432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.vladelec_dialoga === 'chelovek' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c61b549c-4f9f-4f97-bdc8-a4b993ff2e2c",
+      "name": "Диалог уже у менеджера?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        13184,
+        4720
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from peredat_vhod_menedzheru($1::uuid);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.zadanie_id] }}"
+        }
+      },
+      "id": "c562ed31-8bd5-4a61-862d-5469d90d06df",
+      "name": "Передать новый вход менеджеру",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        13488,
+        4528
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json.ogranichit_chastotu) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "23103ac7-3d09-43b9-9bb0-3fffa8e41bfe",
+      "name": "Превышен лимит частоты?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        13488,
+        4832
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from zavershit_zadanie_bez_otveta($1::uuid,'ogranichenie_chastoty');",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.zadanie_id] }}"
+        }
+      },
+      "id": "261f50f5-9105-4344-92a8-967ee657378e",
+      "name": "Завершить по ограничению частоты",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        13792,
+        4624
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_kontenta }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_kontenta }}",
+                    "rightValue": "golos",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_kontenta }}",
+                    "rightValue": "foto",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_kontenta }}",
+                    "rightValue": "video",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_kontenta }}",
+                    "rightValue": "callback",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "прочее"
+        }
+      },
+      "id": "25eac4f1-a400-44a3-a780-7d682743fdef",
+      "name": "Развести формат сообщения",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        13856,
+        4928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json,cfg=x._nastroyki?.golos||{},s=Number(x.file_size||0),d=Number(x.duration||0);const ok=Boolean(cfg.vklyuchen)&&(!s||s<=Number(cfg.max_mb||20)*1024*1024)&&(!d||d<=Number(cfg.max_sekund||300));return [{json:{...x,golos_mozhno_raspoznat:ok}}];"
+      },
+      "id": "269606d9-1858-45e5-ae8a-ab8ff387bcf0",
+      "name": "Подготовить голос к распознаванию",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14208,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.golos_mozhno_raspoznat }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5a3029c2-78dc-4273-b372-2f3cff0e3b52",
+      "name": "Голос подходит для распознавания?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        14512,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.file_id }}",
+        "additionalFields": {
+          "mimeType": "audio/ogg"
+        }
+      },
+      "id": "b783b6b9-1bd7-4ec0-93cd-4032827dfddb",
+      "name": "Скачать голос клиента",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        14816,
+        4560
+      ],
+      "webhookId": "4101c120-9786-4ae7-8622-d2feac5a759a",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "5b0fbd99-c350-4f0a-b12d-d296396ae0d5",
+      "name": "Совместить голос и файл",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        15104,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._nastroyki.golos.lokalnyy_stt_url }}",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "language",
+              "value": "ru"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "fab737bd-c76c-4b9f-9fc4-caf4e4e601ab",
+      "name": "Транскрибировать голос локально",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        15408,
+        4656
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "56c21967-285b-49cc-8918-252a86ac6cbc",
+      "name": "Совместить голос и расшифровку",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        15712,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{},t=String(x.text??x.transcript??x.result?.text??'').trim();return [{json:{...x,tekst:t,tekst_ishodnyy_dlya_obrabotki:t,raspoznan_golos:Boolean(t),prichina_oshibki_golosa:t?'':(x.error?.message||x.message||'raspoznavanie_ne_udalos')}}];"
+      },
+      "id": "0a4d9007-706d-46cc-baac-dc33e7c0ca3e",
+      "name": "Проверить расшифровку голоса",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16016,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.raspoznan_golos }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b12a6bbf-4579-4bf0-b761-a82c2144c656",
+      "name": "Голос распознан?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        16304,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with r as (select * from sohranit_transkripciyu_golosa($1::uuid,$2::text)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$3::jsonb as kontekst;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.zadanie_id,$json.tekst,JSON.stringify($json)] }}"
+        }
+      },
+      "id": "3e2359ce-1a86-475f-952c-681439460dc8",
+      "name": "Сохранить расшифровку голоса",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        16608,
+        4560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{}),tekst:$json.kontekst?.tekst}}];"
+      },
+      "id": "12fc3535-31f6-45cb-823e-31a3a7095f45",
+      "name": "Восстановить сообщение после голоса",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16912,
+        4560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,tekst_otveta:'Не получилось распознать голосовое сообщение. Я могу позвать менеджера. Позвать?',tip_otveta:'golos_ne_raspoznan',pokazat_knopki_media:true,reshenie:{istochnik:'sistema',tip:'golos_ne_raspoznan'}}}];"
+      },
+      "id": "2927f3a5-89dc-4312-b674-7f31648dc6bc",
+      "name": "Собрать предложение после ошибки голоса",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16608,
+        4768
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json;return [{json:{...x,tekst_otveta:x._nastroyki.media.tekst_predlozheniya,tip_otveta:'media_predlozhenie_menedzhera',pokazat_knopki_media:true,reshenie:{istochnik:'sistema',tip:'media_predlozhenie_menedzhera',tip_kontenta:x.tip_kontenta}}}];"
+      },
+      "id": "ed71033e-d7b7-4d9f-b15e-6f8b5e0d6c21",
+      "name": "Собрать предложение по фото или видео",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14208,
+        5024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json,d=String(x.tekst||'');let a='drugoe';if(d.startsWith('media_take:'))a='pozvat_menedzhera';else if(d.startsWith('media_no:'))a='prodolzhit_bez_menedzhera';return [{json:{...x,deystvie_knopki:a}}];"
+      },
+      "id": "3149dfa4-44c2-4187-9243-14497a701efa",
+      "name": "Разобрать кнопку клиента",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14208,
+        5376
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $json.callback_query_id }}",
+        "additionalFields": {
+          "text": "Принято"
+        }
+      },
+      "id": "d8d7859a-4d37-4d58-a891-8b03a68ccd02",
+      "name": "Подтвердить кнопку клиенту",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        14512,
+        5536
+      ],
+      "webhookId": "94240e84-39c9-4637-9ed7-1a724aa7b3e4",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.deystvie_knopki }}",
+                    "rightValue": "pozvat_menedzhera",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.deystvie_knopki }}",
+                    "rightValue": "prodolzhit_bez_menedzhera",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "прочее"
+        }
+      },
+      "id": "0017edfc-b48a-4c62-bc38-1d5474f56359",
+      "name": "Развести кнопку клиента",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        14512,
+        5360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,tekst_otveta:$json._nastroyki.media.tekst_otkaza,tip_otveta:'media_bez_menedzhera',reshenie:{istochnik:'sistema',tip:'media_bez_menedzhera'}}}];"
+      },
+      "id": "f4944077-3b45-4221-8072-8cd99a9205af",
+      "name": "Собрать ответ продолжить без менеджера",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14816,
+        5392
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,kontrol:{deystvie:'peredat_cheloveku',prichina:'klient_nazhal_pozvat_menedzhera',uverennost:1,nuzhen_rag:false}}}];"
+      },
+      "id": "c456098a-3af7-42bf-aa24-402d86a24d30",
+      "name": "Подготовить передачу по кнопке",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14816,
+        5232
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,tekst_otveta:$json._nastroyki.media.tekst_nepodderzhivaemogo,tip_otveta:'nepodderzhivaemyy_format',reshenie:{istochnik:'sistema',tip:'nepodderzhivaemyy_format'}}}];"
+      },
+      "id": "94bf5eba-2992-493d-bf64-e272749bbb37",
+      "name": "Собрать ответ на неподдерживаемый формат",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14208,
+        5696
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{};let text=String(x.tekst_ishodnyy_dlya_obrabotki??x.tekst??'');const known=(x.pii_slovar&&typeof x.pii_slovar==='object')?{...x.pii_slovar}:{},cand=[];function esc(s){return String(s).replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&')}function next(t,v){const e=Object.entries(known).find(([k,z])=>k.startsWith(t+'_')&&String(z)===String(v));if(e)return e[0];let n=1,k;do{k=`${t}_${String(n++).padStart(2,'0')}`}while(Object.prototype.hasOwnProperty.call(known,k));known[k]=v;cand.push({tip:t,token:k,znachenie:v});return k}for(const [k,v] of Object.entries(known)){if(v&&String(v).length>=2)text=text.replace(new RegExp(esc(v),'gi'),k)}text=text.replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi,m=>next('EMAIL',m));text=text.replace(/(?<!\\w)(?:\\+?\\d[\\d\\s().-]{8,}\\d)(?!\\w)/g,m=>next('PHONE',m));text=text.replace(/(?<!\\w)@[A-Za-z0-9_]{5,32}\\b/g,m=>next('USERNAME',m));text=text.replace(/\\b(меня\\s+зовут|мо[её]\\s+имя)\\s+([А-ЯЁA-Z][А-ЯЁA-Za-zа-яё-]{1,40})/gi,(m,p,n)=>`${p} ${next('PERSON',n)}`);return [{json:{...x,tekst_bez_pii:text.trim(),pii_kandidaty:cand,pii_slovar:known}}];"
+      },
+      "id": "cc4b32e0-f288-4320-b7a2-4772c0986bd1",
+      "name": "Локально обезличить сообщение",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17312,
+        4848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with r as (select * from sohranit_lokalnye_dannye($1::uuid,$2::jsonb,$3::text)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$4::jsonb as kontekst;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.zadanie_id,JSON.stringify($json.pii_kandidaty||[]),$json.tekst_bez_pii,JSON.stringify($json)] }}"
+        }
+      },
+      "id": "b684a0e5-6d96-4264-b4da-e559b1e16efa",
+      "name": "Сохранить локальные данные",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        17616,
+        4848
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{})}}];"
+      },
+      "id": "b0bb856e-f24b-4f8c-aa8c-6670ac044841",
+      "name": "Восстановить контекст после локальных данных",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17904,
+        4848
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{},cfg=x._nastroyki||{},t=String(x.tekst_bez_pii||'').trim(),low=t.toLowerCase();let k=null,m=true;if(!x.profil_kompanii_gotov){k={deystvie:'peredat_cheloveku',prichina:'profil_kompanii_ne_nastroen',uverennost:1,nuzhen_rag:false};m=false}else if((cfg.bezopasnost?.frazy_zapreta||[]).some(s=>low.includes(String(s).toLowerCase()))){k={deystvie:'zapret_iniciativy',prichina:'yavnyy_zapret',uverennost:1,nuzhen_rag:false};m=false}else if((cfg.bezopasnost?.frazy_peredachi||[]).some(s=>low.includes(String(s).toLowerCase()))){k={deystvie:'peredat_cheloveku',prichina:'zapros_cheloveka',uverennost:1,nuzhen_rag:false};m=false}else if((cfg.bezopasnost?.frazy_injection||[]).some(s=>low.includes(String(s).toLowerCase()))){k={deystvie:'ataka_ili_injection',prichina:'yavnaya_injection',uverennost:.99,nuzhen_rag:false};m=false}else if(/^(привет|здравствуйте|добрый\\s+(день|вечер|утро)|доброе\\s+утро|хай)[!.,\\s]*$/i.test(t)){k={deystvie:'privetstvie_ili_smalltalk',prichina:'privetstvie',uverennost:1,nuzhen_rag:false};m=false}else if(/^(спасибо|благодарю|понял|поняла|ок|хорошо)[!.,\\s]*$/i.test(t)){k={deystvie:'privetstvie_ili_smalltalk',prichina:'smalltalk',uverennost:1,nuzhen_rag:false};m=false}return [{json:{...x,kontrol:k,nuzhna_model_kontrolya:m}}];"
+      },
+      "id": "962e72ab-75a6-4ca5-9499-780e6a897b71",
+      "name": "Провести быстрый локальный контроль",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18208,
+        4848
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.nuzhna_model_kontrolya }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "adba28e3-b702-414d-aed9-3d0a85f5a6e5",
+      "name": "Нужна модель контроля?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        18512,
+        4848
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json,c=x._nastroyki,s={type:'object',additionalProperties:false,properties:{deystvie:{type:'string',enum:['razresheno','privetstvie_ili_smalltalk','nuzhno_utochnenie','ne_po_teme','ataka_ili_injection','peredat_cheloveku','zapret_iniciativy']},prichina:{type:'string'},uverennost:{type:'number'},nuzhen_rag:{type:'boolean'}},required:['deystvie','prichina','uverennost','nuzhen_rag']};return [{json:{...x,zapros_modeli:{model:c.model.llm,temperature:0,max_tokens:c.model.guard_max_tokens,response_format:{type:'json_schema',json_schema:{name:'tematicheskiy_kontrol',strict:true,schema:s}},messages:[{role:'system',content:'Ты маршрутизатор клиентского бота. Не отвечай клиенту. Не считай приветствие, неоднозначность или недостаток знаний нарушением.'},{role:'user',content:JSON.stringify({tekst:x.tekst_bez_pii,opisanie:c.opisanie_biznesa,razreshennye_temy:c.razreshennye_temy,zapreshchennye_temy:c.zapreshchennye_temy})}]}}}];"
+      },
+      "id": "a10c9203-b344-4201-88b2-476d664a3e9b",
+      "name": "Подготовить запрос тематического контроля",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        18816,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.zapros_modeli }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "3b510f9e-fd05-4af7-af46-9abd3560b9b2",
+      "name": "Выполнить тематический контроль",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        19104,
+        4656
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1200,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "8d0de9f4-3990-4ec7-9988-94760da19530",
+      "name": "Совместить контекст тематического контроля",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        19408,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{};let p=null,r=x.choices?.[0]?.message?.content;try{p=typeof r==='object'&&r?r:JSON.parse(String(r||''))}catch{}const a=new Set(['razresheno','privetstvie_ili_smalltalk','nuzhno_utochnenie','ne_po_teme','ataka_ili_injection','peredat_cheloveku','zapret_iniciativy']);if(!p||!a.has(p.deystvie))p={deystvie:'peredat_cheloveku',prichina:'oshibka_struktury_kontrolya',uverennost:1,nuzhen_rag:false};return [{json:{...x,kontrol:p}}];"
+      },
+      "id": "3cf010f1-1fba-412d-91aa-81864bc9af65",
+      "name": "Проверить решение тематического контроля",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        19712,
+        4656
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kontrol.deystvie }}",
+                    "rightValue": "razresheno",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kontrol.deystvie }}",
+                    "rightValue": "privetstvie_ili_smalltalk",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kontrol.deystvie }}",
+                    "rightValue": "nuzhno_utochnenie",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kontrol.deystvie }}",
+                    "rightValue": "ne_po_teme",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kontrol.deystvie }}",
+                    "rightValue": "ataka_ili_injection",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kontrol.deystvie }}",
+                    "rightValue": "peredat_cheloveku",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kontrol.deystvie }}",
+                    "rightValue": "zapret_iniciativy",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "прочее"
+        }
+      },
+      "id": "249ee5e4-1d75-44b1-8060-36ef010b3a35",
+      "name": "Развести решение контроля",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        20016,
+        4928
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with r as (select * from zafiksirovat_narushenie($1::uuid,$2::text,$3::text,$4::double precision)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$5::jsonb as kontekst;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.zadanie_id,$json.kontrol.deystvie,$json.kontrol.prichina,$json.kontrol.uverennost,JSON.stringify($json)] }}"
+        }
+      },
+      "id": "e3d846b8-b556-40d9-8ddc-3263ba43d06b",
+      "name": "Зафиксировать тематическое нарушение",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        20304,
+        5376
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x={...($json.kontekst||{}),...($json.rezultat_bazy||{})},n=Number(x.schetchik_narusheniy||1),c=x._nastroyki.preduprezhdeniya,t=n>=3?c.tekst_3:n===2?c.tekst_2:c.tekst_1;return [{json:{...x,tekst_otveta:t,tip_otveta:'preduprezhdenie',reshenie:{istochnik:'sistema',tip:'preduprezhdenie',nomer:n}}}];"
+      },
+      "id": "4a4196b9-d9ec-46fd-b612-2cae8f3cec2d",
+      "name": "Собрать предупреждение пользователю",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20608,
+        5376
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with r as (select * from peredat_dialog_menedzheru($1::uuid,$2::text)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$3::jsonb as kontekst;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.zadanie_id,$json.kontrol?.prichina||$json.prichina_peredachi||'peredacha_po_pravilam',JSON.stringify($json)] }}"
+        }
+      },
+      "id": "631d5021-6137-417a-b568-fc975de5a98a",
+      "name": "Передать диалог менеджеру",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        20304,
+        5632
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x={...($json.kontekst||{}),...($json.rezultat_bazy||{})};return [{json:{...x,tekst_otveta:x._nastroyki.peredacha.tekst,tip_otveta:'peredacha_cheloveku',reshenie:{istochnik:'sistema',tip:'peredacha_cheloveku'}}}];"
+      },
+      "id": "fb52772d-e0bf-4f97-924f-4f0546e86bfe",
+      "name": "Собрать сообщение о передаче",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20608,
+        5632
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with r as (select * from ustanovit_zapret_iniciativy($1::uuid)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$2::jsonb as kontekst;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.zadanie_id,JSON.stringify($json)] }}"
+        }
+      },
+      "id": "6eb013e6-1408-4af3-afbd-23d53750afbe",
+      "name": "Установить запрет инициативных сообщений",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        20304,
+        5888
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x={...($json.kontekst||{}),...($json.rezultat_bazy||{})};return [{json:{...x,tekst_otveta:x._nastroyki.zapret_iniciativy.tekst,tip_otveta:'zapret_iniciativy',reshenie:{istochnik:'sistema',tip:'zapret_iniciativy'}}}];"
+      },
+      "id": "be1b0838-34c3-4769-a204-2c26c7df9070",
+      "name": "Собрать подтверждение запрета",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20608,
+        5888
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,required_points:[],evidence:[],rag_ispolzovan:false}}));"
+      },
+      "id": "9e4bed39-632f-44c8-83b4-68ef3853743b",
+      "name": "Подготовить контекст без поиска",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20608,
+        4992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json,p=x._nastroyki?.rag?.porog_pohozhesti;return [{json:{...x,porog_pohozhesti_gotov:typeof p==='number'&&Number.isFinite(p)&&p>0&&p<1}}];"
+      },
+      "id": "a380c4f5-634e-44ef-98f3-a33fb663cbfb",
+      "name": "Проверить готовность поиска знаний",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20304,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.porog_pohozhesti_gotov }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e021c825-8de3-4f04-b584-65a518814fb6",
+      "name": "Порог поиска настроен?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        20608,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,kontrol:{deystvie:'peredat_cheloveku',prichina:'porog_rag_ne_nastroen',uverennost:1,nuzhen_rag:false}}}];"
+      },
+      "id": "57ab0400-cd98-4d11-a1a9-b2385a654fa9",
+      "name": "Подготовить передачу без настроенного поиска",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20912,
+        4368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json,c=x._nastroyki,s={type:'object',additionalProperties:false,properties:{required_points:{type:'array',items:{type:'string'}},queries:{type:'array',items:{type:'string'}}},required:['required_points','queries']};return [{json:{...x,zapros_modeli:{model:c.model.llm,temperature:0,max_tokens:c.model.planner_max_tokens,response_format:{type:'json_schema',json_schema:{name:'plan_poiskov',strict:true,schema:s}},messages:[{role:'system',content:'Сформируй 1–3 поисковых запроса и required points. Не отвечай на вопрос.'},{role:'user',content:x.tekst_bez_pii}]}}}];"
+      },
+      "id": "fbe0c136-c968-41f0-95de-ec4d6d1f3a53",
+      "name": "Подготовить план поиска",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20912,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.zapros_modeli }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "7115538f-2760-47e2-8a9e-6f9efca5132c",
+      "name": "Построить план поиска",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        21216,
+        4576
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1200,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "3a2b8490-d74e-4404-8a11-6b765fec1d10",
+      "name": "Совместить контекст плана поиска",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        21504,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json;let p=null,r=x.choices?.[0]?.message?.content;try{p=typeof r==='object'&&r?r:JSON.parse(String(r||''))}catch{}let q=Array.isArray(p?.queries)?p.queries.slice(0,3):[x.tekst_bez_pii],rp=Array.isArray(p?.required_points)?p.required_points.slice(0,5):[x.tekst_bez_pii];return [{json:{...x,plan_poiska:{queries:q,required_points:rp}}}];"
+      },
+      "id": "c5e43d49-6e88-4016-8fa2-e9255a2a1980",
+      "name": "Проверить план поиска",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        21808,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json;return (x.plan_poiska?.queries||[]).map((q,i)=>({json:{...x,poiskovyy_zapros:String(q),nomer_zaprosa:i+1,required_points:x.plan_poiska?.required_points||[]}}));"
+      },
+      "id": "04e6b8bd-681c-4a54-9b33-0c0441ce2fbc",
+      "name": "Развернуть поисковые запросы",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22112,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {model:$json._nastroyki.model.embedding,input:$json.poiskovyy_zapros,dimensions:$json._nastroyki.model.razmernost} }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "d72d92aa-d022-4de3-b450-afafa96d7e57",
+      "name": "Создать вектор поискового запроса",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        22416,
+        4576
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1200,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "25199d5a-b1fa-4a8c-968b-0b80b2a1a4c5",
+      "name": "Совместить запрос и вектор",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        22704,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json,e=x.data?.[0]?.embedding,n=Number(x._nastroyki.model.razmernost);if(!Array.isArray(e)||e.length!==n)throw new Error('Некорректный embedding');return [{json:{...x,vector_stroka:'['+e.map(Number).join(',')+']'}}];"
+      },
+      "id": "fd7e2158-deb7-45d7-96a7-7036bfb21905",
+      "name": "Проверить размерность вектора",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23008,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with r as (select * from poisk_aktivnyh_znaniy(($1::text)::extensions.vector(1024),$2::integer,$3::double precision,$4::jsonb)) select true as naydeno,to_jsonb(r) as fragment,$5::text as poiskovyy_zapros,$6::jsonb as kontekst from r union all select false,null::jsonb,$5::text,$6::jsonb where not exists(select 1 from r);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.vector_stroka,$json._nastroyki.rag.candidate_top_k,$json._nastroyki.rag.porog_pohozhesti,JSON.stringify({}),$json.poiskovyy_zapros,JSON.stringify($json)] }}"
+        }
+      },
+      "id": "68444208-e92c-4898-a901-2cd2cc45a651",
+      "name": "Найти опубликованные знания",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        23312,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const a=$input.all().map(i=>i.json||{}),b=a.find(i=>i.kontekst)?.kontekst||{},m=Number(b._nastroyki?.rag?.evidence_max||8),s=new Set(),e=[];for(const i of a){if(!i.naydeno||!i.fragment)continue;const f=i.fragment,id=String(f.fragment_id||f.id||'');if(!id||s.has(id))continue;s.add(id);e.push({fragment_id:id,soderzhanie:String(f.soderzhanie||f.content||''),put_razdela:f.put_razdela||'',podobie:Number(f.podobie??f.similarity??0)})}e.sort((x,y)=>y.podobie-x.podobie);return [{json:{...b,evidence:e.slice(0,m),rag_ispolzovan:true}}];"
+      },
+      "id": "2531448d-72e4-4b9e-98d8-8bacee45bd18",
+      "name": "Собрать доказательства поиска",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23616,
+        4576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json,c=x._nastroyki,e=(x.evidence||[]);const s={type:'object',additionalProperties:false,properties:{otvet:{type:'string'},sleduyushchiy_etap:{type:'string',enum:c.prodazhi.etapy},prichina_etapa:{type:'string'},ozhidaet_otvet:{type:'boolean'},peredat_cheloveku:{type:'boolean'},prichina_peredachi:{type:'string'},zavershit_dialog:{type:'boolean'},celevoe_deystvie:{type:['string','null']},fakty_pamyati:{type:'array'},polya_lida:{type:'array'},utverzhdeniya:{type:'array'}},required:['otvet','sleduyushchiy_etap','prichina_etapa','ozhidaet_otvet','peredat_cheloveku','prichina_peredachi','zavershit_dialog','celevoe_deystvie','fakty_pamyati','polya_lida','utverzhdeniya']};return [{json:{...x,zapros_modeli:{model:c.model.llm,temperature:.2,max_tokens:c.model.otvet_max_tokens,response_format:{type:'json_schema',json_schema:{name:'reshenie_menedzhera',strict:true,schema:s}},messages:[{role:'system',content:'Ты менеджер по продажам, но не управляешь системой. Факты о товарах/условиях бери только из evidence. Если данных мало — уточни или передай человеку.'},{role:'user',content:JSON.stringify({soobshchenie:x.tekst_bez_pii,rezume:x.rezume_dialoga||{},pamyat:x.pamyat_okno||[],fakty:x.vazhnye_fakty||[],evidence:e,cel:c.cel})}]}}}];"
+      },
+      "id": "bad92e0a-e9d0-4d47-a31f-59659eb2ad4c",
+      "name": "Подготовить решение менеджера по продажам",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23904,
+        4800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.zapros_modeli }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "ac63ba05-0344-4195-aa1a-433304aee24e",
+      "name": "Сформировать решение менеджера",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        24208,
+        4800
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1200,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "83c79b56-c9bd-4f2d-bff9-853eb109f00d",
+      "name": "Совместить контекст и решение менеджера",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        24512,
+        4800
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json,r=x.choices?.[0]?.message?.content;let d=null;try{d=typeof r==='object'&&r?r:JSON.parse(String(r||''))}catch{}const valid=Boolean(d&&typeof d.otvet==='string'&&($json._nastroyki.prodazhi.etapy||[]).includes(d.sleduyushchiy_etap));return [{json:{...x,reshenie_modeli:d,nuzhna_peredacha:!valid||Boolean(d?.peredat_cheloveku),prichina_peredachi:!valid?'nekorrektnoe_reshenie_modeli':String(d?.prichina_peredachi||''),tekst_otveta:valid?String(d.otvet):'',tip_otveta:'otvet_bota',reshenie:d}}];"
+      },
+      "id": "82ffca99-1f81-4200-be29-d184d6f1dfec",
+      "name": "Проверить факты и этап ответа",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24816,
+        4800
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.nuzhna_peredacha }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "94e7b0fd-deba-4044-bfef-10cd0f375e4c",
+      "name": "Нужно передать менеджеру?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        25104,
+        4800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with r as (select * from sohranit_ishodyashchee_deystvie($1::uuid,$2::uuid,$3::bigint,$4::text,$5::text,$6::jsonb,$7::bigint)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$8::jsonb as kontekst;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.dialog_id,$json.zadanie_id,$json.chat_id,$json.tekst_otveta,$json.tip_otveta,JSON.stringify($json.reshenie||{}),$json.versiya_sostoyaniya,JSON.stringify($json)] }}"
+        }
+      },
+      "id": "6c8c64d6-eaa8-4f37-9010-33a30c3df163",
+      "name": "Сохранить намерение отправки",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        25408,
+        5168
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{})}}];"
+      },
+      "id": "6fcc71e3-6296-4cd2-87f1-e31afe770bc8",
+      "name": "Восстановить исходящее действие",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25712,
+        5168
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with r as (select * from proverit_pravo_otpravki($1::uuid)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$2::jsonb as kontekst;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.deystvie_id,JSON.stringify($json)] }}"
+        }
+      },
+      "id": "ed634625-7555-403c-9354-485934f21100",
+      "name": "Перепроверить право отправки",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        26016,
+        5168
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{})}}];"
+      },
+      "id": "0285ced0-58a3-481b-8685-268ce89ab0e0",
+      "name": "Восстановить проверенное действие",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26304,
+        5168
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json.mozhno_otpravit) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a97ec842-2e54-4bd5-a135-ebbbb836fea6",
+      "name": "Можно отправлять сообщение?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        26608,
+        5168
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from otmenit_ishodyashchee_deystvie($1::uuid,$2::text);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.deystvie_id,$json.prichina_zapreta||'sostoyanie_izmenilos'] }}"
+        }
+      },
+      "id": "efd89d96-1c82-4541-a3b7-f0b785df098d",
+      "name": "Отменить устаревшее действие",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        26912,
+        5440
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.tekst_otveta }}",
+        "replyMarkup": "={{ $json.pokazat_knopki_media ? 'inlineKeyboard' : 'none' }}",
+        "forceReply": {},
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👤 Позвать менеджера",
+                    "additionalFields": {
+                      "callback_data": "={{ 'media_take:' + $json.dialog_id }}"
+                    }
+                  },
+                  {
+                    "text": "Продолжить без менеджера",
+                    "additionalFields": {
+                      "callback_data": "={{ 'media_no:' + $json.dialog_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "replyKeyboardOptions": {},
+        "replyKeyboardRemove": {},
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ee11f182-b648-412f-9b6d-be7bce985a2a",
+      "name": "Отправить сообщение клиенту",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        26912,
+        5008
+      ],
+      "webhookId": "a203bc33-a1c7-4ed5-9fc4-91d96588c360",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "a355ee60-3ebf-437e-886f-2044e72d4b5f",
+      "name": "Совместить действие и ответ канала",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        27216,
+        5168
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{},m=x.message_id??x.result?.message_id??null,o=m!==null&&m!==undefined;return [{json:{...x,otpravka_podtverzhdena:o,telegram_message_id:m,oshibka_otpravki:o?null:(x.error?.message||x.message||'rezultat_ne_podtverzhden')}}];"
+      },
+      "id": "ce4814ad-15c7-4c5c-a00b-d7920dde4e66",
+      "name": "Определить результат отправки",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27504,
+        5168
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.otpravka_podtverzhdena }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9c52e7dd-0119-4a06-bb8b-f89118fe5b02",
+      "name": "Отправка подтверждена?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        27808,
+        5168
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from podtverdit_otpravku_i_obnovit($1::uuid,$2::bigint,$3::jsonb);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.deystvie_id,$json.telegram_message_id,JSON.stringify($json)] }}"
+        }
+      },
+      "id": "63e9ecb7-65e2-482b-9777-e105a6871842",
+      "name": "Подтвердить отправку и обновить состояние",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        28112,
+        4992
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from otmetit_neizvestnuyu_otpravku($1::uuid,$2::jsonb);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.deystvie_id,JSON.stringify({oshibka:$json.oshibka_otpravki})] }}"
+        }
+      },
+      "id": "1281a731-0852-4c58-8448-cb764b8d036e",
+      "name": "Отметить неизвестный результат отправки",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        28112,
+        5360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json.nuzhna_integraciya) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "938b6cab-3f51-4a34-8e2d-e468fb778c08",
+      "name": "Нужно поставить интеграцию в очередь?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        28416,
+        4992
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from postavit_integraciyu_v_ochered($1::uuid,$2::jsonb);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.dialog_id,JSON.stringify($json.payload_integracii||{})] }}"
+        }
+      },
+      "id": "814e0dc7-3d89-435d-8351-77373fb22602",
+      "name": "Поставить внешнюю интеграцию в очередь",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        28704,
+        4848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from vzyat_napominaniya_k_otpravke($1::integer) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json._nastroyki.obrabotka.max_napominaniy_za_raz,JSON.stringify($json._nastroyki)] }}"
+        }
+      },
+      "id": "db8c8c75-0cbf-4204-b0cc-c14dc6b6f5cf",
+      "name": "Взять допустимые напоминания",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        11104,
+        5328
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from vzyat_sobytie_zerkala_operatora($1::integer) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json._nastroyki.obrabotka.max_zerkala_za_raz,JSON.stringify($json._nastroyki)] }}"
+        }
+      },
+      "id": "3a649690-d26f-4385-8b00-21f901210168",
+      "name": "Взять событие зеркала оператору",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        24512,
+        6432
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{};return [{json:{...x,est_sobytie_zerkala:Boolean(x.sobytie_zerkala_id)}}];"
+      },
+      "id": "f53c229c-6d6d-4605-9792-bdea759ea44f",
+      "name": "Проверить событие зеркала",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24816,
+        6432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.est_sobytie_zerkala }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "75be8630-6328-4609-b82e-a269da419047",
+      "name": "Есть событие зеркала?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        25104,
+        6432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json.message_thread_id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2a567ce4-a607-4b64-8e0d-ac50fca3ceda",
+      "name": "Тема оператора уже создана?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        25408,
+        6432
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $credentials.baseUrl + '/bot' + $credentials.accessToken + '/createForumTopic' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "telegramApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {chat_id:$json.gruppa_id || $json._nastroyki.operator.sluzhebnaya_gruppa_id,name:$json.nazvanie_temy} }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "560fb335-fa2e-4b09-b7e1-4e807af1a600",
+      "name": "Создать тему клиента",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        25712,
+        6256
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1200,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "b736a4e6-2c0f-4489-ad0f-34f304fd2c5e",
+      "name": "Совместить событие и новую тему",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        26016,
+        6256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{},t=x.result?.message_thread_id??x.message_thread_id??null;return [{json:{...x,novaya_tema_id:t,tema_sozdana_seychas:Boolean(t),oshibka_temy:t?null:(x.error?.message||x.message||'tema_ne_sozdana')}}];"
+      },
+      "id": "d5f4f77e-14d1-49ee-a42f-5a3ef292fad5",
+      "name": "Проверить созданную тему",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26304,
+        6256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json.novaya_tema_id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ee9cae58-cf18-4369-885c-1422c51e84d9",
+      "name": "Тема создана успешно?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        26608,
+        6256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with r as (select * from sohranit_temu_operatora($1::uuid,$2::bigint,$3::bigint)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$4::jsonb as kontekst;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.dialog_id,$json.gruppa_id || $json._nastroyki.operator.sluzhebnaya_gruppa_id,$json.novaya_tema_id,JSON.stringify($json)] }}"
+        }
+      },
+      "id": "3788db31-18f2-4270-a930-2a1db782bafb",
+      "name": "Сохранить тему оператора",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        26912,
+        6176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{}),message_thread_id:$json.kontekst?.novaya_tema_id}}];"
+      },
+      "id": "dbb89ddc-c789-4221-bbbd-e6cbebebac20",
+      "name": "Восстановить событие с темой",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27216,
+        6176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json;return [{json:{...x,tekst_kartochki:`🆕 ${x.nazvanie_temy||'Новый клиент'}\nВладелец: 🤖 бот\nЭтап: ${x.tekushchiy_etap||'новое обращение'}\n\nЗдесь зеркалируется вся переписка.`}}];"
+      },
+      "id": "83d330d3-8b2e-43df-aeaa-fdc341cc71be",
+      "name": "Собрать карточку новой темы",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27504,
+        6096
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.gruppa_id || $json._nastroyki.operator.sluzhebnaya_gruppa_id }}",
+        "text": "={{ $json.tekst_kartochki }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👤 Забрать диалог",
+                    "additionalFields": {
+                      "callback_data": "={{ 'take:' + $json.dialog_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "b0e715c9-5a7e-4a5d-baca-2577b9673fd0",
+      "name": "Отправить карточку новой темы",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        27808,
+        6096
+      ],
+      "webhookId": "6cc17765-adf0-43ec-b80e-b914d75c3898",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json;return [{json:{...x,message_thread_id:x.message_thread_id||x.novaya_tema_id,gruppa_id:x.gruppa_id||x._nastroyki?.operator?.sluzhebnaya_gruppa_id}}];"
+      },
+      "id": "ef420f24-d502-4ff1-91a6-441c5f523588",
+      "name": "Подготовить событие зеркала",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        27504,
+        6448
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "rightValue": "tekst_klienta",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "rightValue": "tekst_bota",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "rightValue": "media_klienta",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "rightValue": "signal_v_temu",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "rightValue": "signal_lichno",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "прочее"
+        }
+      },
+      "id": "94558989-16b5-4962-9403-7cef882ebe06",
+      "name": "Развести событие зеркала",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        27808,
+        6448
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.gruppa_id }}",
+        "text": "={{ '🧑 Клиент: ' + ($json.tekst || '') }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👤 Забрать диалог",
+                    "additionalFields": {
+                      "callback_data": "={{ 'take:' + $json.dialog_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "f58091df-a823-4207-907d-fa5737d95230",
+      "name": "Зеркалировать текст клиента",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28112,
+        6320
+      ],
+      "webhookId": "8b8c0efb-629b-4097-88f4-a2337e796719",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.gruppa_id }}",
+        "text": "={{ '🤖 Бот: ' + ($json.tekst || '') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "6c138d59-b715-43fb-966c-1b0b0b765896",
+      "name": "Зеркалировать ответ бота",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28112,
+        6480
+      ],
+      "webhookId": "ed7bef1f-7893-4682-91d4-07de9ba5ca2b",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json}}];"
+      },
+      "id": "791324bb-eabd-4a8f-9e9f-0c47acb3e553",
+      "name": "Подготовить медиа для зеркала",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        28112,
+        6672
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.file_id }}",
+        "additionalFields": {}
+      },
+      "id": "23117f45-e2d1-471d-934b-bfc5fd549c95",
+      "name": "Скачать медиа клиента",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28416,
+        6672
+      ],
+      "webhookId": "b67677ca-2868-42f2-9179-3e85ac71a27d",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "0685be4f-ec27-4eaa-88e3-ed54f8aa2d35",
+      "name": "Совместить событие и медиа",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        28704,
+        6672
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_kontenta }}",
+                    "rightValue": "foto",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_kontenta }}",
+                    "rightValue": "video",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_kontenta }}",
+                    "rightValue": "golos",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "прочее"
+        }
+      },
+      "id": "71b27875-d8a5-4eaf-b6d1-7bd39083a1f9",
+      "name": "Развести медиа зеркала",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        29008,
+        6672
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $json.gruppa_id }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "={{ '🧑 Клиент прислал фото' + ($json.tekst ? '\\n' + $json.tekst : '') }}",
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "3d24f692-8031-4425-88c7-bc0cdc1727cf",
+      "name": "Показать фото менеджеру",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        29312,
+        6576
+      ],
+      "webhookId": "3610f2cd-53e3-4ff5-a316-4e60afe36a80",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "sendVideo",
+        "chatId": "={{ $json.gruppa_id }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "={{ '🧑 Клиент прислал видео' + ($json.tekst ? '\\n' + $json.tekst : '') }}",
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "c93f95cf-2d85-4379-9998-c2779599d3f1",
+      "name": "Показать видео менеджеру",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        29312,
+        6704
+      ],
+      "webhookId": "7b9f2139-2584-4a18-8761-919898b1e135",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "={{ $json.gruppa_id }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "🧑 Голосовое сообщение клиента",
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "0e4417e2-963c-4e10-a185-e0ca4f931ab9",
+      "name": "Показать голос менеджеру",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        29312,
+        6832
+      ],
+      "webhookId": "c7481e6d-c81c-4491-b50c-7c5d6df868e7",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.gruppa_id }}",
+        "text": "={{ '🔴 Требуется человек\\nПричина: ' + ($json.prichina || 'нужна помощь менеджера') }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👤 Забрать диалог",
+                    "additionalFields": {
+                      "callback_data": "={{ 'take:' + $json.dialog_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "fce460f3-762d-4950-8591-1ea6e1353c8c",
+      "name": "Сигнал в теме менеджера",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28112,
+        6912
+      ],
+      "webhookId": "81a24786-8cd4-491f-8e9c-b893311ba2d6",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.manager_chat_id }}",
+        "text": "={{ '🔴 Требуется подключение\\nКлиент: ' + ($json.nazvanie_temy || $json.dialog_id) + '\\nПричина: ' + ($json.prichina || 'нужна помощь') }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👤 Забрать диалог",
+                    "additionalFields": {
+                      "callback_data": "={{ 'take:' + $json.dialog_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "5a8d5fca-a577-4911-8094-40ef17eeabb8",
+      "name": "Личный сигнал менеджеру",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        28112,
+        7088
+      ],
+      "webhookId": "8c4b7adf-c111-420c-b90a-0a7c09efd7bb",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "859f207a-dcec-45da-852f-6647bfbb2125",
+      "name": "Совместить событие и результат зеркала",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        29712,
+        6448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{},ok=!x.error&&(x.ok!==false);return [{json:{...x,zerkalo_podtverzhdeno:ok,oshibka_zerkala:ok?null:(x.error?.message||x.message||'otpravka_zerkala_ne_podtverzhdena')}}];"
+      },
+      "id": "266f72f8-1637-4160-8c02-c27baee75790",
+      "name": "Определить результат зеркала",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        30016,
+        6448
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.zerkalo_podtverzhdeno }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3372b84b-1412-478b-af18-efa1968e2608",
+      "name": "Зеркало доставлено?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        30304,
+        6448
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from podtverdit_zerkalo_operatora($1::uuid);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.sobytie_zerkala_id] }}"
+        }
+      },
+      "id": "ecc55ea0-4456-491f-b984-db2a6ee74a5a",
+      "name": "Подтвердить зеркало оператору",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        30608,
+        6320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from otmetit_oshibku_zerkala_operatora($1::uuid,$2::text);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.sobytie_zerkala_id,$json.oshibka_zerkala] }}"
+        }
+      },
+      "id": "3876aaa4-3183-4427-a3b4-92fbc0a036f4",
+      "name": "Отметить ошибку зеркала оператору",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        30608,
+        6592
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from otmetit_oshibku_zerkala_operatora($1::uuid,$2::text);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.sobytie_zerkala_id,$json.oshibka_temy||'tema_ne_sozdana'] }}"
+        }
+      },
+      "id": "59dc0c68-d9bd-4261-bb5f-0e4030205360",
+      "name": "Отметить ошибку создания темы",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        26912,
+        6400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## СЛУЖЕБНЫЙ TELEGRAM-ХАБ\nУ служебного бота один webhook. Он принимает сообщения менеджеров, callback-кнопки и позже ветку загрузки базы знаний.\n\nБот должен быть администратором закрытой forum-супергруппы и иметь право управлять темами. Каждый менеджер, которому нужны личные уведомления, один раз пишет /start служебному боту.",
+        "height": 620,
+        "width": 2100,
+        "color": 5
+      },
+      "id": "86405a91-51bc-4d23-9510-a224d7b46080",
+      "name": "Памятка служебного бота",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        21936,
+        11504
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ПЕРЕХВАТ\nКнопка «Забрать диалог» атомарно меняет owner bot → chelovek и закрепляет конкретного manager Telegram ID.\nЕсли два менеджера нажали одновременно, выигрывает первый успешный commit.\nПосле захвата только сообщения закреплённого менеджера из этой темы могут уйти клиенту.",
+        "height": 620,
+        "width": 2300,
+        "color": 3
+      },
+      "id": "36f87145-f1be-4fab-ade6-271f08180998",
+      "name": "Пояснение перехвата",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        24240,
+        11504
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## РУЧНОЙ ОТВЕТ\nМенеджер просто пишет текст в теме клиента.\nСлужебный бот сохраняет действие, проверяет владельца, а клиентский Telegram-бот отправляет сообщение покупателю.\nКлиент продолжает видеть тот же чат с ботом компании.",
+        "height": 520,
+        "width": 2100,
+        "color": 6
+      },
+      "id": "997314b8-4c1b-48cd-943c-90f6017503de",
+      "name": "Пояснение ручного ответа",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        26736,
+        11504
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ВОЗВРАТ БОТУ\nКнопка «Вернуть боту» создаёт отдельное событие owner chelovek → bot.\nБот не пишет немедленно, а ждёт следующего сообщения клиента.",
+        "height": 460,
+        "width": 1900,
+        "color": 7
+      },
+      "id": "56b54d10-925a-4764-be0d-eddd11fcf82a",
+      "name": "Пояснение возврата",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        29040,
+        11504
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qbit-test-service-telegram-v1",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "dc682bbe-080b-48ae-b1fc-7973d39ce2d6",
+      "name": "Принять вход служебного бота",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        22144,
+        12016
+      ],
+      "webhookId": "c2b5fa78-909b-4087-848d-6045f22edaba"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "cd480b19-11d4-42a4-9c20-0a3aa6b34197",
+      "name": "Проверять служебную очередь",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        22144,
+        12608
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'vhod'}}));"
+      },
+      "id": "1ded8f2c-7536-4855-95c7-4e55a28515a0",
+      "name": "Пометить вход служебного бота",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22416,
+        12016
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'ochered'}}));"
+      },
+      "id": "8fe897e4-ade1-41cc-8a20-57b9c4a272c5",
+      "name": "Пометить служебную очередь",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22416,
+        12608
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg={kompaniya_kod:'qbit',sreda:'test',sluzhebnaya_gruppa_id:null,razreshennye_menedzhery_telegram_id:[]};return $input.all().map(i=>({json:{...i.json,_nastroyki:cfg}}));"
+      },
+      "id": "29d6c50c-9e52-4cb6-81bc-3b47431aadf4",
+      "name": "Настройки служебного бота",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        22704,
+        12304
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_zapuska }}",
+                    "rightValue": "vhod",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_zapuska }}",
+                    "rightValue": "ochered",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "прочее"
+        }
+      },
+      "id": "796354ce-513b-4a04-ad0b-5cc03f195e13",
+      "name": "Развести служебный запуск",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        22976,
+        12304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const root=$json||{},b=root.body||{},m=b.message||b.edited_message||null,cb=b.callback_query||null;let tip='drugoe',chat=null,from=null,thread=null,text='',cbid=null,data='';if(cb){tip='callback';cbid=cb.id;data=String(cb.data||'');from=cb.from?.id??null;chat=cb.message?.chat?.id??null;thread=cb.message?.message_thread_id??null}else if(m){chat=m.chat?.id??null;from=m.from?.id??null;thread=m.message_thread_id??null;text=String(m.text||'');if(m.chat?.type==='private'&&text==='/start')tip='start';else if(thread&&text)tip='tekst_menedzhera';else if(m.chat?.type==='private'&&m.document)tip='dokument_kb'}if(b.update_id===undefined||b.update_id===null)throw new Error('Нет update_id');return [{json:{_nastroyki:root._nastroyki,sluzhebny:{update_id:b.update_id,tip,chat_id:chat,from_id:from,message_thread_id:thread,tekst:text,callback_query_id:cbid,callback_data:data,raw:b}}}];"
+      },
+      "id": "5a8ba9a9-69dc-4ca8-b852-ad4d56598823",
+      "name": "Нормализовать служебный вход",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        23280,
+        12016
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from prinyat_sluzhebny_vhod_telegram($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify($json.sluzhebny),JSON.stringify($json._nastroyki)] }}"
+        }
+      },
+      "id": "4282aa22-9bdb-4514-bf40-8524d1a39f66",
+      "name": "Сохранить служебный вход",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        23584,
+        12016
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "a99dc040-166e-40a3-b669-42a407c32bc9",
+      "name": "Подтвердить служебный вход",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        23888,
+        12016
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from vzyat_sluzhebnoe_zadanie($1::uuid) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.zadanie_id,JSON.stringify($json._nastroyki)] }}"
+        }
+      },
+      "id": "f8551c3f-8a29-4d7d-9c25-6bc5812cd967",
+      "name": "Взять служебное задание",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        24176,
+        12016
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $1::jsonb as \"_nastroyki\" from vzyat_sleduyushchee_sluzhebnoe_zadanie() r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify($json._nastroyki)] }}"
+        }
+      },
+      "id": "ec4d88a5-6cee-4073-aff4-b0dc79923dbc",
+      "name": "Взять следующее служебное задание",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        23280,
+        12608
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{};let a=x.tip_sluzhebnogo_vhoda||x.tip||'drugoe',id=null;if(a==='callback'){const d=String(x.callback_data||'');if(d.startsWith('take:')){a='zabrat';id=d.slice(5)}else if(d.startsWith('return:')){a='vernut';id=d.slice(7)}else a='drugoe'}return [{json:{...x,deystvie:a,dialog_id_iz_knopki:id}}];"
+      },
+      "id": "0ac5d770-4ccb-4874-b54c-18f603b4e1a8",
+      "name": "Определить служебное действие",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24496,
+        12288
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.deystvie }}",
+                    "rightValue": "zabrat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.deystvie }}",
+                    "rightValue": "vernut",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.deystvie }}",
+                    "rightValue": "tekst_menedzhera",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.deystvie }}",
+                    "rightValue": "start",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.deystvie }}",
+                    "rightValue": "dokument_kb",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "прочее"
+        }
+      },
+      "id": "4b99dcb2-7812-43d1-91e4-af0ce6d40e49",
+      "name": "Развести служебное действие",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        24800,
+        12288
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from zabrat_dialog_operatorom($1::uuid,$2::bigint);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.dialog_id_iz_knopki,$json.from_id] }}"
+        }
+      },
+      "id": "41d3eccc-0750-45f1-ab12-c4068b9e661a",
+      "name": "Забрать диалог оператором",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        25120,
+        11952
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $json.callback_query_id }}",
+        "additionalFields": {
+          "text": "={{ $json.uspeshno ? 'Диалог закреплён за вами' : ($json.soobshchenie || 'Диалог уже занят') }}"
+        }
+      },
+      "id": "ea7a3a76-eb5f-4127-92ee-917575e636fa",
+      "name": "Ответить на кнопку захвата",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25424,
+        11888
+      ],
+      "webhookId": "0adccf31-2b07-439b-899d-f6dcf966317a",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.gruppa_id }}",
+        "text": "={{ $json.uspeshno ? '👤 Диалог забрал ' + ($json.imya_menedzhera || 'менеджер') + '. Бот остановлен.' : '⚠️ Диалог уже ведёт другой менеджер.' }}",
+        "replyMarkup": "={{ $json.uspeshno ? 'inlineKeyboard' : 'none' }}",
+        "forceReply": {},
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "🤖 Вернуть боту",
+                    "additionalFields": {
+                      "callback_data": "={{ 'return:' + $json.dialog_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "replyKeyboardOptions": {},
+        "replyKeyboardRemove": {},
+        "additionalFields": {
+          "appendAttribution": false,
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "74d7a23d-d91c-4bf3-9b1c-be4fe4b50a28",
+      "name": "Сообщить в теме о захвате",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25424,
+        12048
+      ],
+      "webhookId": "5cf254a5-ba41-4a6e-be70-3b4eb493fe7d",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from vernut_dialog_botu($1::uuid,$2::bigint);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.dialog_id_iz_knopki,$json.from_id] }}"
+        }
+      },
+      "id": "04c6a16d-33ac-4842-98fa-58f433fb2bc1",
+      "name": "Вернуть диалог боту",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        25120,
+        12288
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "queryId": "={{ $json.callback_query_id }}",
+        "additionalFields": {
+          "text": "={{ $json.uspeshno ? 'Управление вернулось боту' : ($json.soobshchenie || 'Не удалось вернуть') }}"
+        }
+      },
+      "id": "e16457f5-de57-4fac-b9cd-30e324a56ff8",
+      "name": "Ответить на кнопку возврата",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25424,
+        12240
+      ],
+      "webhookId": "cfd56063-f06d-4e79-aec3-871ee996e725",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.gruppa_id }}",
+        "text": "={{ $json.uspeshno ? \"🤖 Управление возвращено боту. Бот ждёт следующего сообщения клиента.\" : \"⚠️ Возврат управления не выполнен.\" }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "c32f3af3-d001-4c53-99d9-0b38b589f345",
+      "name": "Сообщить в теме о возврате",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25424,
+        12400
+      ],
+      "webhookId": "f9f71da6-da4c-43e0-82e7-84e9dc8a9cdf",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from podgotovit_ruchnoy_otvet($1::bigint,$2::bigint,$3::bigint,$4::text);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.chat_id,$json.message_thread_id,$json.from_id,$json.tekst] }}"
+        }
+      },
+      "id": "e3d9f745-751f-484b-9b4d-2e0d89453014",
+      "name": "Подготовить ручной ответ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        25120,
+        12624
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json.mozhno_otpravit) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f87d4259-5870-42c9-93c9-aac13108d110",
+      "name": "Менеджер имеет право ответить?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        25424,
+        12624
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.client_chat_id }}",
+        "text": "={{ $json.tekst }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "babf795b-ca81-4e8e-9bbc-4067f3b0ee6b",
+      "name": "Отправить ручной ответ клиенту",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25728,
+        12528
+      ],
+      "webhookId": "66243224-4199-4107-9919-99b7db3638d3",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "36cbc23b-892b-4e9c-ba8a-9de8bd20d054",
+      "name": "Совместить ручное действие и ответ",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        26016,
+        12624
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{},m=x.message_id??x.result?.message_id??null;return [{json:{...x,otpravleno:m!==null&&m!==undefined,telegram_message_id:m}}];"
+      },
+      "id": "6d40629f-58c8-4f50-94bd-f8fb5a330e36",
+      "name": "Определить результат ручной отправки",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26320,
+        12624
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.otpravleno }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d470667f-e7ae-453e-8cd9-291e79ae4a42",
+      "name": "Ручной ответ отправлен?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        26624,
+        12624
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from podtverdit_ruchnoy_otvet($1::uuid,$2::bigint);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.deystvie_id,$json.telegram_message_id] }}"
+        }
+      },
+      "id": "089050f4-dd11-4d2f-b7b9-f65ac403d18a",
+      "name": "Подтвердить ручной ответ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        26928,
+        12528
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from otmetit_neizvestnyy_ruchnoy_otvet($1::uuid);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.deystvie_id] }}"
+        }
+      },
+      "id": "68806722-1797-43aa-ad6e-66a13a342ebf",
+      "name": "Отметить неизвестный ручной ответ",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        26928,
+        12752
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Этот диалог не закреплён за вами. Нажмите «Забрать диалог», прежде чем отвечать клиенту.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "message_thread_id": "={{ $json.message_thread_id }}"
+        }
+      },
+      "id": "fc5cd95b-499b-455d-a9fd-206f87dc28a6",
+      "name": "Подсказать забрать диалог",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25728,
+        12816
+      ],
+      "webhookId": "c8b7047a-0eee-4f31-9240-caadad042c24",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from zaregistrirovat_menedzhera_telegram($1::bigint,$2::bigint);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [$json.from_id,$json.chat_id] }}"
+        }
+      },
+      "id": "a11cc9a2-4c5e-4c98-b67f-ef279f10c2e7",
+      "name": "Зарегистрировать менеджера",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        25120,
+        13008
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.razreshen ? 'Готово. Личные уведомления о диалогах подключены.' : 'Ваш Telegram ID не добавлен в список менеджеров этой компании.' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ec53df02-75f5-4df2-9e92-8c84ca80be9b",
+      "name": "Подтвердить личные уведомления",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25424,
+        13008
+      ],
+      "webhookId": "e505232d-51f4-4895-9654-31584d79a1b9",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json}}];"
+      },
+      "id": "bdef0ad8-f2a4-4ba3-bcdd-20b4a26a041c",
+      "name": "Отложить документ до блока знаний",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        25120,
+        13232
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Документ сохранён как служебный вход. Обработчик базы знаний подключается отдельным блоком KB-01 к этому же служебному webhook.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b0de6146-8e63-4cb1-b5b8-adbb89dd770b",
+      "name": "Ответить про загрузку знаний",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        25424,
+        13232
+      ],
+      "webhookId": "2a54f9dc-13e2-4ce5-a2b7-7a90fd9f6502",
+      "continueOnFail": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Принять вход клиента": {
+      "main": [
+        [
+          {
+            "node": "Пометить вход клиента",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить вход клиента": {
+      "main": [
+        [
+          {
+            "node": "Настройки компании",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверять очередь": {
+      "main": [
+        [
+          {
+            "node": "Пометить очередь",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить очередь": {
+      "main": [
+        [
+          {
+            "node": "Настройки компании",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверять напоминания": {
+      "main": [
+        [
+          {
+            "node": "Пометить напоминания",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить напоминания": {
+      "main": [
+        [
+          {
+            "node": "Настройки компании",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверять зеркало оператору": {
+      "main": [
+        [
+          {
+            "node": "Пометить зеркало оператору",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить зеркало оператору": {
+      "main": [
+        [
+          {
+            "node": "Настройки компании",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Настройки компании": {
+      "main": [
+        [
+          {
+            "node": "Развести тип запуска",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Развести тип запуска": {
+      "main": [
+        [
+          {
+            "node": "Нормализовать вход клиента",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Взять следующее задание",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Взять допустимые напоминания",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Взять событие зеркала оператору",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нормализовать вход клиента": {
+      "main": [
+        [
+          {
+            "node": "Сохранить вход и поставить в очередь",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить вход и поставить в очередь": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить приём клиенту",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подтвердить приём клиенту": {
+      "main": [
+        []
+      ]
+    },
+    "Взять следующее задание": {
+      "main": [
+        [
+          {
+            "node": "Проверить наличие задания",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить наличие задания": {
+      "main": [
+        [
+          {
+            "node": "Есть задание?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Есть задание?": {
+      "main": [
+        [
+          {
+            "node": "Пользователь заблокирован?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пользователь заблокирован?": {
+      "main": [
+        [
+          {
+            "node": "Завершить вход заблокированного",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Диалог уже у менеджера?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Диалог уже у менеджера?": {
+      "main": [
+        [
+          {
+            "node": "Передать новый вход менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Превышен лимит частоты?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Превышен лимит частоты?": {
+      "main": [
+        [
+          {
+            "node": "Завершить по ограничению частоты",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Развести формат сообщения",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Развести формат сообщения": {
+      "main": [
+        [
+          {
+            "node": "Локально обезличить сообщение",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Подготовить голос к распознаванию",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Собрать предложение по фото или видео",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Собрать предложение по фото или видео",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Разобрать кнопку клиента",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Собрать ответ на неподдерживаемый формат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить голос к распознаванию": {
+      "main": [
+        [
+          {
+            "node": "Голос подходит для распознавания?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Голос подходит для распознавания?": {
+      "main": [
+        [
+          {
+            "node": "Скачать голос клиента",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить голос и файл",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Собрать предложение после ошибки голоса",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Скачать голос клиента": {
+      "main": [
+        [
+          {
+            "node": "Совместить голос и файл",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить голос и файл": {
+      "main": [
+        [
+          {
+            "node": "Транскрибировать голос локально",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить голос и расшифровку",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Транскрибировать голос локально": {
+      "main": [
+        [
+          {
+            "node": "Совместить голос и расшифровку",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить голос и расшифровку": {
+      "main": [
+        [
+          {
+            "node": "Проверить расшифровку голоса",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить расшифровку голоса": {
+      "main": [
+        [
+          {
+            "node": "Голос распознан?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Голос распознан?": {
+      "main": [
+        [
+          {
+            "node": "Сохранить расшифровку голоса",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Собрать предложение после ошибки голоса",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить расшифровку голоса": {
+      "main": [
+        [
+          {
+            "node": "Восстановить сообщение после голоса",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Восстановить сообщение после голоса": {
+      "main": [
+        [
+          {
+            "node": "Локально обезличить сообщение",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Разобрать кнопку клиента": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить кнопку клиенту",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Развести кнопку клиента",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Развести кнопку клиента": {
+      "main": [
+        [
+          {
+            "node": "Подготовить передачу по кнопке",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Собрать ответ продолжить без менеджера",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить передачу по кнопке": {
+      "main": [
+        [
+          {
+            "node": "Передать диалог менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать предложение по фото или видео": {
+      "main": [
+        [
+          {
+            "node": "Сохранить намерение отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать предложение после ошибки голоса": {
+      "main": [
+        [
+          {
+            "node": "Сохранить намерение отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать ответ продолжить без менеджера": {
+      "main": [
+        [
+          {
+            "node": "Сохранить намерение отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать ответ на неподдерживаемый формат": {
+      "main": [
+        [
+          {
+            "node": "Сохранить намерение отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Локально обезличить сообщение": {
+      "main": [
+        [
+          {
+            "node": "Сохранить локальные данные",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить локальные данные": {
+      "main": [
+        [
+          {
+            "node": "Восстановить контекст после локальных данных",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Восстановить контекст после локальных данных": {
+      "main": [
+        [
+          {
+            "node": "Провести быстрый локальный контроль",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Провести быстрый локальный контроль": {
+      "main": [
+        [
+          {
+            "node": "Нужна модель контроля?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нужна модель контроля?": {
+      "main": [
+        [
+          {
+            "node": "Подготовить запрос тематического контроля",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Развести решение контроля",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить запрос тематического контроля": {
+      "main": [
+        [
+          {
+            "node": "Выполнить тематический контроль",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить контекст тематического контроля",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Выполнить тематический контроль": {
+      "main": [
+        [
+          {
+            "node": "Совместить контекст тематического контроля",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить контекст тематического контроля": {
+      "main": [
+        [
+          {
+            "node": "Проверить решение тематического контроля",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить решение тематического контроля": {
+      "main": [
+        [
+          {
+            "node": "Развести решение контроля",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Развести решение контроля": {
+      "main": [
+        [
+          {
+            "node": "Проверить готовность поиска знаний",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Подготовить контекст без поиска",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Подготовить контекст без поиска",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Зафиксировать тематическое нарушение",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Зафиксировать тематическое нарушение",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Передать диалог менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Установить запрет инициативных сообщений",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Передать диалог менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Зафиксировать тематическое нарушение": {
+      "main": [
+        [
+          {
+            "node": "Собрать предупреждение пользователю",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать предупреждение пользователю": {
+      "main": [
+        [
+          {
+            "node": "Сохранить намерение отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Передать диалог менеджеру": {
+      "main": [
+        [
+          {
+            "node": "Собрать сообщение о передаче",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать сообщение о передаче": {
+      "main": [
+        [
+          {
+            "node": "Сохранить намерение отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Установить запрет инициативных сообщений": {
+      "main": [
+        [
+          {
+            "node": "Собрать подтверждение запрета",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать подтверждение запрета": {
+      "main": [
+        [
+          {
+            "node": "Сохранить намерение отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить готовность поиска знаний": {
+      "main": [
+        [
+          {
+            "node": "Порог поиска настроен?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Порог поиска настроен?": {
+      "main": [
+        [
+          {
+            "node": "Подготовить план поиска",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Подготовить передачу без настроенного поиска",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить передачу без настроенного поиска": {
+      "main": [
+        [
+          {
+            "node": "Передать диалог менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить план поиска": {
+      "main": [
+        [
+          {
+            "node": "Построить план поиска",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить контекст плана поиска",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Построить план поиска": {
+      "main": [
+        [
+          {
+            "node": "Совместить контекст плана поиска",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить контекст плана поиска": {
+      "main": [
+        [
+          {
+            "node": "Проверить план поиска",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить план поиска": {
+      "main": [
+        [
+          {
+            "node": "Развернуть поисковые запросы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Развернуть поисковые запросы": {
+      "main": [
+        [
+          {
+            "node": "Создать вектор поискового запроса",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить запрос и вектор",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Создать вектор поискового запроса": {
+      "main": [
+        [
+          {
+            "node": "Совместить запрос и вектор",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить запрос и вектор": {
+      "main": [
+        [
+          {
+            "node": "Проверить размерность вектора",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить размерность вектора": {
+      "main": [
+        [
+          {
+            "node": "Найти опубликованные знания",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Найти опубликованные знания": {
+      "main": [
+        [
+          {
+            "node": "Собрать доказательства поиска",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать доказательства поиска": {
+      "main": [
+        [
+          {
+            "node": "Подготовить решение менеджера по продажам",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить контекст без поиска": {
+      "main": [
+        [
+          {
+            "node": "Подготовить решение менеджера по продажам",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить решение менеджера по продажам": {
+      "main": [
+        [
+          {
+            "node": "Сформировать решение менеджера",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить контекст и решение менеджера",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сформировать решение менеджера": {
+      "main": [
+        [
+          {
+            "node": "Совместить контекст и решение менеджера",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить контекст и решение менеджера": {
+      "main": [
+        [
+          {
+            "node": "Проверить факты и этап ответа",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить факты и этап ответа": {
+      "main": [
+        [
+          {
+            "node": "Нужно передать менеджеру?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нужно передать менеджеру?": {
+      "main": [
+        [
+          {
+            "node": "Передать диалог менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Сохранить намерение отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить намерение отправки": {
+      "main": [
+        [
+          {
+            "node": "Восстановить исходящее действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Восстановить исходящее действие": {
+      "main": [
+        [
+          {
+            "node": "Перепроверить право отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Перепроверить право отправки": {
+      "main": [
+        [
+          {
+            "node": "Восстановить проверенное действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Восстановить проверенное действие": {
+      "main": [
+        [
+          {
+            "node": "Можно отправлять сообщение?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Можно отправлять сообщение?": {
+      "main": [
+        [
+          {
+            "node": "Отправить сообщение клиенту",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить действие и ответ канала",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Отменить устаревшее действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отправить сообщение клиенту": {
+      "main": [
+        [
+          {
+            "node": "Совместить действие и ответ канала",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить действие и ответ канала": {
+      "main": [
+        [
+          {
+            "node": "Определить результат отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Определить результат отправки": {
+      "main": [
+        [
+          {
+            "node": "Отправка подтверждена?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отправка подтверждена?": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить отправку и обновить состояние",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Отметить неизвестный результат отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подтвердить отправку и обновить состояние": {
+      "main": [
+        [
+          {
+            "node": "Нужно поставить интеграцию в очередь?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нужно поставить интеграцию в очередь?": {
+      "main": [
+        [
+          {
+            "node": "Поставить внешнюю интеграцию в очередь",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Взять допустимые напоминания": {
+      "main": [
+        [
+          {
+            "node": "Перепроверить право отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Взять событие зеркала оператору": {
+      "main": [
+        [
+          {
+            "node": "Проверить событие зеркала",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить событие зеркала": {
+      "main": [
+        [
+          {
+            "node": "Есть событие зеркала?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Есть событие зеркала?": {
+      "main": [
+        [
+          {
+            "node": "Тема оператора уже создана?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Тема оператора уже создана?": {
+      "main": [
+        [
+          {
+            "node": "Подготовить событие зеркала",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Создать тему клиента",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить событие и новую тему",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Создать тему клиента": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и новую тему",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить событие и новую тему": {
+      "main": [
+        [
+          {
+            "node": "Проверить созданную тему",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить созданную тему": {
+      "main": [
+        [
+          {
+            "node": "Тема создана успешно?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Тема создана успешно?": {
+      "main": [
+        [
+          {
+            "node": "Сохранить тему оператора",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Отметить ошибку создания темы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить тему оператора": {
+      "main": [
+        [
+          {
+            "node": "Восстановить событие с темой",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Восстановить событие с темой": {
+      "main": [
+        [
+          {
+            "node": "Собрать карточку новой темы",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Подготовить событие зеркала",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать карточку новой темы": {
+      "main": [
+        [
+          {
+            "node": "Отправить карточку новой темы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить событие зеркала": {
+      "main": [
+        [
+          {
+            "node": "Развести событие зеркала",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить событие и результат зеркала",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Развести событие зеркала": {
+      "main": [
+        [
+          {
+            "node": "Зеркалировать текст клиента",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Зеркалировать ответ бота",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Подготовить медиа для зеркала",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Сигнал в теме менеджера",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Личный сигнал менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Зеркалировать текст клиента": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и результат зеркала",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Зеркалировать ответ бота": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и результат зеркала",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Сигнал в теме менеджера": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и результат зеркала",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Личный сигнал менеджеру": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и результат зеркала",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Подготовить медиа для зеркала": {
+      "main": [
+        [
+          {
+            "node": "Скачать медиа клиента",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить событие и медиа",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Скачать медиа клиента": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и медиа",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить событие и медиа": {
+      "main": [
+        [
+          {
+            "node": "Развести медиа зеркала",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Развести медиа зеркала": {
+      "main": [
+        [
+          {
+            "node": "Показать фото менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Показать видео менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Показать голос менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Показать фото менеджеру": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и результат зеркала",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Показать видео менеджеру": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и результат зеркала",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Показать голос менеджеру": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и результат зеркала",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить событие и результат зеркала": {
+      "main": [
+        [
+          {
+            "node": "Определить результат зеркала",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Определить результат зеркала": {
+      "main": [
+        [
+          {
+            "node": "Зеркало доставлено?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Зеркало доставлено?": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить зеркало оператору",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Отметить ошибку зеркала оператору",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Принять вход служебного бота": {
+      "main": [
+        [
+          {
+            "node": "Пометить вход служебного бота",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить вход служебного бота": {
+      "main": [
+        [
+          {
+            "node": "Настройки служебного бота",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверять служебную очередь": {
+      "main": [
+        [
+          {
+            "node": "Пометить служебную очередь",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить служебную очередь": {
+      "main": [
+        [
+          {
+            "node": "Настройки служебного бота",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Настройки служебного бота": {
+      "main": [
+        [
+          {
+            "node": "Развести служебный запуск",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Развести служебный запуск": {
+      "main": [
+        [
+          {
+            "node": "Нормализовать служебный вход",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Взять следующее служебное задание",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нормализовать служебный вход": {
+      "main": [
+        [
+          {
+            "node": "Сохранить служебный вход",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить служебный вход": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить служебный вход",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подтвердить служебный вход": {
+      "main": [
+        [
+          {
+            "node": "Взять служебное задание",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Взять служебное задание": {
+      "main": [
+        [
+          {
+            "node": "Определить служебное действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Взять следующее служебное задание": {
+      "main": [
+        [
+          {
+            "node": "Определить служебное действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Определить служебное действие": {
+      "main": [
+        [
+          {
+            "node": "Развести служебное действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Развести служебное действие": {
+      "main": [
+        [
+          {
+            "node": "Забрать диалог оператором",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Вернуть диалог боту",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Подготовить ручной ответ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Зарегистрировать менеджера",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Отложить документ до блока знаний",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Забрать диалог оператором": {
+      "main": [
+        [
+          {
+            "node": "Ответить на кнопку захвата",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Сообщить в теме о захвате",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вернуть диалог боту": {
+      "main": [
+        [
+          {
+            "node": "Ответить на кнопку возврата",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Сообщить в теме о возврате",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить ручной ответ": {
+      "main": [
+        [
+          {
+            "node": "Менеджер имеет право ответить?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Менеджер имеет право ответить?": {
+      "main": [
+        [
+          {
+            "node": "Отправить ручной ответ клиенту",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить ручное действие и ответ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Подсказать забрать диалог",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отправить ручной ответ клиенту": {
+      "main": [
+        [
+          {
+            "node": "Совместить ручное действие и ответ",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить ручное действие и ответ": {
+      "main": [
+        [
+          {
+            "node": "Определить результат ручной отправки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Определить результат ручной отправки": {
+      "main": [
+        [
+          {
+            "node": "Ручной ответ отправлен?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ручной ответ отправлен?": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить ручной ответ",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Отметить неизвестный ручной ответ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Зарегистрировать менеджера": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить личные уведомления",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отложить документ до блока знаний": {
+      "main": [
+        [
+          {
+            "node": "Ответить про загрузку знаний",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Не брать job сразу после webhook": {
+      "main": [
+        [
+          {
+            "node": "Проверить наличие задания",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "aa8bf8d4-a566-4076-af92-669421c2262a",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "id": "2tk5mUTdhRsYcnLE",
+  "tags": []
+}
