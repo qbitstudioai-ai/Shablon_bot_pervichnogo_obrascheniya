@@ -252,3 +252,10 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 - DB-03E is complete in test Supabase.
 - Next task: return to WF-02B3 controlled n8n smoke work.
 - SQL audit: 25 files. Keep canonical migrations/contracts; legacy DB-03E verifier v0.2-v0.10 files are candidates for a separate cleanup commit. No SQL deletion performed yet.
+
+
+## SQL-CLEANUP-01 VERIFIED — 30.09.2026
+- Removed obsolete DB-03E verifier files v0.2-v0.10 from current main.
+- Kept `sql/DB-03E_runtime_gap_closure.sql` and `sql/DB-03E_v0.11_verify.sql`.
+- No other SQL files changed/deleted; Git history preserves old verifier versions.
+- Next task: WF-02B3 controlled n8n smoke work.
