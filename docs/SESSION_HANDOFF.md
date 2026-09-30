@@ -169,10 +169,24 @@ Service webhook ingress:
 - сами old service queue/topic/mirror/Take/Return/manual ноды не менялись;
 - 168 нод / 139 connection keys; workflow inactive.
 
+## WF-02B2N завершён offline
+
+Service mirror runtime:
+- claim → `zabrat_sobytie_zerkala(jsonb)` с lease/fencing;
+- DB-03D1 event types нормализованы;
+- target chat/thread только из claim;
+- media → локальные DB bytes, не client Telegram file_id;
+- confirmed/unknown/error → `zafiksirovat_rezultat_zerkala(jsonb)`;
+- confirmed только при точном Telegram message_id;
+- ambiguous = terminal `neizvestno`; local missing media bytes = `oshibka`;
+- mirror claim disabled до topic migration;
+- topic/Take/Return/manual не менялись;
+- 168 нод / 139 connection keys.
+
 ## Следующая задача
 
-**WF-02B2N — service mirror runtime по DB-03D1.**
+**WF-02B2O — создание operator forum-topic по DB-03D1.**
 
-Менять только mirror claim + result на lease/fencing API. Topic creation, Take/Return/manual reply не трогать.
+Менять только topic claim → createForumTopic → confirm/unknown с worker/fencing. Mirror/Take/Return/manual не расширять.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.

@@ -604,11 +604,31 @@ AI, sender и service Telegram в этом блоке не менялись. С�
 
 Структура сохранена: **168 нод, 139 connection keys**, `active=false`. Processing/sender/reminder gates остаются disabled. DB-03E на Supabase не применялся.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2N — service mirror runtime по DB-03D1. Статус: завершено offline 30 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Изменён только service mirror runtime:
+- claim → `zabrat_sobytie_zerkala(jsonb)` с worker/lease/fencing;
+- нормализуются текущие DB-03D1 event types: client/bot text, media, handoff, Take/Return status, private notification и card event;
+- target chat/thread берутся только из DB claim;
+- media mirror использует локально сохранённые DB bytes `soderzhimoe`, а не Telegram file_id клиентского бота;
+- confirmed result → `zafiksirovat_rezultat_zerkala(jsonb)` только при точном Telegram `message_id`;
+- неоднозначный внешний результат → terminal `neizvestno`, без blind retry;
+- если DB claim не содержит локально доступных media bytes до внешнего API, результат фиксируется как terminal `oshibka`;
+- initial card event после подтверждённой отправки передаёт Telegram message id в D1 result API.
+
+`Взять событие зеркала оператору` оставлен `disabled=true`, потому что создание operator topic ещё использует legacy путь. Topic creation, service ingress, Take/Return и manual reply в этом блоке не менялись.
+
+Структура workflow: **168 нод, 139 connection keys**, `active=false`.
+
 ## Текущая задача
 
-**WF-02B2N — service mirror runtime по DB-03D1.**
+**WF-02B2O — создание operator forum-topic по DB-03D1.**
 
-Краткий состав: заменить только старый claim зеркала на `zabrat_sobytie_zerkala(jsonb)` и его confirmed/error result на `zafiksirovat_rezultat_zerkala(jsonb)` с worker/fencing. Topic creation, Take/Return и manual reply пока не менять.
+Краткий состав: заменить только legacy topic creation/save/error на `zabrat_sozdanie_operator_temy(jsonb)` → Telegram `createForumTopic` → `podtverdit_operator_temu(jsonb)` или `otmetit_temu_neizvestnoy(jsonb)` с worker/fencing. Mirror/Take/Return/manual не расширять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

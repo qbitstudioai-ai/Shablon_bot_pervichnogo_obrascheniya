@@ -130,7 +130,7 @@
     },
     {
       "parameters": {
-        "content": "## БЛОК 8. DB-КОНТРАКТ DRAFT\nПомимо CORE-функций нужны:\n`sohranit_transkripciyu_golosa`, `vzyat_sobytie_zerkala_operatora`, `sohranit_temu_operatora`, `podtverdit_zerkalo_operatora`, `otmetit_oshibku_zerkala_operatora`.\n\nЗеркало не блокирует клиентский webhook.",
+        "content": "## БЛОК 8. DB-КОНТРАКТ\nClient/outgoing/reminders и service ingress/mirror постепенно переведены на DB-03 JSONB API.\n\nMirror runtime: `zabrat_sobytie_zerkala` + `zafiksirovat_rezultat_zerkala` с lease/fencing.\nTopic creation пока legacy и мигрируется отдельным блоком.\n\nЗеркало не блокирует клиентский webhook.",
         "height": 760,
         "width": 2200,
         "color": 0
@@ -2282,10 +2282,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select r.*, $2::jsonb as \"_nastroyki\" from vzyat_sobytie_zerkala_operatora($1::integer) r;",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from qbit_bot_pervichnogo_obrascheniya.zabrat_sobytie_zerkala($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json._nastroyki.obrabotka.max_zerkala_za_raz,JSON.stringify($json._nastroyki)] }}"
+          "queryReplacement": "={{ [JSON.stringify({operaciya_id:'mirror:claim:'+$execution.id,worker_id:'n8n:'+$json._nastroyki.kompaniya_kod+':'+$json._nastroyki.sreda+':service-mirror',arenda_sekund:120}),JSON.stringify($json._nastroyki)] }}"
         }
       },
       "id": "3a649690-d26f-4385-8b00-21f901210168",
@@ -2296,11 +2296,13 @@
         24512,
         6432
       ],
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "disabled": true,
+      "notes": "WF-02B2N SAFETY GATE: DB-03D1 mirror claim с lease/fencing. Не включать до миграции topic creation на DB-03D1."
     },
     {
       "parameters": {
-        "jsCode": "const x=$json||{};return [{json:{...x,est_sobytie_zerkala:Boolean(x.sobytie_zerkala_id)}}];"
+        "jsCode": "const x=$json||{};\nconst ok=x.rezultat==='uspeshno'&&Boolean(x.sobytie_zerkala_id)&&Boolean(x.vladelec_arendy)&&Number(x.nomer_vladeniya)>0;\nconst mediaMap={photo:'foto',video:'video',voice:'golos'};\nreturn [{json:{\n  ...x,\n  est_sobytie_zerkala:ok,\n  gruppa_id:x.cel_chat_id||null,\n  message_thread_id:x.cel_thread_id||null,\n  manager_chat_id:x.tip_sobytiya==='lichnoe_uvedomlenie'?(x.cel_chat_id||null):null,\n  tip_kontenta:mediaMap[x.tip_vlozheniya]||null,\n  _mirror_claim:ok?{sobytie_zerkala_id:x.sobytie_zerkala_id,worker_id:x.vladelec_arendy,nomer_vladeniya:x.nomer_vladeniya,arenda_do:x.arenda_do,popytki:x.popytki}:null\n}}];"
       },
       "id": "f53c229c-6d6d-4605-9792-bdea759ea44f",
       "name": "Проверить событие зеркала",
@@ -2355,7 +2357,7 @@
           "combinator": "and",
           "conditions": [
             {
-              "leftValue": "={{ Boolean($json.message_thread_id) }}",
+              "leftValue": "={{ $json.tip_sobytiya === 'lichnoe_uvedomlenie' || Boolean($json.message_thread_id) }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -2544,7 +2546,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const x=$json;return [{json:{...x,message_thread_id:x.message_thread_id||x.novaya_tema_id,gruppa_id:x.gruppa_id||x._nastroyki?.operator?.sluzhebnaya_gruppa_id}}];"
+        "jsCode": "const x=$json||{},p=x.payload||{};\nlet route='drugoe',text=String(x.tekst||'');\nif(x.tip_sobytiya==='soobshchenie_klienta'){route='tekst_klienta';text='🧑 Клиент: '+text;}\nelse if(x.tip_sobytiya==='otvet_bota'){route='tekst_bota';text='🤖 Бот: '+text;}\nelse if(x.tip_sobytiya==='media_klienta'){route='media_klienta';}\nelse if(x.tip_sobytiya==='nuzhen_chelovek'){route='signal_v_temu';text='🔴 Требуется человек\\n'+(text||String(p.prichina||'Нужна помощь менеджера'));}\nelse if(x.tip_sobytiya==='lichnoe_uvedomlenie'){route='signal_lichno';text='🔴 Требуется подключение\\n'+(text||String(p.prichina||'Нужна помощь'));}\nelse if(x.tip_sobytiya==='zabran'||x.tip_sobytiya==='vozvrashchen'){route='tekst_bota';text=String(x.tekst||'Статус диалога изменён.');}\nelse if(x.tip_sobytiya==='obnovit_kartochku'){\n  route='tekst_bota';\n  const owner=p.vladelec==='chelovek'?'👤 менеджер':'🤖 бот';\n  text=p.rezhim==='initial'\n    ? '🆕 '+String(x.bezopasnaya_podpis_klienta||'Клиент')+'\\nВладелец: '+owner+'\\n\\nЗдесь зеркалируется вся переписка.'\n    : '🔄 Статус диалога\\nВладелец: '+owner;\n}\nreturn [{json:{...x,tip_marshruta_zerkala:route,tekst_dlya_zerkala:text,gruppa_id:x.cel_chat_id||null,message_thread_id:x.cel_thread_id||null,manager_chat_id:x.tip_sobytiya==='lichnoe_uvedomlenie'?(x.cel_chat_id||null):null}}];"
       },
       "id": "ef420f24-d502-4ff1-91a6-441c5f523588",
       "name": "Подготовить событие зеркала",
@@ -2569,7 +2571,7 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "leftValue": "={{ $json.tip_marshruta_zerkala }}",
                     "rightValue": "tekst_klienta",
                     "operator": {
                       "type": "string",
@@ -2590,7 +2592,7 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "leftValue": "={{ $json.tip_marshruta_zerkala }}",
                     "rightValue": "tekst_bota",
                     "operator": {
                       "type": "string",
@@ -2611,7 +2613,7 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "leftValue": "={{ $json.tip_marshruta_zerkala }}",
                     "rightValue": "media_klienta",
                     "operator": {
                       "type": "string",
@@ -2632,7 +2634,7 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "leftValue": "={{ $json.tip_marshruta_zerkala }}",
                     "rightValue": "signal_v_temu",
                     "operator": {
                       "type": "string",
@@ -2653,7 +2655,7 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $json.tip_sobytiya }}",
+                    "leftValue": "={{ $json.tip_marshruta_zerkala }}",
                     "rightValue": "signal_lichno",
                     "operator": {
                       "type": "string",
@@ -2683,7 +2685,7 @@
     {
       "parameters": {
         "chatId": "={{ $json.gruppa_id }}",
-        "text": "={{ '🧑 Клиент: ' + ($json.tekst || '') }}",
+        "text": "={{ $json.tekst_dlya_zerkala }}",
         "replyMarkup": "inlineKeyboard",
         "inlineKeyboard": {
           "rows": [
@@ -2720,10 +2722,27 @@
     {
       "parameters": {
         "chatId": "={{ $json.gruppa_id }}",
-        "text": "={{ '🤖 Бот: ' + ($json.tekst || '') }}",
+        "text": "={{ $json.tekst_dlya_zerkala }}",
         "additionalFields": {
           "appendAttribution": false,
           "message_thread_id": "={{ $json.message_thread_id }}"
+        },
+        "replyMarkup": "={{ $json.tip_sobytiya === 'obnovit_kartochku' && $json.payload?.rezhim === 'initial' ? 'inlineKeyboard' : 'none' }}",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "👤 Забрать диалог",
+                    "additionalFields": {
+                      "callback_data": "={{ 'take:' + $json.dialog_id }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
         }
       },
       "id": "6c138d59-b715-43fb-966c-1b0b0b765896",
@@ -2739,7 +2758,7 @@
     },
     {
       "parameters": {
-        "jsCode": "return [{json:{...$json}}];"
+        "jsCode": "const x=$json||{};\nconst raw=x.soderzhimoe;\nconst hasBytes=Boolean(raw&&(typeof raw==='string'||Array.isArray(raw)||(raw&&raw.type==='Buffer')||(typeof Buffer!=='undefined'&&Buffer.isBuffer(raw))));\nreturn [{json:{...x,tip_kontenta:hasBytes?x.tip_kontenta:'oshibka',mirror_result_status:hasBytes?null:'oshibka',mirror_error_code:hasBytes?null:'mirror_media_content_missing',oshibka_zerkala:hasBytes?null:'DB-03D1 не вернул локально доступные bytes media'}}];"
       },
       "id": "791324bb-eabd-4a8f-9e9f-0c47acb3e553",
       "name": "Подготовить медиа для зеркала",
@@ -2752,20 +2771,17 @@
     },
     {
       "parameters": {
-        "resource": "file",
-        "fileId": "={{ $json.file_id }}",
-        "additionalFields": {}
+        "jsCode": "const x=$json||{},raw=x.soderzhimoe;\nif(x.tip_kontenta==='oshibka') return [{json:{...x}}];\nlet buf=null;\nif(typeof Buffer!=='undefined'&&Buffer.isBuffer(raw)) buf=raw;\nelse if(raw&&raw.type==='Buffer'&&Array.isArray(raw.data)) buf=Buffer.from(raw.data);\nelse if(Array.isArray(raw)) buf=Buffer.from(raw);\nelse if(typeof raw==='string'&&/^\\\\x[0-9a-f]+$/i.test(raw)) buf=Buffer.from(raw.slice(2),'hex');\nelse if(typeof raw==='string'&&raw) buf=Buffer.from(raw,'base64');\nif(!buf||!buf.length) return [{json:{...x,tip_kontenta:'oshibka',mirror_result_status:'oshibka',mirror_error_code:'mirror_media_content_missing',oshibka_zerkala:'Не удалось декодировать DB media bytes'}}];\nconst tip=String(x.tip_vlozheniya||'');\nconst mime=x.mime||(tip==='photo'?'image/jpeg':tip==='video'?'video/mp4':tip==='voice'?'audio/ogg':'application/octet-stream');\nconst file=x.imya_fayla||(tip==='photo'?'photo.jpg':tip==='video'?'video.mp4':tip==='voice'?'voice.ogg':'attachment.bin');\nreturn [{json:{...x},binary:{data:{data:buf.toString('base64'),mimeType:mime,fileName:file}}}];"
       },
       "id": "23117f45-e2d1-471d-934b-bfc5fd549c95",
-      "name": "Скачать медиа клиента",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
+      "name": "Подготовить binary медиа из DB",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         28416,
         6672
       ],
-      "webhookId": "b67677ca-2868-42f2-9179-3e85ac71a27d",
-      "continueOnFail": true
+      "notes": "WF-02B2N: media mirror использует локально сохранённые bytes из DB-03D1; client Telegram file_id между ботами не переиспользуется."
     },
     {
       "parameters": {
@@ -2931,7 +2947,7 @@
     {
       "parameters": {
         "chatId": "={{ $json.gruppa_id }}",
-        "text": "={{ '🔴 Требуется человек\\nПричина: ' + ($json.prichina || 'нужна помощь менеджера') }}",
+        "text": "={{ $json.tekst_dlya_zerkala }}",
         "replyMarkup": "inlineKeyboard",
         "inlineKeyboard": {
           "rows": [
@@ -2968,7 +2984,7 @@
     {
       "parameters": {
         "chatId": "={{ $json.manager_chat_id }}",
-        "text": "={{ '🔴 Требуется подключение\\nКлиент: ' + ($json.nazvanie_temy || $json.dialog_id) + '\\nПричина: ' + ($json.prichina || 'нужна помощь') }}",
+        "text": "={{ $json.tekst_dlya_zerkala }}",
         "replyMarkup": "inlineKeyboard",
         "inlineKeyboard": {
           "rows": [
@@ -3018,7 +3034,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const x=$json||{},ok=!x.error&&(x.ok!==false);return [{json:{...x,zerkalo_podtverzhdeno:ok,oshibka_zerkala:ok?null:(x.error?.message||x.message||'otpravka_zerkala_ne_podtverzhdena')}}];"
+        "jsCode": "const x=$json||{};\nconst mid=x.message_id??x.result?.message_id??null;\nconst ok=mid!==null&&mid!==undefined&&String(mid)!=='';\nreturn [{json:{...x,zerkalo_podtverzhdeno:ok,telegram_mirror_message_id:ok?String(mid):null,vremya_podtverzhdeniya_zerkala:new Date().toISOString(),mirror_result_status:ok?'podtverzhdeno':'neizvestno',mirror_error_code:ok?null:'telegram_mirror_result_unknown',oshibka_zerkala:ok?null:String(x.error?.message||x.message||'Telegram mirror result не подтверждён')}}];"
       },
       "id": "266f72f8-1637-4160-8c02-c27baee75790",
       "name": "Определить результат зеркала",
@@ -3064,10 +3080,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select * from podtverdit_zerkalo_operatora($1::uuid);",
+        "query": "select * from qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_zerkala($1::jsonb);",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.sobytie_zerkala_id] }}"
+          "queryReplacement": "={{ [JSON.stringify({\n      operaciya_id:'mirror:confirm:'+String($json._mirror_claim.sobytie_zerkala_id)+':'+String($json._mirror_claim.nomer_vladeniya),\n      sobytie_zerkala_id:$json._mirror_claim.sobytie_zerkala_id,\n      worker_id:$json._mirror_claim.worker_id,\n      nomer_vladeniya:$json._mirror_claim.nomer_vladeniya,\n      status:'podtverzhdeno',\n      vneshniy_message_id:$json.telegram_mirror_message_id,\n      vremya_podtverzhdeniya:$json.vremya_podtverzhdeniya_zerkala\n    })] }}"
         }
       },
       "id": "ecc55ea0-4456-491f-b984-db2a6ee74a5a",
@@ -3077,25 +3093,27 @@
       "position": [
         30608,
         6320
-      ]
+      ],
+      "notes": "WF-02B2N: confirmed mirror result только при точном Telegram message_id и текущем worker/fencing."
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select * from otmetit_oshibku_zerkala_operatora($1::uuid,$2::text);",
+        "query": "select * from qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_zerkala($1::jsonb);",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.sobytie_zerkala_id,$json.oshibka_zerkala] }}"
+          "queryReplacement": "={{ [JSON.stringify({\n      operaciya_id:'mirror:problem:'+String($json._mirror_claim.sobytie_zerkala_id)+':'+String($json._mirror_claim.nomer_vladeniya),\n      sobytie_zerkala_id:$json._mirror_claim.sobytie_zerkala_id,\n      worker_id:$json._mirror_claim.worker_id,\n      nomer_vladeniya:$json._mirror_claim.nomer_vladeniya,\n      status:$json.mirror_result_status||'neizvestno',\n      kod_oshibki:$json.mirror_error_code||'telegram_mirror_result_unknown',\n      opisanie_oshibki:String($json.oshibka_zerkala||'Mirror result не подтверждён')\n    })] }}"
         }
       },
       "id": "3876aaa4-3183-4427-a3b4-92fbc0a036f4",
-      "name": "Отметить ошибку зеркала оператору",
+      "name": "Зафиксировать проблему зеркала",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         30608,
         6592
-      ]
+      ],
+      "notes": "WF-02B2N: до внешнего API известная локальная проблема = oshibka; неоднозначный Telegram transport result = terminal neizvestno. Blind retry не выполняется."
     },
     {
       "parameters": {
@@ -5191,7 +5209,7 @@
       "main": [
         [
           {
-            "node": "Скачать медиа клиента",
+            "node": "Подготовить binary медиа из DB",
             "type": "main",
             "index": 0
           },
@@ -5199,17 +5217,6 @@
             "node": "Совместить событие и медиа",
             "type": "main",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "Скачать медиа клиента": {
-      "main": [
-        [
-          {
-            "node": "Совместить событие и медиа",
-            "type": "main",
-            "index": 1
           }
         ]
       ]
@@ -5244,6 +5251,13 @@
         [
           {
             "node": "Показать голос менеджеру",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Зафиксировать проблему зеркала",
             "type": "main",
             "index": 0
           }
@@ -5316,7 +5330,7 @@
         ],
         [
           {
-            "node": "Отметить ошибку зеркала оператору",
+            "node": "Зафиксировать проблему зеркала",
             "type": "main",
             "index": 0
           }
@@ -5784,6 +5798,17 @@
     "Обработать следующее напоминание": {
       "main": [
         []
+      ]
+    },
+    "Подготовить binary медиа из DB": {
+      "main": [
+        [
+          {
+            "node": "Совместить событие и медиа",
+            "type": "main",
+            "index": 1
+          }
+        ]
       ]
     }
   },
