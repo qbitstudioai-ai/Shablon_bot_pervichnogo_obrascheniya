@@ -164,3 +164,10 @@ Processing worker при этом остаётся закрыт **явным exe
 Для текущего test n8n подготовлен отдельный import-ready runtime JSON на основе свежего export Павла. В нём существующие bot/service Credentials назначены автоматически всем Postgres nodes по классу. Этот instance-specific файл не сохраняется в GitHub.
 
 WF-02B3A закрыт offline. WF-02B3 остаётся в работе до реального импорта и controlled runtime smoke.
+
+
+### S1 runtime import accepted — 30.09.2026
+
+Павел импортировал подготовленный WF-02B3A instance-specific JSON в test n8n 2.41.0. n8n принял workflow без видимых ошибок импорта. Это подтверждает отсутствие явной структурной/import ошибки на стороне UI.
+
+На момент фиксации workflow не активировать. Проверка сохранения в inactive state и последующий client-ingress smoke выполняются отдельно.

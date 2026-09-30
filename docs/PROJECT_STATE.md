@@ -724,3 +724,8 @@ After DB-03E v0.11 verification, removed only obsolete DB-03E verifier files v0.
 Добавлен `tools/check_n8n_postgres_credentials.py`: template mode требует отсутствие Postgres Credential refs; runtime mode сравнивает все Postgres nodes с двумя seed Credentials и fail-closed при ошибочной bot/service привязке или достижимом legacy service node. Credential IDs/пароли скрипт не печатает.
 
 Для текущего test n8n сформирован import-ready JSON из свежего export Павла с уже существующими bot/service Credential refs. Instance-specific JSON в GitHub не сохраняется. Production/traffic/server не менялись. Следующий этап — импорт этого файла Павлом и WF-02B3 controlled smoke.
+
+
+### WF-02B3 S1 import accepted — 30.09.2026
+
+Павел сообщил, что подготовленный WF-02B3A import-ready JSON успешно импортирован в test n8n без видимых ошибок. Структурный import-blocker не обнаружен. Workflow не считать runtime-verified и не активировать до следующих controlled checks. Следующий шаг: подтвердить inactive/save и подготовить Header Auth для изолированного client-ingress S2.

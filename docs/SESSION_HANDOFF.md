@@ -310,3 +310,11 @@ Runtime n8n smoke ещё не выполнен и WF-02B3 не закрыт. В 
 - Canonical GitHub JSON contains no credential refs.
 - Pavel receives a separate instance-specific import-ready JSON with existing test bot/service Credentials already assigned; do not commit it.
 - WF-02B3 remains open: next is import/save inactive and controlled S1/S2... runtime smoke.
+
+
+## WF-02B3 S1 import accepted — 30.09.2026
+
+- Pavel imported the WF-02B3A instance-specific JSON into test n8n 2.41.0.
+- n8n showed no visible import error.
+- Keep workflow inactive.
+- Next: confirm saved/inactive state, then configure test Header Auth and run isolated client-ingress S2 while runtime_gates remain false.
