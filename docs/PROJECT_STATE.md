@@ -693,3 +693,14 @@ Read-only verifier succeeded after the applied migration: `db03e_status=verified
 
 ### SQL-CLEANUP-01 VERIFIED — 30.09.2026
 After DB-03E v0.11 verification, removed only obsolete DB-03E verifier files v0.2-v0.10 from current `main`. Canonical DB-03E migration and v0.11 verifier remain; old content remains recoverable from Git history. No other SQL migrations/verifiers were deleted. Next project task remains WF-02B3.
+
+
+### WF-02B3 PostgreSQL connectivity VERIFIED — 30.09.2026
+
+Павел явно разрешил подключение test Credentials и runtime-проверки в test n8n. Подключение n8n к test PostgreSQL успешно проверено под ограниченной ролью `qbit_test_bot`.
+
+Проверенный путь: SSH tunnel по отдельному Private Key → локально опубликованный только на loopback сервера БД порт → прямой PostgreSQL. Docker bind не открыт на `0.0.0.0`. В n8n используется обычное имя PostgreSQL-роли без Supavisor tenant suffix. Общие административные роли `postgres` и Supabase `service_role` в runtime Credential не используются.
+
+В ходе диагностики Supavisor подтвердил работу административного pooler-пути, но custom runtime-role получила password-auth error несмотря на валидный SCRAM secret и успешный прямой TCP login. Для текущей установки базовым runtime-путём n8n поэтому зафиксирован прямой ограниченный PostgreSQL через SSH. Переносимое правило: [N8N_POSTGRES_CONNECTION](N8N_POSTGRES_CONNECTION.md).
+
+Секреты, password, private key, server IP и tenant ID в репозиторий не добавлены. Production и рабочий трафик не затрагивались. WF-02B3 остаётся `[~]`: service DB Credential, OpenAI/Telegram/Header Auth и ingress/queue/outgoing/operator runtime-smoke ещё впереди.

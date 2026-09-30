@@ -275,3 +275,15 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 Runtime n8n smoke ещё не выполнен и WF-02B3 не закрыт. В активном toolset текущей сессии browser-action установленного TinyFish не был экспонирован, поэтому импорт/запуск через n8n UI не подтверждён. Исполняемые файлы, Supabase, Credentials, production и рабочий трафик не менялись.
 
 Следующий безопасный шаг: открыть test n8n, импортировать канонический JSON как неактивный workflow и сначала проверить только import + node validation. Затем по одному временно включать test gates для ingress → queue → outgoing → operator smoke, не включая production webhook/traffic и не меняя Credentials без отдельного разрешения.
+
+
+## WF-02B3 — PostgreSQL Credential verified 30.09.2026
+
+- Павел разрешил настройку test Credentials и runtime-smoke в test n8n.
+- Test n8n успешно подключён к PostgreSQL под ограниченной ролью `qbit_test_bot`.
+- Проверенный транспорт: SSH Private Key → loopback-only bind на DB host → direct PostgreSQL.
+- Supavisor tenant suffix не используется в direct path.
+- Роль `postgres`, общий `service_role`, production Credentials и production traffic не использовались.
+- Секреты, private key, DB password, IP и tenant ID в GitHub не записаны.
+- Переносимое правило добавлено в `docs/N8N_POSTGRES_CONNECTION.md`.
+- WF-02B3 не закрыт: дальше проверить `qbit_test_sluzhebnyy`, OpenAI/Telegram/Header Auth, затем controlled ingress → queue → outgoing → operator smoke.

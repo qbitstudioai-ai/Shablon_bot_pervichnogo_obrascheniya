@@ -42,6 +42,25 @@
 
 Это означает, что сам импорт канонического JSON не должен запускать processing/sender/reminder/topic/mirror worker.
 
+## S0 — подключение PostgreSQL — PARTIAL VERIFIED
+
+30 сентября 2026 Павел явно разрешил настройку test Credentials и runtime-проверки в test n8n.
+
+Проверено:
+- ограниченная роль `qbit_test_bot` имеет LOGIN/CONNECT/USAGE и не имеет superuser/createdb/createrole/bypassrls;
+- прямой TCP-вход этой роли в PostgreSQL успешно проверен;
+- Docker публикует PostgreSQL только на loopback хоста БД, не на `0.0.0.0`;
+- транспорт n8n → DB server идёт через SSH tunnel по Private Key;
+- Postgres Credential в test n8n успешно прошёл connection test под `qbit_test_bot`;
+- tenant suffix Supavisor в прямом PostgreSQL-пути не используется;
+- секреты, DB password, private key и адрес сервера в GitHub не сохранены.
+
+Supavisor в этой test-установке не выбран базовым runtime-путём для n8n: встроенное административное подключение через pooler работало, но custom runtime-role получила password-auth error при том же валидном PostgreSQL password. Это не мешает прямому ограниченному PostgreSQL-подключению через SSH.
+
+Отдельный Credential роли `qbit_test_sluzhebnyy` и остальные API Credentials ещё нужно проверить.
+
+Подробное переносимое правило: [N8N_POSTGRES_CONNECTION](N8N_POSTGRES_CONNECTION.md).
+
 ## Порядок runtime-smoke
 
 Runtime выполняется только в test n8n и по одному участку.
@@ -116,10 +135,10 @@ Topic и mirror gates включать только по одному и пос�
 - production schema/data;
 - удаление рабочих данных;
 - DB-04/DB-05 и RAG quality;
-- смена Credentials;
+- production Credentials и публикация любых секретов; test Credentials разрешены Павлом 30.09.2026 и проверяются в рамках controlled smoke;
 - массовые реальные сообщения;
 - окончательная проверка OpenAI profile — она закрывается отдельными PRE-02 задачами.
 
 ## Текущий результат
 
-Статический preflight подтверждён. Runtime import/smoke пока не доказан, поэтому WF-02B3 остаётся **в работе**.
+Статический preflight подтверждён. Test Postgres Credential `qbit_test_bot` также прошёл реальный connection test через SSH tunnel и прямой PostgreSQL. Runtime import и ingress/queue/outgoing/operator smoke пока не доказаны, поэтому WF-02B3 остаётся **в работе**.

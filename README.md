@@ -37,6 +37,7 @@
 | Точные поля, индексы, роли и PostgreSQL-функции DB-01…DB-05 | [DB-контракт](docs/specs/DB_CONTRACT.md) |
 | Готовые проверяемые SQL-файлы реализации | [Каталог SQL](sql/) |
 | Как разделены компании в одном Supabase | [Доступ и изоляция](docs/specs/ACCESS_AND_ISOLATION.md) |
+| Как n8n подключается к self-hosted PostgreSQL | [Подключение n8n к PostgreSQL](docs/N8N_POSTGRES_CONNECTION.md) |
 | Что передаётся между компонентами | [Правила обмена](docs/specs/INTEGRATION_CONTRACTS.md) |
 | Как устроен CORE клиентского бота, guard, память, RAG и перехват | [CORE клиентского бота](docs/specs/BOT_CORE_WORKFLOW.md) |
 | Как менеджер видит разговор, забирает его и отвечает из Telegram | [Операторский Telegram и перехват](docs/specs/OPERATOR_HANDOFF.md) |
