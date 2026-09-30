@@ -626,9 +626,9 @@ AI, sender и service Telegram в этом блоке не менялись. С�
 
 ## Текущая задача
 
-**WF-02B2O — создание operator forum-topic по DB-03D1.**
+**WF-02B3 — импорт и разрешённые smoke-checks канонического workflow в test n8n.**
 
-Краткий состав: заменить только legacy topic creation/save/error на `zabrat_sozdanie_operator_temy(jsonb)` → Telegram `createForumTopic` → `podtverdit_operator_temu(jsonb)` или `otmetit_temu_neizvestnoy(jsonb)` с worker/fencing. Mirror/Take/Return/manual не расширять.
+WF-02B2O завершён offline. В следующей отдельной сессии импортировать актуальный JSON в test n8n 2.41.0 и выполнить только разрешённые ingress/queue/outgoing/operator smoke-checks. Production, рабочий трафик и Credentials без отдельного разрешения Павла не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
