@@ -144,3 +144,23 @@ Processing worker при этом остаётся закрыт **явным exe
 ## Текущий результат
 
 Статический preflight подтверждён. Test Postgres Credential `qbit_test_bot` также прошёл реальный connection test через SSH tunnel и прямой PostgreSQL. Дополнительная проверка исходного кода n8n 2.41.0 показала, что `disabled` обычной ноды — pass-through, а не stop-gate. Поэтому runtime smoke заблокирован до WF-02B3A (явные execution gates + автоматический DB Credential audit). WF-02B3 остаётся **в работе**.
+
+
+## WF-02B3A — VERIFIED offline 30.09.2026
+
+Исправлен ошибочный safety-механизм на `disabled` обычных нод n8n:
+
+- добавлены пять явных IF execution gates: processing, outgoing, reminders, operator_topic, operator_mirror;
+- все пять flags находятся в trusted `Настройки компании.runtime_gates` и по умолчанию `false`;
+- false branch каждого gate не имеет downstream;
+- пять worker Postgres nodes снова enabled: их выполнение контролирует gate, а не `disabled=true`;
+- актуальные DB-03D1 service Postgres nodes имеют префикс `Служебный_`;
+- старые service SQL nodes помечены `LEGACY_Служебный_`;
+- Schedule Trigger старой служебной очереди физически не имеет downstream; queue-output service switch также пуст;
+- legacy service block недостижим от trigger/webhook;
+- канонический workflow не содержит Credential refs;
+- `tools/check_n8n_postgres_credentials.py` проверяет gates, legacy reachability и runtime bot/service Credential routing без вывода Credential IDs.
+
+Для текущего test n8n подготовлен отдельный import-ready runtime JSON на основе свежего export Павла. В нём существующие bot/service Credentials назначены автоматически всем Postgres nodes по классу. Этот instance-specific файл не сохраняется в GitHub.
+
+WF-02B3A закрыт offline. WF-02B3 остаётся в работе до реального импорта и controlled runtime smoke.

@@ -130,7 +130,7 @@
     },
     {
       "parameters": {
-        "content": "## БЛОК 8. DB-КОНТРАКТ\nClient/outgoing/reminders и service ingress/mirror/topic переведены на DB-03 JSONB API.\n\nTopic runtime: `zabrat_sozdanie_operator_temy` → Telegram `createForumTopic` → `podtverdit_operator_temu` либо terminal `otmetit_temu_neizvestnoy`, с lease/fencing и без blind retry.\nMirror runtime: `zabrat_sobytie_zerkala` + `zafiksirovat_rezultat_zerkala`.\n\nTopic и mirror claim остаются disabled до test-import/smoke.",
+        "content": "## БЛОК 8. DB-КОНТРАКТ\nClient/outgoing/reminders и service ingress/mirror/topic используют DB-03 JSONB API.\n\nWF-02B3A: worker-ветки защищены явными IF-гейтами из `runtime_gates`; все значения по умолчанию `false`. `disabled` обычной ноды n8n не используется как stop-gate.\n\nPostgreSQL: обычные ноды используют bot Credential; актуальные ноды с префиксом `Служебный_` — service Credential. Старые ноды `LEGACY_Служебный_...` отсоединены от автоматического service polling и не должны исполняться до миграции DB-03D1/D2.",
         "height": 760,
         "width": 2200,
         "color": 0
@@ -276,7 +276,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,region_telefona:null,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,okno_napominaniya_minut:null,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{guard:'gpt-6-luna',planner:'gpt-6-luna',answer:'gpt-6-sol',embedding:'text-embedding-3-large',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{},rem=cfg.napominaniya||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Boolean(cfg.bezopasnost?.region_telefona)&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0&&Number.isInteger(rem.okno_napominaniya_minut)&&rem.okno_napominaniya_minut>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
+        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,region_telefona:null,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,okno_napominaniya_minut:null,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{guard:'gpt-6-luna',planner:'gpt-6-luna',answer:'gpt-6-sol',embedding:'text-embedding-3-large',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nruntime_gates:{processing:false,outgoing:false,reminders:false,operator_topic:false,operator_mirror:false},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{},rem=cfg.napominaniya||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Boolean(cfg.bezopasnost?.region_telefona)&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0&&Number.isInteger(rem.okno_napominaniya_minut)&&rem.okno_napominaniya_minut>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
       },
       "id": "ac9588f3-e428-4d29-a76a-98f289ec9af9",
       "name": "Настройки компании",
@@ -478,8 +478,7 @@
         4832
       ],
       "alwaysOutputData": true,
-      "disabled": true,
-      "notes": "WF-02B2B: начало processing готово offline. Не включать до применения и проверки DB-03E."
+      "notes": "WF-02B2B: начало processing готово offline. Не включать до применения и проверки DB-03E.\nWF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
     },
     {
       "parameters": {
@@ -1998,8 +1997,7 @@
         5168
       ],
       "alwaysOutputData": true,
-      "disabled": true,
-      "notes": "WF-02B2H SAFETY GATE: sender claim. Не включать до DB-03E apply+verify; после включения этот один gate активирует sender queue."
+      "notes": "WF-02B2H SAFETY GATE: sender claim. Не включать до DB-03E apply+verify; после включения этот один gate активирует sender queue.\nWF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
     },
     {
       "parameters": {
@@ -2276,8 +2274,7 @@
         11104,
         5328
       ],
-      "disabled": true,
-      "notes": "WF-02B2L SAFETY GATE: DB-03E reminder dispatcher. Не включать до DB-03E apply+verify. Функция сама final-recheck'ит due reminder/loss-check и при необходимости создаёт обычный outgoing action; sender запускается своей общей очередью."
+      "notes": "WF-02B2L SAFETY GATE: DB-03E reminder dispatcher. Не включать до DB-03E apply+verify. Функция сама final-recheck'ит due reminder/loss-check и при необходимости создаёт обычный outgoing action; sender запускается своей общей очередью.\nWF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
     },
     {
       "parameters": {
@@ -2289,7 +2286,7 @@
         }
       },
       "id": "3a649690-d26f-4385-8b00-21f901210168",
-      "name": "Взять событие зеркала оператору",
+      "name": "Служебный_Взять событие зеркала оператору",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
@@ -2297,8 +2294,7 @@
         6432
       ],
       "alwaysOutputData": true,
-      "disabled": true,
-      "notes": "WF-02B2N SAFETY GATE: DB-03D1 mirror claim с lease/fencing. Не включать до миграции topic creation на DB-03D1."
+      "notes": "WF-02B2N SAFETY GATE: DB-03D1 mirror claim с lease/fencing. Не включать до миграции topic creation на DB-03D1.\nWF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
     },
     {
       "parameters": {
@@ -2888,7 +2884,7 @@
         }
       },
       "id": "ecc55ea0-4456-491f-b984-db2a6ee74a5a",
-      "name": "Подтвердить зеркало оператору",
+      "name": "Служебный_Подтвердить зеркало оператору",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
@@ -2907,7 +2903,7 @@
         }
       },
       "id": "3876aaa4-3183-4427-a3b4-92fbc0a036f4",
-      "name": "Зафиксировать проблему зеркала",
+      "name": "Служебный_Зафиксировать проблему зеркала",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
@@ -3016,7 +3012,8 @@
       "position": [
         22144,
         12608
-      ]
+      ],
+      "notes": "WF-02B3A LEGACY BLOCKER: автоматический service polling физически отсоединён. Не подключать до миграции Take/Return/manual на DB-03D1/D2 JSONB API."
     },
     {
       "parameters": {
@@ -3117,7 +3114,8 @@
       "position": [
         22976,
         12304
-      ]
+      ],
+      "notes": "WF-02B3A: output служебной очереди закрыт (нет downstream) до миграции legacy Take/Return/manual на DB-03D1/D2."
     },
     {
       "parameters": {
@@ -3143,7 +3141,7 @@
         }
       },
       "id": "4282aa22-9bdb-4514-bf40-8524d1a39f66",
-      "name": "Сохранить служебный вход",
+      "name": "Служебный_Сохранить служебный вход",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
@@ -3179,14 +3177,15 @@
         }
       },
       "id": "f8551c3f-8a29-4d7d-9c25-6bc5812cd967",
-      "name": "Взять служебное задание",
+      "name": "LEGACY_Служебный_Взять служебное задание",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         24176,
         12016
       ],
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "notes": "WF-02B3A LEGACY BLOCKER: старая сигнатура DB-вызова; автоматический путь отключён. Не выполнять до отдельной миграции на DB-03D1/D2 JSONB API."
     },
     {
       "parameters": {
@@ -3198,14 +3197,15 @@
         }
       },
       "id": "ec4d88a5-6cee-4073-aff4-b0dc79923dbc",
-      "name": "Взять следующее служебное задание",
+      "name": "LEGACY_Служебный_Взять следующее служебное задание",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         23280,
         12608
       ],
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "notes": "WF-02B3A LEGACY BLOCKER: старая сигнатура DB-вызова; автоматический путь отключён. Не выполнять до отдельной миграции на DB-03D1/D2 JSONB API."
     },
     {
       "parameters": {
@@ -3355,13 +3355,14 @@
         }
       },
       "id": "41d3eccc-0750-45f1-ab12-c4068b9e661a",
-      "name": "Забрать диалог оператором",
+      "name": "LEGACY_Служебный_Забрать диалог оператором",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         25120,
         11952
-      ]
+      ],
+      "notes": "WF-02B3A LEGACY BLOCKER: старая сигнатура DB-вызова; автоматический путь отключён. Не выполнять до отдельной миграции на DB-03D1/D2 JSONB API."
     },
     {
       "parameters": {
@@ -3432,13 +3433,14 @@
         }
       },
       "id": "04c6a16d-33ac-4842-98fa-58f433fb2bc1",
-      "name": "Вернуть диалог боту",
+      "name": "LEGACY_Служебный_Вернуть диалог боту",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         25120,
         12288
-      ]
+      ],
+      "notes": "WF-02B3A LEGACY BLOCKER: старая сигнатура DB-вызова; автоматический путь отключён. Не выполнять до отдельной миграции на DB-03D1/D2 JSONB API."
     },
     {
       "parameters": {
@@ -3489,13 +3491,14 @@
         }
       },
       "id": "e3d9f745-751f-484b-9b4d-2e0d89453014",
-      "name": "Подготовить ручной ответ",
+      "name": "LEGACY_Служебный_Подготовить ручной ответ",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         25120,
         12624
-      ]
+      ],
+      "notes": "WF-02B3A LEGACY BLOCKER: старая сигнатура DB-вызова; автоматический путь отключён. Не выполнять до отдельной миграции на DB-03D1/D2 JSONB API."
     },
     {
       "parameters": {
@@ -3618,13 +3621,14 @@
         }
       },
       "id": "089050f4-dd11-4d2f-b7b9-f65ac403d18a",
-      "name": "Подтвердить ручной ответ",
+      "name": "LEGACY_Служебный_Подтвердить ручной ответ",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         26928,
         12528
-      ]
+      ],
+      "notes": "WF-02B3A LEGACY BLOCKER: старая сигнатура DB-вызова; автоматический путь отключён. Не выполнять до отдельной миграции на DB-03D1/D2 JSONB API."
     },
     {
       "parameters": {
@@ -3636,13 +3640,14 @@
         }
       },
       "id": "68806722-1797-43aa-ad6e-66a13a342ebf",
-      "name": "Отметить неизвестный ручной ответ",
+      "name": "LEGACY_Служебный_Отметить неизвестный ручной ответ",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         26928,
         12752
-      ]
+      ],
+      "notes": "WF-02B3A LEGACY BLOCKER: старая сигнатура DB-вызова; автоматический путь отключён. Не выполнять до отдельной миграции на DB-03D1/D2 JSONB API."
     },
     {
       "parameters": {
@@ -3674,13 +3679,14 @@
         }
       },
       "id": "a11cc9a2-4c5e-4c98-b67f-ef279f10c2e7",
-      "name": "Зарегистрировать менеджера",
+      "name": "LEGACY_Служебный_Зарегистрировать менеджера",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         25120,
         13008
-      ]
+      ],
+      "notes": "WF-02B3A LEGACY BLOCKER: старая сигнатура DB-вызова; автоматический путь отключён. Не выполнять до отдельной миграции на DB-03D1/D2 JSONB API."
     },
     {
       "parameters": {
@@ -3743,14 +3749,14 @@
         }
       },
       "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000001",
-      "name": "Взять создание темы оператора",
+      "name": "Служебный_Взять создание темы оператора",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         24512,
         6080
       ],
-      "disabled": true
+      "notes": "WF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
     },
     {
       "parameters": {
@@ -3890,7 +3896,7 @@
         }
       },
       "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000008",
-      "name": "Подтвердить тему оператора",
+      "name": "Служебный_Подтвердить тему оператора",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
@@ -3908,13 +3914,178 @@
         }
       },
       "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000009",
-      "name": "Отметить тему неизвестной",
+      "name": "Служебный_Отметить тему неизвестной",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         26608,
         6176
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._nastroyki?.runtime_gates?.processing === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f2498c6c-6251-57dd-93f7-2d9a84b6d75c",
+      "name": "Гейт_Обработка очереди",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        15840,
+        11520
+      ],
+      "notes": "WF-02B3A: явный runtime gate processing. По умолчанию false; закрытая ветка не имеет downstream."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._nastroyki?.runtime_gates?.outgoing === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c51cfdbf-e77e-5d18-9407-89ee43dfdb18",
+      "name": "Гейт_Исходящая отправка",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        30448,
+        12480
+      ],
+      "notes": "WF-02B3A: явный runtime gate outgoing. По умолчанию false; закрытая ветка не имеет downstream."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._nastroyki?.runtime_gates?.reminders === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "29264608-a39f-555f-8cc5-23dfbe7b8f1a",
+      "name": "Гейт_Напоминания",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        15840,
+        12128
+      ],
+      "notes": "WF-02B3A: явный runtime gate reminders. По умолчанию false; закрытая ветка не имеет downstream."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._nastroyki?.runtime_gates?.operator_topic === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4a40182e-87e8-5fc6-a488-5a50b66434a5",
+      "name": "Гейт_Создание темы оператора",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        28928,
+        12704
+      ],
+      "notes": "WF-02B3A: явный runtime gate operator_topic. По умолчанию false; закрытая ветка не имеет downstream."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._nastroyki?.runtime_gates?.operator_mirror === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8a3f8139-786e-508e-99dd-7558efc77b9c",
+      "name": "Гейт_Зеркало оператору",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        28928,
+        13520
+      ],
+      "notes": "WF-02B3A: явный runtime gate operator_mirror. По умолчанию false; закрытая ветка не имеет downstream."
     }
   ],
   "pinData": {},
@@ -4029,31 +4200,31 @@
         ],
         [
           {
-            "node": "Взять следующее задание",
+            "node": "Гейт_Обработка очереди",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Взять исходящее действие",
+            "node": "Гейт_Исходящая отправка",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Обработать следующее напоминание",
+            "node": "Гейт_Напоминания",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Взять создание темы оператора",
+            "node": "Гейт_Создание темы оператора",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Взять событие зеркала оператору",
+            "node": "Гейт_Зеркало оператору",
             "type": "main",
             "index": 0
           }
@@ -4932,17 +5103,6 @@
         ]
       ]
     },
-    "Взять событие зеркала оператору": {
-      "main": [
-        [
-          {
-            "node": "Проверить событие зеркала",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Проверить событие зеркала": {
       "main": [
         [
@@ -5117,7 +5277,7 @@
         ],
         [
           {
-            "node": "Зафиксировать проблему зеркала",
+            "node": "Служебный_Зафиксировать проблему зеркала",
             "type": "main",
             "index": 0
           }
@@ -5183,14 +5343,14 @@
       "main": [
         [
           {
-            "node": "Подтвердить зеркало оператору",
+            "node": "Служебный_Подтвердить зеркало оператору",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Зафиксировать проблему зеркала",
+            "node": "Служебный_Зафиксировать проблему зеркала",
             "type": "main",
             "index": 0
           }
@@ -5221,13 +5381,7 @@
     },
     "Проверять служебную очередь": {
       "main": [
-        [
-          {
-            "node": "Пометить служебную очередь",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Пометить служебную очередь": {
@@ -5261,31 +5415,14 @@
             "index": 0
           }
         ],
-        [
-          {
-            "node": "Взять следующее служебное задание",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Нормализовать служебный вход": {
       "main": [
         [
           {
-            "node": "Сохранить служебный вход",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Сохранить служебный вход": {
-      "main": [
-        [
-          {
-            "node": "Подтвердить служебный вход",
+            "node": "Служебный_Сохранить служебный вход",
             "type": "main",
             "index": 0
           }
@@ -5295,28 +5432,6 @@
     "Подтвердить служебный вход": {
       "main": [
         []
-      ]
-    },
-    "Взять служебное задание": {
-      "main": [
-        [
-          {
-            "node": "Определить служебное действие",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Взять следующее служебное задание": {
-      "main": [
-        [
-          {
-            "node": "Определить служебное действие",
-            "type": "main",
-            "index": 0
-          }
-        ]
       ]
     },
     "Определить служебное действие": {
@@ -5334,28 +5449,28 @@
       "main": [
         [
           {
-            "node": "Забрать диалог оператором",
+            "node": "LEGACY_Служебный_Забрать диалог оператором",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Вернуть диалог боту",
+            "node": "LEGACY_Служебный_Вернуть диалог боту",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Подготовить ручной ответ",
+            "node": "LEGACY_Служебный_Подготовить ручной ответ",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Зарегистрировать менеджера",
+            "node": "LEGACY_Служебный_Зарегистрировать менеджера",
             "type": "main",
             "index": 0
           }
@@ -5363,49 +5478,6 @@
         [
           {
             "node": "Отложить документ до блока знаний",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Забрать диалог оператором": {
-      "main": [
-        [
-          {
-            "node": "Ответить на кнопку захвата",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Сообщить в теме о захвате",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Вернуть диалог боту": {
-      "main": [
-        [
-          {
-            "node": "Ответить на кнопку возврата",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Сообщить в теме о возврате",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Подготовить ручной ответ": {
-      "main": [
-        [
-          {
-            "node": "Менеджер имеет право ответить?",
             "type": "main",
             "index": 0
           }
@@ -5472,25 +5544,14 @@
       "main": [
         [
           {
-            "node": "Подтвердить ручной ответ",
+            "node": "LEGACY_Служебный_Подтвердить ручной ответ",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Отметить неизвестный ручной ответ",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Зарегистрировать менеджера": {
-      "main": [
-        [
-          {
-            "node": "Подтвердить личные уведомления",
+            "node": "LEGACY_Служебный_Отметить неизвестный ручной ответ",
             "type": "main",
             "index": 0
           }
@@ -5671,17 +5732,6 @@
         ]
       ]
     },
-    "Взять создание темы оператора": {
-      "main": [
-        [
-          {
-            "node": "Проверить создание темы оператора",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Проверить создание темы оператора": {
       "main": [
         [
@@ -5747,27 +5797,196 @@
       "main": [
         [
           {
-            "node": "Подтвердить тему оператора",
+            "node": "Служебный_Подтвердить тему оператора",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Отметить тему неизвестной",
+            "node": "Служебный_Отметить тему неизвестной",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Подтвердить тему оператора": {
+    "Служебный_Сохранить служебный вход": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить служебный вход",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Служебный_Взять событие зеркала оператору": {
+      "main": [
+        [
+          {
+            "node": "Проверить событие зеркала",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Служебный_Взять создание темы оператора": {
+      "main": [
+        [
+          {
+            "node": "Проверить создание темы оператора",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Служебный_Подтвердить тему оператора": {
       "main": [
         []
       ]
     },
-    "Отметить тему неизвестной": {
+    "Служебный_Отметить тему неизвестной": {
       "main": [
+        []
+      ]
+    },
+    "LEGACY_Служебный_Взять служебное задание": {
+      "main": [
+        [
+          {
+            "node": "Определить служебное действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LEGACY_Служебный_Взять следующее служебное задание": {
+      "main": [
+        [
+          {
+            "node": "Определить служебное действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LEGACY_Служебный_Забрать диалог оператором": {
+      "main": [
+        [
+          {
+            "node": "Ответить на кнопку захвата",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Сообщить в теме о захвате",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LEGACY_Служебный_Вернуть диалог боту": {
+      "main": [
+        [
+          {
+            "node": "Ответить на кнопку возврата",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Сообщить в теме о возврате",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LEGACY_Служебный_Подготовить ручной ответ": {
+      "main": [
+        [
+          {
+            "node": "Менеджер имеет право ответить?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LEGACY_Служебный_Зарегистрировать менеджера": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить личные уведомления",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Гейт_Обработка очереди": {
+      "main": [
+        [
+          {
+            "node": "Взять следующее задание",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Гейт_Исходящая отправка": {
+      "main": [
+        [
+          {
+            "node": "Взять исходящее действие",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Гейт_Напоминания": {
+      "main": [
+        [
+          {
+            "node": "Обработать следующее напоминание",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Гейт_Создание темы оператора": {
+      "main": [
+        [
+          {
+            "node": "Служебный_Взять создание темы оператора",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Гейт_Зеркало оператору": {
+      "main": [
+        [
+          {
+            "node": "Служебный_Взять событие зеркала оператору",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     }

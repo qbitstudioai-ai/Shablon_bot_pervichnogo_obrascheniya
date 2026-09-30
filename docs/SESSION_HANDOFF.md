@@ -298,3 +298,15 @@ Runtime n8n smoke ещё не выполнен и WF-02B3 не закрыт. В 
 - Runtime export Павла уже содержит 7 DB-03D1 service Postgres nodes с префиксом `Служебный_` и service Credential.
 - Legacy service polling/Take/Return/manual nodes остаются блокером и не должны исполняться.
 - Канонический GitHub export не должен содержать Credential IDs/secrets.
+
+
+## WF-02B3A VERIFIED offline — 30.09.2026
+
+- Canonical workflow: explicit IF gates added for processing/outgoing/reminders/operator_topic/operator_mirror; all default false.
+- Worker Postgres nodes are enabled and reachable only through the true branch of those gates.
+- Current DB-03D1 service Postgres nodes use `Служебный_` names.
+- Old service SQL nodes use `LEGACY_Служебный_`; legacy service Schedule Trigger and service queue output are disconnected.
+- Added `tools/check_n8n_postgres_credentials.py` for fail-closed runtime credential audit; it does not print Credential IDs/secrets.
+- Canonical GitHub JSON contains no credential refs.
+- Pavel receives a separate instance-specific import-ready JSON with existing test bot/service Credentials already assigned; do not commit it.
+- WF-02B3 remains open: next is import/save inactive and controlled S1/S2... runtime smoke.

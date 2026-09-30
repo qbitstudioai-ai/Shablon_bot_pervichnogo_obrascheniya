@@ -713,3 +713,14 @@ After DB-03E v0.11 verification, removed only obsolete DB-03E verifier files v0.
 До исправления workflow не активировать и schedule-trigger smoke не запускать. Нужен отдельный блок WF-02B3A: явные execution gates с закрытой веткой без продолжения worker + автоматическая проверка соответствия PostgreSQL функций ролям/Credentials. Канонический workflow в GitHub должен оставаться без instance-specific Credential IDs.
 
 Свежий runtime-export Павла показывает 7 уже переименованных DB-03D1 service Postgres-нод с префиксом `Служебный_` и service Credential. Старый service polling/Take/Return/manual блок всё ещё содержит legacy unqualified SQL и не допускается к runtime до миграции/изоляции. Production и рабочий трафик не затрагивались.
+
+
+### WF-02B3A VERIFIED offline — 30.09.2026
+
+Канонический workflow исправлен после обнаружения pass-through поведения disabled ordinary nodes в n8n 2.41.0. Добавлены 5 явных IF execution gates с trusted flags default=false: processing/outgoing/reminders/operator_topic/operator_mirror. Worker Postgres nodes больше не используют disabled=true как safety control.
+
+Актуальные service DB-03D1 nodes переименованы с префиксом `Служебный_`. Старые service polling/Take/Return/manual/manager SQL nodes помечены `LEGACY_Служебный_`, их автоматический Schedule Trigger и queue-output физически отсоединены. Legacy service block недостижим от trigger/webhook.
+
+Добавлен `tools/check_n8n_postgres_credentials.py`: template mode требует отсутствие Postgres Credential refs; runtime mode сравнивает все Postgres nodes с двумя seed Credentials и fail-closed при ошибочной bot/service привязке или достижимом legacy service node. Credential IDs/пароли скрипт не печатает.
+
+Для текущего test n8n сформирован import-ready JSON из свежего export Павла с уже существующими bot/service Credential refs. Instance-specific JSON в GitHub не сохраняется. Production/traffic/server не менялись. Следующий этап — импорт этого файла Павлом и WF-02B3 controlled smoke.

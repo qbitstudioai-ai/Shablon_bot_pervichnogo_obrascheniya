@@ -95,3 +95,24 @@ SSH-ключ относится к транспортному каналу ме�
 - не хранить private key, DB password, API key или реальные connection strings в GitHub;
 - не переносить tenant suffix из Supavisor в прямое PostgreSQL-подключение;
 - не добавлять schema в Data API только ради Postgres-ноды n8n.
+
+
+## Автоматическая проверка workflow
+
+После назначения двух seed Credentials runtime-export проверяется:
+
+```bash
+python3 tools/check_n8n_postgres_credentials.py "<runtime-export.json>"
+```
+
+Seed nodes:
+- bot: `Сохранить вход и поставить в очередь`;
+- service: `Служебный_Сохранить служебный вход`.
+
+Скрипт не выводит Credential IDs или секреты. Он завершает проверку ошибкой, если service node получила bot Credential, bot node получила service Credential, legacy service block снова достижим от trigger/webhook или нарушены WF-02B3A execution gates.
+
+Канонический шаблон проверяется отдельно:
+
+```bash
+python3 tools/check_n8n_postgres_credentials.py --template "workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json"
+```
