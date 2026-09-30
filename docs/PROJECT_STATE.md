@@ -738,3 +738,10 @@ After DB-03E v0.11 verification, removed only obsolete DB-03E verifier files v0.
 Исправление: все 4 Schedule Trigger канонического workflow выставлены disabled на период интерактивного Telegram smoke. По исходному коду n8n 2.41.0 disabled trigger nodes исключаются из trigger/poll registration через Workflow.queryNodes(). Поэтому это безопасный способ убрать периодические executions, в отличие от disabled ordinary worker node.
 
 Следующий runtime JSON должен быть построен из текущего export Павла, чтобы сохранить уже назначенные Telegram/Header Auth Credentials, и получить те же disabled schedule triggers.
+
+
+### WF-02B3B runtime graph repaired — 30.09.2026
+
+Свежий n8n export Павла проверен по полному графу. Найдена одна лишняя связь, отсутствующая в canonical workflow: `Подтвердить приём клиенту -> Не брать job сразу после webhook`. При pass-through semantics disabled ordinary node это могло продолжать execution после durable webhook response вне intended smoke boundary.
+
+Runtime JSON исправлен локально: лишняя связь удалена, все четыре Schedule Trigger disabled, Credentials сохранены. Проверено: 172 nodes, 190 edges, duplicate names=0, dangling connections=0, Merge inputs complete, legacy service polling disconnected. Следующий шаг WF-02B3: импорт repaired runtime JSON, activation test webhook и одно сообщение Telegram.

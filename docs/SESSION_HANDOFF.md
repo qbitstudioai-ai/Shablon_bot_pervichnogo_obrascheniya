@@ -328,3 +328,15 @@ Runtime n8n smoke ещё не выполнен и WF-02B3 не закрыт. В 
 - n8n 2.41.0 Workflow.queryNodes() skips disabled trigger/poll nodes, so they are not registered as active triggers.
 - Keep webhook active only after producing a new runtime JSON from Pavel's latest export so his Telegram/Header Auth credentials are preserved.
 - Later re-enable worker schedules one at a time for controlled queue/outgoing/reminder/operator tests.
+
+
+## WF-02B3B runtime graph repaired — 30.09.2026
+
+- Reviewed Pavel's latest n8n export after noisy production-webhook test.
+- Found one extra runtime edge absent from canonical: `Подтвердить приём клиенту -> Не брать job сразу после webhook`.
+- Removed that edge because the historical node is disabled ordinary/pass-through and must not continue client webhook execution.
+- Disabled all four Schedule Trigger nodes in the runtime file.
+- Preserved Pavel's current Credentials.
+- Verified repaired runtime graph: 172 nodes / 190 edges / duplicate names 0 / dangling 0 / Merge input pairs OK.
+- Legacy service polling remains disconnected.
+- Next: Pavel imports the repaired JSON, publishes, sends exactly one Telegram message, then inspects the single resulting execution.

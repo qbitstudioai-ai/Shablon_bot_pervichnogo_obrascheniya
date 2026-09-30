@@ -186,3 +186,26 @@ WF-02B3A закрыт offline. WF-02B3 остаётся в работе до р�
 Для trigger nodes это корректный механизм: n8n 2.41.0 `Workflow.queryNodes()` пропускает nodes с `disabled === true` при формировании trigger/poll node set. Это отличается от выполнения disabled ordinary node внутри уже начавшегося execution.
 
 Во время текущего Telegram smoke workflow можно активировать только с этими четырьмя Schedule Trigger disabled. Тогда новый execution должен создаваться только внешним webhook/ручным тестом. Worker schedules включаются позже по одному, когда соответствующая ветка готова к runtime проверке.
+
+
+### WF-02B3B runtime export graph repair — 30.09.2026
+
+Проверен свежий export Павла после первого Telegram production-webhook test.
+
+Найдено:
+- 172 nodes;
+- 191 фактическое edge-соединение;
+- dangling connections = 0;
+- Merge nodes имеют необходимые input 0/1;
+- единственное отличие фактических edges от текущего canonical graph — лишняя runtime-связь `Подтвердить приём клиенту -> Не брать job сразу после webhook`;
+- эта связь опасна, потому что disabled ordinary node в n8n 2.41.0 не является stop-gate;
+- четыре Schedule Trigger в runtime export всё ещё были enabled.
+
+Подготовлен новый instance-specific runtime JSON:
+- лишняя связь удалена;
+- все 4 Schedule Trigger disabled;
+- существующие Credentials Павла сохранены;
+- итог: 172 nodes / 190 edges / dangling=0 / Merge inputs OK;
+- legacy service polling остаётся физически отсоединённым.
+
+Canonical workflow в GitHub уже содержал правильную структуру; executable canonical файл в этом шаге менять не потребовалось.
