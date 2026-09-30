@@ -679,3 +679,7 @@ v0.9 still canceled reminder1. v0.10 adds a disposable pre-scheduler snapshot of
 
 ### DB-03E v0.11 correction — 30.09.2026
 v0.10 successfully exercised reminder1 and the positive loss-check (`zavershen / net_otveta`). The disposable probe assertion was wrong: DB-03C4 marks the processed `proverka_poteri` row `podtverzhdeno`, not `otmeneno`. v0.11 corrects only that assertion and explicitly checks the returned dialog status/result/version. Runtime functions are unchanged. DB-03E remains unfinished until successful apply and matching verifier.
+
+
+### DB-03E v0.11 applied — 30.09.2026
+Pavel successfully applied the full DB-03E v0.11 migration in test Supabase. Returned result: `db03e_status=applied`, `migration_version=DB-03E_v0.11`, `functions_ok=true`, `bot_execute_ok=true`, `service_execute_ok=true`, `runtime_direct_dml_denied=true`, `probe_rows_remaining=0`, `production_untouched=true`. Application is confirmed; DB-03E is not yet fully verified until `sql/DB-03E_v0.11_verify.sql` succeeds. Added `docs/SUPABASE_SQL_RUNBOOK.md` for future SQL execution discipline.
