@@ -569,11 +569,28 @@ AI, sender и service Telegram в этом блоке не менялись. С�
 
 В самом workflow WF-02B2K изменений не делал. Сохраняются **168 нод, 139 connection keys**, `active=false`; processing и sender gates остаются disabled. DB-03E на Supabase не применялся.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2L — reminders по текущему DB-контракту. Статус: завершено offline 30 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Изменена только reminder-ветка:
+- старая нода `Взять допустимые напоминания` переименована в `Обработать следующее напоминание`;
+- старый `vzyat_napominaniya_k_otpravke(integer)` заменён на DB-03E `obrabotat_sleduyushchee_napominanie(jsonb)`;
+- передаются trusted `tekst_napominaniya_1`, `tekst_napominaniya_2` и `poterya_posle_sekund` из настроек компании;
+- DB сама выбирает одно due reminder/loss-check через `FOR UPDATE SKIP LOCKED`, делает final recheck и либо создаёт ordinary outgoing action, либо отменяет/пропускает reminder, либо фиксирует loss;
+- reminder-ветка больше не запускает sender напрямую; созданный action забирается общим sender queue.
+
+`Обработать следующее напоминание` имеет `disabled=true` до DB-03E apply+verify. Processing и sender gates также остаются disabled.
+
+Структура workflow сохранена: **168 нод, 139 connection keys**, `active=false`. Service Telegram, manual reply, RAG и integration не менялись.
+
 ## Текущая задача
 
-**WF-02B2L — reminders по текущему DB-контракту.**
+**WF-02B2M — durable ingress служебного Telegram.**
 
-Краткий состав: заменить только `Взять допустимые напоминания` со старого `vzyat_napominaniya_k_otpravke` на DB-03E `obrabotat_sleduyushchee_napominanie(jsonb)`. Передать trusted тексты reminder1/reminder2 и loss timeout; созданный reminder outgoing должен отправляться через уже готовый общий sender. Service Telegram, manual reply, RAG и integration не менять.
+Краткий состав: заменить только старый `prinyat_sluzhebny_vhod_telegram` на DB-03D1 `zaregistrirovat_sluzhebnoe_sobytie(jsonb)` и адаптировать ближайший пакет/результат. Старую service queue, topic/mirror claims, Take/Return и manual reply пока не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

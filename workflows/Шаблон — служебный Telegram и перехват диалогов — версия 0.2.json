@@ -114,7 +114,7 @@
     },
     {
       "parameters": {
-        "content": "## БЛОК 7. НАПОМИНАНИЯ\nqBit стартово 3 часа и 12 часов. Перед отправкой повторно проверяются новый вход, owner, блокировка, запрет инициативы и завершение.",
+        "content": "## БЛОК 7. НАПОМИНАНИЯ\nDB-03E сама выбирает одно due reminder/loss-check, повторно проверяет owner, новый вход, блокировку, opt-out, подтверждённую основу и окно актуальности. Если reminder разрешён — создаётся обычный outgoing action, который позже забирает общий fenced sender. Blind send из reminder-ветки отсутствует.",
         "height": 400,
         "width": 2100,
         "color": 5
@@ -2262,20 +2262,22 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select r.*, $2::jsonb as \"_nastroyki\" from vzyat_napominaniya_k_otpravke($1::integer) r;",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json._nastroyki.obrabotka.max_napominaniy_za_raz,JSON.stringify($json._nastroyki)] }}"
+          "queryReplacement": "={{ (()=>{\n      const n=$json._nastroyki?.napominaniya||{};\n      return [\n        JSON.stringify({\n          operaciya_id:'reminder:next:'+$execution.id,\n          vremya_proverki:new Date().toISOString(),\n          tekst_napominaniya_1:n.tekst_1,\n          tekst_napominaniya_2:n.tekst_2,\n          tekst_obezlichennyy_1:n.tekst_1,\n          tekst_obezlichennyy_2:n.tekst_2,\n          poterya_posle_sekund:Number(n.poterya_posle_vtorogo_minut)*60\n        }),\n        JSON.stringify($json._nastroyki)\n      ];\n    })() }}"
         }
       },
       "id": "db8c8c75-0cbf-4204-b0cc-c14dc6b6f5cf",
-      "name": "Взять допустимые напоминания",
+      "name": "Обработать следующее напоминание",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
         11104,
         5328
-      ]
+      ],
+      "disabled": true,
+      "notes": "WF-02B2L SAFETY GATE: DB-03E reminder dispatcher. Не включать до DB-03E apply+verify. Функция сама final-recheck'ит due reminder/loss-check и при необходимости создаёт обычный outgoing action; sender запускается своей общей очередью."
     },
     {
       "parameters": {
@@ -4052,7 +4054,7 @@
         ],
         [
           {
-            "node": "Взять допустимые напоминания",
+            "node": "Обработать следующее напоминание",
             "type": "main",
             "index": 0
           }
@@ -4938,17 +4940,6 @@
         ]
       ]
     },
-    "Взять допустимые напоминания": {
-      "main": [
-        [
-          {
-            "node": "Взять исходящее действие",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Взять событие зеркала оператору": {
       "main": [
         [
@@ -5789,6 +5780,11 @@
       ]
     },
     "Создать тематическое предупреждение": {
+      "main": [
+        []
+      ]
+    },
+    "Обработать следующее напоминание": {
       "main": [
         []
       ]

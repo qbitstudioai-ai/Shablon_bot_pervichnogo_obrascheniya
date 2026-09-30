@@ -147,10 +147,22 @@ PRE-02E остаётся runtime-unverified до запуска в n8n.
 - Workflow в этом блоке не менялся: 168 нод / 139 connection keys.
 - DB-03E не применялся.
 
+## WF-02B2L завершён offline
+
+В reminder-ветке:
+- `Взять допустимые напоминания` → `Обработать следующее напоминание`;
+- old `vzyat_napominaniya_k_otpravke` → DB-03E `obrabotat_sleduyushchee_napominanie(jsonb)`;
+- trusted reminder texts + loss timeout передаются из настроек;
+- DB сама выбирает один due reminder/loss-check и делает final recheck;
+- если нужен send, создаётся обычный outgoing action;
+- прямое соединение reminder → sender удалено; общий sender забирает action отдельно;
+- reminder node disabled до DB-03E apply+verify;
+- workflow: 168 нод / 139 connection keys.
+
 ## Следующая задача
 
-**WF-02B2L — reminders по текущему DB-контракту.**
+**WF-02B2M — durable ingress служебного Telegram.**
 
-Менять только `Взять допустимые напоминания`: использовать `obrabotat_sleduyushchee_napominanie(jsonb)` и уже готовый общий outgoing sender. Service/manual/RAG/integration не трогать.
+Менять только `prinyat_sluzhebny_vhod_telegram` → `zaregistrirovat_sluzhebnoe_sobytie(jsonb)` и ближайшую нормализацию/результат. Service queue/topic/mirror/Take/Return/manual пока не менять.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.
