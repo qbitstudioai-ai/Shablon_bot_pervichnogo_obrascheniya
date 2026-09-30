@@ -238,3 +238,10 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 - The probe incorrectly expected the processed loss-check row to be `otmeneno`; DB-03C4 contract uses `podtverzhdeno`.
 - v0.11 fixes the assertion and checks dialog result/version; runtime functions unchanged.
 - Next: run full v0.11 migration in test Supabase; only after success run `sql/DB-03E_v0.11_verify.sql`.
+
+
+## DB-03E v0.11 applied — 30.09.2026
+- Full migration successfully applied in test Supabase.
+- Result confirmed: applied/v0.11, functions and role EXECUTE checks true, runtime direct DML denied, probe residue 0, production untouched.
+- `docs/SUPABASE_SQL_RUNBOOK.md` added to prevent stale/copy-fragment SQL runs.
+- Next: run the complete read-only `sql/DB-03E_v0.11_verify.sql`; only a successful verifier closes DB-03E.
