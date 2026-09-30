@@ -245,3 +245,10 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 - Result confirmed: applied/v0.11, functions and role EXECUTE checks true, runtime direct DML denied, probe residue 0, production untouched.
 - `docs/SUPABASE_SQL_RUNBOOK.md` added to prevent stale/copy-fragment SQL runs.
 - Next: run the complete read-only `sql/DB-03E_v0.11_verify.sql`; only a successful verifier closes DB-03E.
+
+
+## DB-03E v0.11 VERIFIED — 30.09.2026
+- Read-only verifier succeeded with all required checks true.
+- DB-03E is complete in test Supabase.
+- Next task: return to WF-02B3 controlled n8n smoke work.
+- SQL audit: 25 files. Keep canonical migrations/contracts; legacy DB-03E verifier v0.2-v0.10 files are candidates for a separate cleanup commit. No SQL deletion performed yet.
