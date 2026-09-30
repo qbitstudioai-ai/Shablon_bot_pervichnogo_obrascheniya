@@ -1,4 +1,4 @@
--- DB-03E v0.7: runtime gap closure for n8n
+-- DB-03E v0.8: runtime gap closure for n8n
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Date: 2026-09-28
 --
@@ -481,7 +481,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb) IS
-'DB-03E v0.7: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
+'DB-03E v0.8: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
 
 RESET ROLE;
 
@@ -684,7 +684,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sozdat_preduprezhdenie_tematiky(jsonb) IS
-'DB-03E v0.7: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
+'DB-03E v0.8: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
 
 RESET ROLE;
 
@@ -903,7 +903,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_ishodyashchego(jsonb) IS
-'DB-03E v0.7: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
+'DB-03E v0.8: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
 
 RESET ROLE;
 
@@ -2726,13 +2726,15 @@ BEGIN
             'tip_sobytiya', 'message',
             'tip_soobshcheniya', 'text',
             'tekst_ishodnyy', 'Тест напоминаний',
-            'vremya_priema', clock_timestamp(),
+            'vremya_priema', clock_timestamp() - interval '20 minutes',
             'versiya_workflow', 'db03e_probe',
             'versiya_prompta', 'db03e_probe',
             'sluzhebnyy_chat_id', 'db03e_service_group'
         )
       );
 
+    -- Waiting starts after the synthetic client input, so DB-03C4's
+    -- "newer client input" final recheck must allow reminder1.
     v_t0 := clock_timestamp() - interval '10 minutes';
 
     INSERT INTO qbit_bot_pervichnogo_obrascheniya.soobshcheniya (
@@ -2841,6 +2843,16 @@ BEGIN
             'DB-03E due reminder scheduler branch failed: %',
             row_to_json(sched1);
     END IF;
+
+    -- Prepare the mandatory durable fact for a valid loss-check: reminder2
+    -- must already have a confirmed actual send in the same generation/t0.
+    UPDATE qbit_bot_pervichnogo_obrascheniya.napominaniya AS n_rem2
+       SET status = 'podtverzhdeno',
+           vremya_fakticheskoy_otpravki = clock_timestamp() - interval '2 minutes',
+           vremya_obnovleniya = clock_timestamp()
+     WHERE n_rem2.dialog_id = rr.dialog_id
+       AND n_rem2.pokolenie_ozhidaniya = 1
+       AND n_rem2.tip = 'napominanie_2';
 
     INSERT INTO qbit_bot_pervichnogo_obrascheniya.napominaniya (
         dialog_id,
@@ -3058,6 +3070,6 @@ SELECT jsonb_build_object(
          WHERE i.akkaunt_kanala_id = 'db03e_client_bot'
     ),
     'production_untouched', true,
-    'migration_version', 'DB-03E_v0.7',
+    'migration_version', 'DB-03E_v0.8',
     'next_stage', 'PRE-02E_runtime_then_WF-02B2'
 ) AS db03e_result;

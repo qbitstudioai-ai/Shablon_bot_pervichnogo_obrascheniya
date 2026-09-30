@@ -125,3 +125,6 @@ REL-01 готовит шаблон к внедрению. Фактический
 ## Что делать в конце каждого ID
 
 Обновить основной документ задачи, этот план и PROJECT_STATE. Указать результат проверок, что применено на сервере и что осталось. Сохранить изменения в GitHub и дать Павлу [сообщение передачи](SESSION_HANDOFF.md). Следующий чат проверяет актуальную ветку и начинает с одного ID.
+
+
+- DB-03E v0.8 (30.09.2026): v0.7 reached reminder behavior probe and correctly returned `otmenit` because the synthetic client input timestamp was newer than `t0`. The fixture is corrected so client input precedes waiting `t0`. The loss-check fixture now also creates the DB-03C4-required confirmed reminder2 fact before testing `proverka_poteri`. Runtime functions are unchanged. DB-03E remains unapplied until a successful migration + verifier.

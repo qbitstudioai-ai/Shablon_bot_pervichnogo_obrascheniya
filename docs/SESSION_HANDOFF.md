@@ -212,3 +212,10 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 - Точная причина уточнена: ACL REVOKE/GRANT выполнялись как postgres после RESET ROLE, а новые функции owned by qbit_test_owner.
 - v0.7: SET LOCAL ROLE qbit_test_owner перед section 9 ACL, owner role сохраняется через disposable probe, RESET ROLE только перед COMMIT.
 - Следующее действие Павла: выполнить целиком v0.7 в test Supabase и прислать полный результат; verifier запускать только после разбора migration result.
+
+
+## DB-03E v0.8 correction — 30.09.2026
+- v0.7 reached behavior probe; DB-03C4 correctly canceled reminder1 because probe input timestamp was after t0.
+- v0.8 fixes the disposable fixture: client input is 20m ago, t0 is 10m ago.
+- Positive loss-check fixture now marks reminder2 podtverzhdeno and sets vremya_fakticheskoy_otpravki before proverka_poteri.
+- Runtime functions are unchanged; next: run full v0.8 migration in test Supabase, then v0.8 verifier only after migration success.

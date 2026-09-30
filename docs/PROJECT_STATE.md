@@ -663,3 +663,7 @@ WF-02B2O завершён offline. В следующей отдельной се
 
 ### DB-03E v0.7 correction — 30.09.2026
 Повторный разрешённый запуск v0.6 снова остановился до COMMIT с `42501: permission denied for function poluchit_soderzhimoe_zadaniya`. Уточнена точная ранняя причина: section 9 ACL (`REVOKE/GRANT`) выполнялась после `RESET ROLE` как `postgres`, хотя функции принадлежат `qbit_test_owner`. v0.7 делает `SET LOCAL ROLE qbit_test_owner` до ACL и сохраняет owner role через disposable probe, затем `RESET ROLE` перед COMMIT. До успешного запуска и verifier DB-03E остаётся незавершённым.
+
+
+### DB-03E v0.8 correction — 30.09.2026
+v0.7 passed ACL/security sections but its disposable reminder fixture violated DB-03C4: synthetic client input was newer than waiting t0, so final recheck correctly returned `otmenit`. The same fixture also lacked the mandatory confirmed reminder2 fact for a positive loss-check. v0.8 fixes only disposable probe data: client input precedes t0; reminder2 is marked confirmed with actual send time before loss-check. Runtime DB-03C4 behavior is not weakened or changed. DB-03E remains unfinished until successful apply + v0.8 verifier.
