@@ -675,3 +675,7 @@ v0.8 still returned reminder `otmenit`. Fixture isolation was incomplete: remind
 
 ### DB-03E v0.10 diagnostic — 30.09.2026
 v0.9 still canceled reminder1. v0.10 adds a disposable pre-scheduler snapshot of every DB-03C4 final-recheck predicate to any reminder failure. Runtime behavior is unchanged.
+
+
+### DB-03E v0.11 correction — 30.09.2026
+v0.10 successfully exercised reminder1 and the positive loss-check (`zavershen / net_otveta`). The disposable probe assertion was wrong: DB-03C4 marks the processed `proverka_poteri` row `podtverzhdeno`, not `otmeneno`. v0.11 corrects only that assertion and explicitly checks the returned dialog status/result/version. Runtime functions are unchanged. DB-03E remains unfinished until successful apply and matching verifier.
