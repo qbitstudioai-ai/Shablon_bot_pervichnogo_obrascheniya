@@ -195,3 +195,13 @@ DB-03E подготовлен, но не применён на Supabase; product
 ## Передача после WF-02B2O — 30.09.2026
 
 WF-02B2O завершён offline на `main`. Канонический workflow переведён с legacy direct topic/save/error на DB-03D1 topic claim → `createForumTopic` → confirm/unknown с worker/lease/fencing. Blind HTTP retry удалён; ambiguous result terminal `neizvestno`. Initial card создаётся через DB-03D1 mirror event после confirm. Topic и mirror claim disabled; production/traffic/Credentials не менялись. Статика: 167 нод, 140 connection keys, dangling connections нет. Следующий ID: WF-02B3 — test import/smoke в отдельной сессии.
+
+
+## DB-03E v0.6 correction — 30.09.2026
+
+- Первый разрешённый запуск DB-03E v0.5 в test Supabase завершился ошибкой `42501: permission denied for function poluchit_soderzhimoe_zadaniya` до COMMIT; ожидается полный rollback транзакции.
+- Причина: disposable behavior probe выполнялся после `RESET ROLE` от `postgres`, тогда как `PUBLIC EXECUTE` на новых SECURITY DEFINER функциях уже отозван.
+- В v0.6 probe выполняется под `qbit_test_owner`; статическая проверка runtime privilege split остаётся неизменной.
+- Дополнительно исправлен итоговый `functions_ok`: ожидаются 7 функций, а не 4.
+- Новый verifier: `sql/DB-03E_v0.6_verify.sql`.
+- Следующее действие Павла: повторно выполнить целиком `sql/DB-03E_runtime_gap_closure.sql` v0.6 в test Supabase и прислать полный результат; verifier запускать после разбора результата.

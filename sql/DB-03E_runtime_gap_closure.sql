@@ -1,4 +1,4 @@
--- DB-03E v0.5: runtime gap closure for n8n
+-- DB-03E v0.6: runtime gap closure for n8n
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Date: 2026-09-28
 --
@@ -481,7 +481,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb) IS
-'DB-03E v0.5: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
+'DB-03E v0.6: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
 
 RESET ROLE;
 
@@ -684,7 +684,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sozdat_preduprezhdenie_tematiky(jsonb) IS
-'DB-03E v0.5: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
+'DB-03E v0.6: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
 
 RESET ROLE;
 
@@ -903,7 +903,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_ishodyashchego(jsonb) IS
-'DB-03E v0.5: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
+'DB-03E v0.6: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
 
 RESET ROLE;
 
@@ -2215,6 +2215,12 @@ $db03e$;
 -- ===========================================================================
 -- 10. DISPOSABLE BEHAVIOR PROBE
 -- ===========================================================================
+-- The probe intentionally exercises owner-only direct setup/assertions together
+-- with SECURITY DEFINER APIs. PUBLIC EXECUTE is revoked above, so the trusted
+-- migration session must switch to the schema owner for this disposable probe.
+-- Runtime-role EXECUTE separation is verified independently in section 9.
+
+SET LOCAL ROLE qbit_test_owner;
 
 SAVEPOINT db03e_probe;
 
@@ -2924,6 +2930,8 @@ BEGIN
 END
 $db03e$;
 
+RESET ROLE;
+
 COMMIT;
 
 -- ===========================================================================
@@ -2936,7 +2944,7 @@ SELECT jsonb_build_object(
     'schema', 'qbit_bot_pervichnogo_obrascheniya',
     'functions_ok',
     (
-        SELECT count(*) = 4
+        SELECT count(*) = 7
           FROM pg_catalog.pg_proc AS p
           JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
          WHERE n.nspname = 'qbit_bot_pervichnogo_obrascheniya'
@@ -3048,6 +3056,6 @@ SELECT jsonb_build_object(
          WHERE i.akkaunt_kanala_id = 'db03e_client_bot'
     ),
     'production_untouched', true,
-    'migration_version', 'DB-03E_v0.5',
+    'migration_version', 'DB-03E_v0.6',
     'next_stage', 'PRE-02E_runtime_then_WF-02B2'
 ) AS db03e_result;
