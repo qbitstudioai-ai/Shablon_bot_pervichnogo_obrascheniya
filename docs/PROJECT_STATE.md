@@ -687,3 +687,7 @@ Pavel successfully applied the full DB-03E v0.11 migration in test Supabase. Ret
 
 ### DB-03E v0.11 VERIFIED — 30.09.2026
 Read-only verifier succeeded after the applied migration: `db03e_status=verified`, `verifier_version=DB-03E_v0.11_read_only`; owner/search_path/execute split/function presence/source contract/SECURITY DEFINER/PUBLIC denial/runtime DML/blocking-warning checks are true; production untouched check is informational true. DB-03E is complete in test Supabase. Next project work returns to WF-02B3 controlled n8n import/smoke. SQL-directory audit found 25 files; legacy DB-03E verifier versions v0.2-v0.10 are cleanup candidates, but no SQL files were deleted in this step.
+
+
+### SQL-CLEANUP-01 VERIFIED — 30.09.2026
+After DB-03E v0.11 verification, removed only obsolete DB-03E verifier files v0.2-v0.10 from current `main`. Canonical DB-03E migration and v0.11 verifier remain; old content remains recoverable from Git history. No other SQL migrations/verifiers were deleted. Next project task remains WF-02B3.
