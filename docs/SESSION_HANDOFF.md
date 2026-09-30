@@ -231,3 +231,10 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 ## DB-03E v0.10 diagnostic — 30.09.2026
 - v0.10 adds exact reminder final-recheck diagnostics; runtime functions unchanged.
 - Next run should identify the failing predicate if it does not pass.
+
+
+## DB-03E v0.11 correction — 30.09.2026
+- v0.10 proved reminder1 and positive loss-check runtime behavior: dialog closed as `zavershen / net_otveta`.
+- The probe incorrectly expected the processed loss-check row to be `otmeneno`; DB-03C4 contract uses `podtverzhdeno`.
+- v0.11 fixes the assertion and checks dialog result/version; runtime functions unchanged.
+- Next: run full v0.11 migration in test Supabase; only after success run `sql/DB-03E_v0.11_verify.sql`.
