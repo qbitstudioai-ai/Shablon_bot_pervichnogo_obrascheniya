@@ -1,4 +1,4 @@
--- DB-03E v0.10: runtime gap closure for n8n
+-- DB-03E v0.11: runtime gap closure for n8n
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Date: 2026-09-28
 --
@@ -481,7 +481,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb) IS
-'DB-03E v0.10: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
+'DB-03E v0.11: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
 
 RESET ROLE;
 
@@ -684,7 +684,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sozdat_preduprezhdenie_tematiky(jsonb) IS
-'DB-03E v0.10: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
+'DB-03E v0.11: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
 
 RESET ROLE;
 
@@ -903,7 +903,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_ishodyashchego(jsonb) IS
-'DB-03E v0.10: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
+'DB-03E v0.11: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
 
 RESET ROLE;
 
@@ -2913,11 +2913,14 @@ BEGIN
        OR sched_loss.napominanie_id IS DISTINCT FROM v_loss
        OR sched_loss.tip_napominaniya <> 'proverka_poteri'
        OR sched_loss.reshenie <> 'proverka_poteri'
+       OR sched_loss.status_dialoga <> 'zavershen'
+       OR sched_loss.rezultat_dialoga <> 'net_otveta'
+       OR sched_loss.versiya_dialoga IS NULL
        OR EXISTS (
             SELECT 1
               FROM qbit_bot_pervichnogo_obrascheniya.napominaniya AS n
              WHERE n.id = v_loss
-               AND n.status <> 'otmeneno'
+               AND n.status <> 'podtverzhdeno'
        ) THEN
         RAISE EXCEPTION
             'DB-03E due loss scheduler branch failed: %',
@@ -3093,6 +3096,6 @@ SELECT jsonb_build_object(
          WHERE i.akkaunt_kanala_id = 'db03e_client_bot'
     ),
     'production_untouched', true,
-    'migration_version', 'DB-03E_v0.10',
+    'migration_version', 'DB-03E_v0.11',
     'next_stage', 'PRE-02E_runtime_then_WF-02B2'
 ) AS db03e_result;
