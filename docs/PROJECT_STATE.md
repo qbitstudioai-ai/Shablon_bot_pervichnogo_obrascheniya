@@ -628,9 +628,11 @@ AI, sender и service Telegram в этом блоке не менялись. С�
 
 **WF-02B3 — импорт и разрешённые smoke-checks канонического workflow в test n8n.**
 
-30 сентября 2026 первый запуск `DB-03E_runtime_gap_closure.sql` v0.5 в test Supabase остановился до `COMMIT` с `42501: permission denied for function poluchit_soderzhimoe_zadaniya`; транзакция должна была откатиться. Причина локализована во встроенном disposable probe после `RESET ROLE` при уже отозванном `PUBLIC EXECUTE`. Подготовлена v0.6: probe выполняется под `qbit_test_owner`, privilege split runtime-ролей остаётся отдельной статической проверкой; итоговый `functions_ok` также исправлен на ожидаемые 7 функций. До успешного повторного применения и verifier DB-03E остаётся незавершённым.
+DB-03E v0.11 успешно применён и read-only verifier завершился `verified`; runtime-gap contract для WF-02B3 доступен в test Supabase. SQL-CLEANUP-01 также завершён.
 
-WF-02B2O завершён offline. В следующей отдельной сессии импортировать актуальный JSON в test n8n 2.41.0 и выполнить только разрешённые ingress/queue/outgoing/operator smoke-checks. Production, рабочий трафик и Credentials без отдельного разрешения Павла не менять.
+30 сентября 2026 начат WF-02B3. Перед runtime-import выполнен статический preflight канонического JSON: JSON разбирается; 167 нод и 140 connection keys; duplicate node names и dangling connections отсутствуют; Credential references, `instanceId`, literal Authorization/Bearer/API key/password не найдены; `active=false`. Пять опасных runtime-gates остаются `disabled=true`: processing claim, outgoing sender claim, reminder dispatcher, operator-topic claim и mirror claim. Webhook paths остаются test-only: `qbit-test-telegram-v2` и `qbit-test-service-telegram-v1`.
+
+Runtime-import и ingress/queue/outgoing/operator smoke в test n8n ещё не подтверждены. В текущем ChatGPT toolset доступ к n8n UI/API не появился, поэтому задача остаётся `[~]`, а не `[x]`. Production, рабочий трафик, Credentials и исполняемый workflow в этом preflight не менялись. Подробности: [WF-02B3_SMOKE_CHECKS](WF-02B3_SMOKE_CHECKS.md).
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

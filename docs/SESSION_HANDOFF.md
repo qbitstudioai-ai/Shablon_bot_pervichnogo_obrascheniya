@@ -6,7 +6,7 @@
 
 `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
 
-Это полный пользовательский workflow, а не новый skeleton: 168 нод, 135 connection keys. В WF-02B2A изменён только первый участок DB-взаимодействия.
+Актуальное состояние на 30.09.2026 после WF-02B2O: полный объединённый workflow, 167 нод, 140 connection keys, `active=false`. Это не skeleton. Текущая задача — WF-02B3 controlled import/smoke в test n8n.
 
 ## WF-02B2A завершён offline
 
@@ -259,3 +259,19 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 - Kept `sql/DB-03E_runtime_gap_closure.sql` and `sql/DB-03E_v0.11_verify.sql`.
 - No other SQL files changed/deleted; Git history preserves old verifier versions.
 - Next task: WF-02B3 controlled n8n smoke work.
+
+
+## WF-02B3 — статический preflight начат 30.09.2026
+
+Проверен актуальный канонический JSON с HEAD `39753d78306bfd0f718e430a9431d21f44c212f5` до runtime-import:
+- JSON валиден; 167 нод / 140 connection keys;
+- duplicate node names = 0; dangling connections = 0;
+- Credential references = 0;
+- `instanceId`, literal Authorization/Bearer/API key/password не найдены;
+- workflow `active=false`;
+- disabled runtime-gates: processing claim, outgoing sender claim, reminder dispatcher, topic claim, mirror claim;
+- client/service webhook paths остаются test-only и используют `headerAuth`.
+
+Runtime n8n smoke ещё не выполнен и WF-02B3 не закрыт. В активном toolset текущей сессии browser-action установленного TinyFish не был экспонирован, поэтому импорт/запуск через n8n UI не подтверждён. Исполняемые файлы, Supabase, Credentials, production и рабочий трафик не менялись.
+
+Следующий безопасный шаг: открыть test n8n, импортировать канонический JSON как неактивный workflow и сначала проверить только import + node validation. Затем по одному временно включать test gates для ingress → queue → outgoing → operator smoke, не включая production webhook/traffic и не меняя Credentials без отдельного разрешения.
