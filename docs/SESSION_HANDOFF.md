@@ -318,3 +318,13 @@ Runtime n8n smoke ещё не выполнен и WF-02B3 не закрыт. В 
 - n8n showed no visible import error.
 - Keep workflow inactive.
 - Next: confirm saved/inactive state, then configure test Header Auth and run isolated client-ingress S2 while runtime_gates remain false.
+
+
+## WF-02B3B quiet smoke — 30.09.2026
+
+- First active production-webhook test produced periodic successful executions from 3s/5s/1m Schedule Trigger nodes.
+- Pavel stopped publication.
+- Canonical workflow now has all four Schedule Trigger nodes disabled for interactive Telegram smoke.
+- n8n 2.41.0 Workflow.queryNodes() skips disabled trigger/poll nodes, so they are not registered as active triggers.
+- Keep webhook active only after producing a new runtime JSON from Pavel's latest export so his Telegram/Header Auth credentials are preserved.
+- Later re-enable worker schedules one at a time for controlled queue/outgoing/reminder/operator tests.

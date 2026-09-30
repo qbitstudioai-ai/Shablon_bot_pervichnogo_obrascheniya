@@ -729,3 +729,12 @@ After DB-03E v0.11 verification, removed only obsolete DB-03E verifier files v0.
 ### WF-02B3 S1 import accepted — 30.09.2026
 
 Павел сообщил, что подготовленный WF-02B3A import-ready JSON успешно импортирован в test n8n без видимых ошибок. Структурный import-blocker не обнаружен. Workflow не считать runtime-verified и не активировать до следующих controlled checks. Следующий шаг: подтвердить inactive/save и подготовить Header Auth для изолированного client-ingress S2.
+
+
+### WF-02B3B quiet smoke — 30.09.2026
+
+Первый production-webhook test показал шум из периодических Schedule Trigger: executions создавались каждые 3–5 секунд/1 минуту независимо от того, что worker runtime_gates были false. Павел остановил публикацию.
+
+Исправление: все 4 Schedule Trigger канонического workflow выставлены disabled на период интерактивного Telegram smoke. По исходному коду n8n 2.41.0 disabled trigger nodes исключаются из trigger/poll registration через Workflow.queryNodes(). Поэтому это безопасный способ убрать периодические executions, в отличие от disabled ordinary worker node.
+
+Следующий runtime JSON должен быть построен из текущего export Павла, чтобы сохранить уже назначенные Telegram/Header Auth Credentials, и получить те же disabled schedule triggers.

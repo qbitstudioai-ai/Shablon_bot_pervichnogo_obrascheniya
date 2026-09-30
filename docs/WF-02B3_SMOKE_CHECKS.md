@@ -171,3 +171,18 @@ WF-02B3A закрыт offline. WF-02B3 остаётся в работе до р�
 Павел импортировал подготовленный WF-02B3A instance-specific JSON в test n8n 2.41.0. n8n принял workflow без видимых ошибок импорта. Это подтверждает отсутствие явной структурной/import ошибки на стороне UI.
 
 На момент фиксации workflow не активировать. Проверка сохранения в inactive state и последующий client-ingress smoke выполняются отдельно.
+
+
+## WF-02B3B — quiet interactive smoke
+
+После первого production-webhook запуска обнаружено, что включённые Schedule Trigger создают отдельные executions каждые 3–5 секунд/1 минуту даже при закрытых runtime gates. Это засоряет Execution history и мешает искать ошибку конкретного Telegram-запроса.
+
+Для интерактивного smoke все четыре Schedule Trigger в каноническом workflow выставлены `disabled=true`:
+- `Проверять очередь`;
+- `Проверять напоминания`;
+- `Проверять зеркало оператору`;
+- `Проверять служебную очередь`.
+
+Для trigger nodes это корректный механизм: n8n 2.41.0 `Workflow.queryNodes()` пропускает nodes с `disabled === true` при формировании trigger/poll node set. Это отличается от выполнения disabled ordinary node внутри уже начавшегося execution.
+
+Во время текущего Telegram smoke workflow можно активировать только с этими четырьмя Schedule Trigger disabled. Тогда новый execution должен создаваться только внешним webhook/ручным тестом. Worker schedules включаются позже по одному, когда соответствующая ветка готова к runtime проверке.

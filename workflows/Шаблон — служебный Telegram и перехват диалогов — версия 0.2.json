@@ -193,7 +193,9 @@
       "position": [
         9856,
         4832
-      ]
+      ],
+      "disabled": true,
+      "notes": "WF-02B3B: disabled during interactive Telegram smoke so production activation does not create periodic executions. Re-enable only when the corresponding worker is intentionally tested."
     },
     {
       "parameters": {
@@ -226,7 +228,9 @@
       "position": [
         9856,
         5328
-      ]
+      ],
+      "disabled": true,
+      "notes": "WF-02B3B: disabled during interactive Telegram smoke so production activation does not create periodic executions. Re-enable only when the corresponding worker is intentionally tested."
     },
     {
       "parameters": {
@@ -259,7 +263,9 @@
       "position": [
         23904,
         6432
-      ]
+      ],
+      "disabled": true,
+      "notes": "WF-02B3B: disabled during interactive Telegram smoke so production activation does not create periodic executions. Re-enable only when the corresponding worker is intentionally tested."
     },
     {
       "parameters": {
@@ -3013,7 +3019,8 @@
         22144,
         12608
       ],
-      "notes": "WF-02B3A LEGACY BLOCKER: автоматический service polling физически отсоединён. Не подключать до миграции Take/Return/manual на DB-03D1/D2 JSONB API."
+      "notes": "WF-02B3A LEGACY BLOCKER: автоматический service polling физически отсоединён. Не подключать до миграции Take/Return/manual на DB-03D1/D2 JSONB API.\nWF-02B3B: disabled during interactive Telegram smoke so production activation does not create periodic executions. Re-enable only when the corresponding worker is intentionally tested.",
+      "disabled": true
     },
     {
       "parameters": {
