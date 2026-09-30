@@ -1,2 +1,0 @@
--- Superseded before application. Use DB-03E_v0.3_verify.sql with DB-03E v0.3.
--- DB-03E v0.2 was never authorized or applied to Supabase.
