@@ -671,3 +671,7 @@ v0.7 passed ACL/security sections but its disposable reminder fixture violated D
 
 ### DB-03E v0.9 correction — 30.09.2026
 v0.8 still returned reminder `otmenit`. Fixture isolation was incomplete: reminder scenario reused `db03e_client_bot`, also used by earlier initiative preference probes. v0.9 uses a dedicated `db03e_reminder_bot` account and expands rollback residue assertion to both synthetic accounts. Runtime functions remain unchanged. DB-03E still requires successful apply + verifier.
+
+
+### DB-03E v0.10 diagnostic — 30.09.2026
+v0.9 still canceled reminder1. v0.10 adds a disposable pre-scheduler snapshot of every DB-03C4 final-recheck predicate to any reminder failure. Runtime behavior is unchanged.

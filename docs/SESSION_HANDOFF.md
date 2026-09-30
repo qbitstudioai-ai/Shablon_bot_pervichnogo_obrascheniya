@@ -226,3 +226,8 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 - Reminder fixture is now isolated on dedicated account db03e_reminder_bot, separate from initiative opt-out/opt-in probes.
 - Post-probe residue assertion covers both db03e_client_bot and db03e_reminder_bot.
 - Next: run full v0.9 migration in test Supabase; after success run v0.9 verifier.
+
+
+## DB-03E v0.10 diagnostic — 30.09.2026
+- v0.10 adds exact reminder final-recheck diagnostics; runtime functions unchanged.
+- Next run should identify the failing predicate if it does not pass.

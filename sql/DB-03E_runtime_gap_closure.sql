@@ -1,4 +1,4 @@
--- DB-03E v0.9: runtime gap closure for n8n
+-- DB-03E v0.10: runtime gap closure for n8n
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Date: 2026-09-28
 --
@@ -481,7 +481,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb) IS
-'DB-03E v0.9: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
+'DB-03E v0.10: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
 
 RESET ROLE;
 
@@ -684,7 +684,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sozdat_preduprezhdenie_tematiky(jsonb) IS
-'DB-03E v0.9: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
+'DB-03E v0.10: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
 
 RESET ROLE;
 
@@ -903,7 +903,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_ishodyashchego(jsonb) IS
-'DB-03E v0.9: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
+'DB-03E v0.10: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
 
 RESET ROLE;
 
@@ -2259,6 +2259,7 @@ DECLARE
     v_loss uuid;
     sched1 record;
     sched_loss record;
+    reminder_diag jsonb;
 BEGIN
     -- ---------------------------------------------------------------
     -- A. opt-out and explicit opt-in
@@ -2822,6 +2823,23 @@ BEGIN
         'db03e_probe'
     );
 
+    SELECT jsonb_build_object(
+        'vladelec', d.vladelec, 'status', d.status,
+        'ozhidaetsya_otvet', d.ozhidaetsya_otvet,
+        'dialog_t0', d.t0, 'reminder_t0', n.t0,
+        'dialog_generation', d.pokolenie_ozhidaniya,
+        'reminder_generation', n.pokolenie_ozhidaniya,
+        'logicheski_zablokirovan', i.logicheski_zablokirovan,
+        'zapret_iniciativy', i.zapret_iniciativnyh_soobshcheniy,
+        'basis_status', basis.status_otpravki,
+        'newer_client_input', EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.soobshcheniya mi WHERE mi.dialog_id=d.id AND mi.napravlenie='vhodyashchee' AND mi.avtor='klient' AND mi.vremya_priema > n.t0)
+    ) INTO reminder_diag
+    FROM qbit_bot_pervichnogo_obrascheniya.napominaniya n
+    JOIN qbit_bot_pervichnogo_obrascheniya.dialogi d ON d.id=n.dialog_id
+    JOIN qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov i ON i.id=d.identifikator_kanala_id
+    LEFT JOIN qbit_bot_pervichnogo_obrascheniya.soobshcheniya basis ON basis.id=n.soobshchenie_osnovanie_id
+    WHERE n.id=v_rem1;
+
     SELECT *
       INTO sched1
       FROM qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie(
@@ -2840,8 +2858,8 @@ BEGIN
        OR sched1.reshenie <> 'otpravit'
        OR sched1.deystvie_id IS NULL THEN
         RAISE EXCEPTION
-            'DB-03E due reminder scheduler branch failed: %',
-            row_to_json(sched1);
+            'DB-03E due reminder scheduler branch failed: scheduler=%, precheck=%',
+            row_to_json(sched1), reminder_diag;
     END IF;
 
     -- Prepare the mandatory durable fact for a valid loss-check: reminder2
@@ -3075,6 +3093,6 @@ SELECT jsonb_build_object(
          WHERE i.akkaunt_kanala_id = 'db03e_client_bot'
     ),
     'production_untouched', true,
-    'migration_version', 'DB-03E_v0.9',
+    'migration_version', 'DB-03E_v0.10',
     'next_stage', 'PRE-02E_runtime_then_WF-02B2'
 ) AS db03e_result;
