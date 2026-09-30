@@ -1,4 +1,4 @@
--- DB-03E v0.8: runtime gap closure for n8n
+-- DB-03E v0.9: runtime gap closure for n8n
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Date: 2026-09-28
 --
@@ -481,7 +481,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_sostoyanie_operatora(jsonb) IS
-'DB-03E v0.8: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
+'DB-03E v0.9: service-only narrow state lookup by existing dialog/topic mapping; returns owner/status/stage/current manager/version/generation for CAS buttons and manual reply without raw messages, PII, memory or attachments.';
 
 RESET ROLE;
 
@@ -684,7 +684,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.sozdat_preduprezhdenie_tematiky(jsonb) IS
-'DB-03E v0.8: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
+'DB-03E v0.9: creates one stable ordinary outgoing warning for an exact recorded thematic violation; the third warning may be created after that same violation enabled logical block, without granting arbitrary blocked messaging.';
 
 RESET ROLE;
 
@@ -903,7 +903,7 @@ END
 $fn$;
 
 COMMENT ON FUNCTION qbit_bot_pervichnogo_obrascheniya.poluchit_soderzhimoe_ishodyashchego(jsonb) IS
-'DB-03E v0.8: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
+'DB-03E v0.9: bot sender-only fenced read of exact claimed outgoing content plus final pre-API owner/version/block/opt-out recheck; stale action is canceled before any external call.';
 
 RESET ROLE;
 
@@ -2718,7 +2718,7 @@ BEGIN
             'klyuch_idempotentnosti', 'db03e_rem_in',
             'hash_soderzhaniya', 'db03e_rem_hash',
             'kanal', 'telegram',
-            'akkaunt_kanala_id', 'db03e_client_bot',
+            'akkaunt_kanala_id', 'db03e_reminder_bot',
             'vneshnee_sobytie_id', 'db03e_rem_event',
             'vneshniy_polzovatel_id', 'db03e_user_rem',
             'vneshniy_dialog_id', 'db03e_chat_rem',
@@ -2924,8 +2924,13 @@ BEGIN
     )
     OR EXISTS (
         SELECT 1
+          FROM qbit_bot_pervichnogo_obrascheniya.identifikatory_kanalov AS i_rem
+         WHERE i_rem.akkaunt_kanala_id = 'db03e_reminder_bot'
+    )
+    OR EXISTS (
+        SELECT 1
           FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy AS e
-         WHERE e.akkaunt_istochnika_id = 'db03e_client_bot'
+         WHERE e.akkaunt_istochnika_id IN ('db03e_client_bot', 'db03e_reminder_bot')
     )
     OR EXISTS (
         SELECT 1
@@ -3070,6 +3075,6 @@ SELECT jsonb_build_object(
          WHERE i.akkaunt_kanala_id = 'db03e_client_bot'
     ),
     'production_untouched', true,
-    'migration_version', 'DB-03E_v0.8',
+    'migration_version', 'DB-03E_v0.9',
     'next_stage', 'PRE-02E_runtime_then_WF-02B2'
 ) AS db03e_result;

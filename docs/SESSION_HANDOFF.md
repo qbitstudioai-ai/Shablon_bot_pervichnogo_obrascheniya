@@ -219,3 +219,10 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 - v0.8 fixes the disposable fixture: client input is 20m ago, t0 is 10m ago.
 - Positive loss-check fixture now marks reminder2 podtverzhdeno and sets vremya_fakticheskoy_otpravki before proverka_poteri.
 - Runtime functions are unchanged; next: run full v0.8 migration in test Supabase, then v0.8 verifier only after migration success.
+
+
+## DB-03E v0.9 correction — 30.09.2026
+- v0.8 reminder final recheck still canceled.
+- Reminder fixture is now isolated on dedicated account db03e_reminder_bot, separate from initiative opt-out/opt-in probes.
+- Post-probe residue assertion covers both db03e_client_bot and db03e_reminder_bot.
+- Next: run full v0.9 migration in test Supabase; after success run v0.9 verifier.

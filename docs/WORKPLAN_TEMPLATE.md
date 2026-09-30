@@ -128,3 +128,5 @@ REL-01 готовит шаблон к внедрению. Фактический
 
 
 - DB-03E v0.8 (30.09.2026): v0.7 reached reminder behavior probe and correctly returned `otmenit` because the synthetic client input timestamp was newer than `t0`. The fixture is corrected so client input precedes waiting `t0`. The loss-check fixture now also creates the DB-03C4-required confirmed reminder2 fact before testing `proverka_poteri`. Runtime functions are unchanged. DB-03E remains unapplied until a successful migration + verifier.
+
+- DB-03E v0.9 (30.09.2026): reminder fixture isolated onto dedicated account `db03e_reminder_bot` so earlier opt-out/opt-in behavior probes cannot contaminate reminder final recheck. Post-probe cleanup assertion now checks both synthetic accounts. Runtime functions unchanged; DB-03E remains unapplied until successful migration + verifier.

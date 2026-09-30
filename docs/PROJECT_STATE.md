@@ -667,3 +667,7 @@ WF-02B2O завершён offline. В следующей отдельной се
 
 ### DB-03E v0.8 correction — 30.09.2026
 v0.7 passed ACL/security sections but its disposable reminder fixture violated DB-03C4: synthetic client input was newer than waiting t0, so final recheck correctly returned `otmenit`. The same fixture also lacked the mandatory confirmed reminder2 fact for a positive loss-check. v0.8 fixes only disposable probe data: client input precedes t0; reminder2 is marked confirmed with actual send time before loss-check. Runtime DB-03C4 behavior is not weakened or changed. DB-03E remains unfinished until successful apply + v0.8 verifier.
+
+
+### DB-03E v0.9 correction — 30.09.2026
+v0.8 still returned reminder `otmenit`. Fixture isolation was incomplete: reminder scenario reused `db03e_client_bot`, also used by earlier initiative preference probes. v0.9 uses a dedicated `db03e_reminder_bot` account and expands rollback residue assertion to both synthetic accounts. Runtime functions remain unchanged. DB-03E still requires successful apply + verifier.
