@@ -659,3 +659,7 @@ WF-02B2O завершён offline. В следующей отдельной се
 - Topic и mirror claim остаются disabled до WF-02B3 test-import/smoke.
 - Mirror/Take/Return/manual не расширялись.
 - Workflow: 167 нод / 140 connection keys; workflow inactive.
+
+
+### DB-03E v0.7 correction — 30.09.2026
+Повторный разрешённый запуск v0.6 снова остановился до COMMIT с `42501: permission denied for function poluchit_soderzhimoe_zadaniya`. Уточнена точная ранняя причина: section 9 ACL (`REVOKE/GRANT`) выполнялась после `RESET ROLE` как `postgres`, хотя функции принадлежат `qbit_test_owner`. v0.7 делает `SET LOCAL ROLE qbit_test_owner` до ACL и сохраняет owner role через disposable probe, затем `RESET ROLE` перед COMMIT. До успешного запуска и verifier DB-03E остаётся незавершённым.

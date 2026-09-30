@@ -205,3 +205,10 @@ WF-02B2O завершён offline на `main`. Канонический workflow
 - Дополнительно исправлен итоговый `functions_ok`: ожидаются 7 функций, а не 4.
 - Новый verifier: `sql/DB-03E_v0.6_verify.sql`.
 - Следующее действие Павла: повторно выполнить целиком `sql/DB-03E_runtime_gap_closure.sql` v0.6 в test Supabase и прислать полный результат; verifier запускать после разбора результата.
+
+
+## DB-03E v0.7 correction — 30.09.2026
+- v0.6 повторила 42501 до COMMIT.
+- Точная причина уточнена: ACL REVOKE/GRANT выполнялись как postgres после RESET ROLE, а новые функции owned by qbit_test_owner.
+- v0.7: SET LOCAL ROLE qbit_test_owner перед section 9 ACL, owner role сохраняется через disposable probe, RESET ROLE только перед COMMIT.
+- Следующее действие Павла: выполнить целиком v0.7 в test Supabase и прислать полный результат; verifier запускать только после разбора migration result.
