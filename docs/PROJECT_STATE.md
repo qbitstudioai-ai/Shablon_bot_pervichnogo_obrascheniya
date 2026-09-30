@@ -549,11 +549,31 @@ AI, sender и service Telegram в этом блоке не менялись. С�
 
 Структура не изменилась: **168 нод, 139 connection keys**. Processing и sender gates остаются disabled до DB-03E apply+verify. Runtime не проверялся.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2K — статический аудит оставшихся DB-вызовов. Статус: завершено 30 сентября 2026 года.**
+
+Отчёт: `docs/WF-02B2K_DB_CALL_AUDIT.md`.
+
+Проверены все **34 PostgreSQL-ноды** канонического workflow:
+- 16 уже используют текущие DB-03/DB-03E API;
+- 1 — намеренно отключённая no-op нода;
+- 17 ещё требуют миграции либо относятся к будущему контракту.
+
+Оставшиеся 17 распределены так:
+- reminders — 1 нода;
+- service ingress/topic/mirror — 8 нод;
+- Take/Return/manual reply/manager registration — 6 нод;
+- RAG — 1 нода, не трогать до DB-05;
+- external integration — 1 нода, не переносить на старую отдельную функцию; целевой путь — outgoing action `vid_deystviya='crm'` отдельной задачей.
+
+В самом workflow WF-02B2K изменений не делал. Сохраняются **168 нод, 139 connection keys**, `active=false`; processing и sender gates остаются disabled. DB-03E на Supabase не применялся.
+
 ## Текущая задача
 
-**WF-02B2K — статический аудит оставшихся старых DB-вызовов канонического workflow.**
+**WF-02B2L — reminders по текущему DB-контракту.**
 
-Краткий состав: просмотреть оставшиеся PostgreSQL function calls во всём полном workflow, сопоставить их с DB-03/DB-03E и выделить следующий маленький участок модернизации. Не начинать массовую переделку.
+Краткий состав: заменить только `Взять допустимые напоминания` со старого `vzyat_napominaniya_k_otpravke` на DB-03E `obrabotat_sleduyushchee_napominanie(jsonb)`. Передать trusted тексты reminder1/reminder2 и loss timeout; созданный reminder outgoing должен отправляться через уже готовый общий sender. Service Telegram, manual reply, RAG и integration не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

@@ -137,10 +137,20 @@ PRE-02E остаётся runtime-unverified до запуска в n8n.
 - 168 нод / 139 connection keys;
 - processing/sender gates остаются disabled.
 
+## WF-02B2K завершён
+
+Статически проверены все 34 PostgreSQL-ноды канонического workflow.
+- 16 текущих DB-03/DB-03E вызовов;
+- 1 disabled no-op;
+- 17 остаточных: reminders 1, service ingress/topic/mirror 8, Take/Return/manual/manager 6, RAG 1, integration 1.
+- Подробная карта: `docs/WF-02B2K_DB_CALL_AUDIT.md`.
+- Workflow в этом блоке не менялся: 168 нод / 139 connection keys.
+- DB-03E не применялся.
+
 ## Следующая задача
 
-**WF-02B2K — статический аудит оставшихся старых DB-вызовов.**
+**WF-02B2L — reminders по текущему DB-контракту.**
 
-Просмотреть PostgreSQL function calls всего канонического workflow и выбрать следующий узкий участок. Массово workflow не переписывать.
+Менять только `Взять допустимые напоминания`: использовать `obrabotat_sleduyushchee_napominanie(jsonb)` и уже готовый общий outgoing sender. Service/manual/RAG/integration не трогать.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.
