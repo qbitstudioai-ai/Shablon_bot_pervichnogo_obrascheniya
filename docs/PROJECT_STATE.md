@@ -683,3 +683,7 @@ v0.10 successfully exercised reminder1 and the positive loss-check (`zavershen /
 
 ### DB-03E v0.11 applied — 30.09.2026
 Pavel successfully applied the full DB-03E v0.11 migration in test Supabase. Returned result: `db03e_status=applied`, `migration_version=DB-03E_v0.11`, `functions_ok=true`, `bot_execute_ok=true`, `service_execute_ok=true`, `runtime_direct_dml_denied=true`, `probe_rows_remaining=0`, `production_untouched=true`. Application is confirmed; DB-03E is not yet fully verified until `sql/DB-03E_v0.11_verify.sql` succeeds. Added `docs/SUPABASE_SQL_RUNBOOK.md` for future SQL execution discipline.
+
+
+### DB-03E v0.11 VERIFIED — 30.09.2026
+Read-only verifier succeeded after the applied migration: `db03e_status=verified`, `verifier_version=DB-03E_v0.11_read_only`; owner/search_path/execute split/function presence/source contract/SECURITY DEFINER/PUBLIC denial/runtime DML/blocking-warning checks are true; production untouched check is informational true. DB-03E is complete in test Supabase. Next project work returns to WF-02B3 controlled n8n import/smoke. SQL-directory audit found 25 files; legacy DB-03E verifier versions v0.2-v0.10 are cleanup candidates, but no SQL files were deleted in this step.
