@@ -3320,7 +3320,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const root=$json||{},b=root.body||{},m=b.message||b.edited_message||null,cb=b.callback_query||null;let tip='drugoe',chat=null,from=null,thread=null,text='',cbid=null,data='';if(cb){tip='callback';cbid=cb.id;data=String(cb.data||'');from=cb.from?.id??null;chat=cb.message?.chat?.id??null;thread=cb.message?.message_thread_id??null}else if(m){chat=m.chat?.id??null;from=m.from?.id??null;thread=m.message_thread_id??null;text=String(m.text||'');if(m.chat?.type==='private'&&text==='/start')tip='start';else if(thread&&text)tip='tekst_menedzhera';else if(m.chat?.type==='private'&&m.document)tip='dokument_kb'}if(b.update_id===undefined||b.update_id===null)throw new Error('Нет update_id');return [{json:{_nastroyki:root._nastroyki,sluzhebny:{update_id:b.update_id,tip,chat_id:chat,from_id:from,message_thread_id:thread,tekst:text,callback_query_id:cbid,callback_data:data,raw:b}}}];"
+        "jsCode": "const root=$json||{},b=root.body||{},m=b.message||b.edited_message||null,cb=b.callback_query||null;\nlet tip='drugoe',chat=null,from=null,thread=null,text='',cbid=null,data='',sourceTime=null;\nif(cb){\n  tip='callback';\n  cbid=cb.id??null;\n  data=String(cb.data||'');\n  from=cb.from?.id??null;\n  chat=cb.message?.chat?.id??null;\n  thread=cb.message?.message_thread_id??null;\n  sourceTime=cb.message?.date?new Date(Number(cb.message.date)*1000).toISOString():null;\n}else if(m){\n  chat=m.chat?.id??null;\n  from=m.from?.id??null;\n  thread=m.message_thread_id??null;\n  text=String(m.text||'');\n  sourceTime=m.date?new Date(Number(m.date)*1000).toISOString():null;\n  if(m.chat?.type==='private'&&text==='/start')tip='start';\n  else if(thread&&text)tip='tekst_menedzhera';\n  else if(m.chat?.type==='private'&&m.document)tip='dokument_kb';\n}\nif(b.update_id===undefined||b.update_id===null)throw new Error('Нет update_id');\nconst cfg=root._nastroyki||{};\nconst accountId=String(cfg.kompaniya_kod||'')+':'+String(cfg.sreda||'')+':telegram:service';\nconst externalId=String(b.update_id);\nconst raw=JSON.stringify(b);\nconst sluzhebny={\n  update_id:b.update_id,tip,chat_id:chat,from_id:from,message_thread_id:thread,\n  tekst:text,callback_query_id:cbid,callback_data:data,raw:b\n};\nconst db_sluzhebnoe_sobytie={\n  versiya_formata:1,\n  operaciya_id:'tg_service_ingress:'+accountId+':'+externalId,\n  akkaunt_istochnika_id:accountId,\n  vneshnee_sobytie_id:externalId,\n  tip_sobytiya:tip,\n  klyuch_idempotentnosti:'telegram_service:'+accountId+':update:'+externalId,\n  hash_soderzhaniya:'telegram_service:'+externalId+':'+raw,\n  payload_ishodnyy:b,\n  vremya_istochnika:sourceTime,\n  vremya_priema:new Date().toISOString(),\n  trassirovka_id:'n8n:'+String($execution.id)\n};\nreturn [{json:{_nastroyki:cfg,sluzhebny,db_sluzhebnoe_sobytie}}];"
       },
       "id": "5a8ba9a9-69dc-4ca8-b852-ad4d56598823",
       "name": "Нормализовать служебный вход",
@@ -3329,15 +3329,16 @@
       "position": [
         23280,
         12016
-      ]
+      ],
+      "notes": "WF-02B2M: сохраняет прежнюю нормализованную форму `sluzhebny` и отдельно готовит durable DB-03D1 packet. Account id строится только из trusted company/env settings."
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select r.*, $2::jsonb as \"_nastroyki\" from prinyat_sluzhebny_vhod_telegram($1::jsonb) r;",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\", $3::jsonb as \"sluzhebny\" from qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_sluzhebnoe_sobytie($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [JSON.stringify($json.sluzhebny),JSON.stringify($json._nastroyki)] }}"
+          "queryReplacement": "={{ [JSON.stringify($json.db_sluzhebnoe_sobytie),JSON.stringify($json._nastroyki),JSON.stringify($json.sluzhebny)] }}"
         }
       },
       "id": "4282aa22-9bdb-4514-bf40-8524d1a39f66",
@@ -3347,13 +3348,14 @@
       "position": [
         23584,
         12016
-      ]
+      ],
+      "notes": "WF-02B2M: durable service ingress через DB-03D1. HTTP 200 только после uspeshno/dublikat."
     },
     {
       "parameters": {
         "respondWith": "noData",
         "options": {
-          "responseCode": 200
+          "responseCode": "={{ ['uspeshno','dublikat'].includes($json.rezultat) ? 200 : 500 }}"
         }
       },
       "id": "a99dc040-166e-40a3-b669-42a407c32bc9",
@@ -3363,7 +3365,8 @@
       "position": [
         23888,
         12016
-      ]
+      ],
+      "notes": "WF-02B2M: Telegram service webhook подтверждается только после durable DB result. Новый ingress не возвращает старый zadanie_id."
     },
     {
       "parameters": {
@@ -5417,13 +5420,7 @@
     },
     "Подтвердить служебный вход": {
       "main": [
-        [
-          {
-            "node": "Взять служебное задание",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Взять служебное задание": {

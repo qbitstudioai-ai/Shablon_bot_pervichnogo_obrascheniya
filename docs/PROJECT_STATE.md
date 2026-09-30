@@ -586,11 +586,29 @@ AI, sender и service Telegram в этом блоке не менялись. С�
 
 Структура workflow сохранена: **168 нод, 139 connection keys**, `active=false`. Service Telegram, manual reply, RAG и integration не менялись.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2M — durable ingress служебного Telegram. Статус: завершено offline 30 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Изменён только service webhook ingress:
+- `Нормализовать служебный вход` сохраняет прежний `sluzhebny` объект и дополнительно строит DB-03D1 packet;
+- trusted `akkaunt_istochnika_id` формируется из `kompaniya_kod + sreda + telegram:service`, а не из текста/LLM;
+- external event/idempotency привязаны к Telegram `update_id`; raw update сохраняется как `payload_ishodnyy`;
+- `Сохранить служебный вход` теперь вызывает `zaregistrirovat_sluzhebnoe_sobytie(jsonb)`;
+- webhook возвращает HTTP 200 только при `uspeshno` или `dublikat`, иначе 500;
+- после webhook больше нет немедленного запуска legacy `Взять служебное задание`, потому что новый durable ingress не возвращает старый `zadanie_id`.
+
+Старые service queue/topic/mirror claims и Take/Return/manual reply в этом блоке намеренно не менялись. Они ещё не готовы к runtime и будут мигрироваться отдельными маленькими блоками.
+
+Структура сохранена: **168 нод, 139 connection keys**, `active=false`. Processing/sender/reminder gates остаются disabled. DB-03E на Supabase не применялся.
+
 ## Текущая задача
 
-**WF-02B2M — durable ingress служебного Telegram.**
+**WF-02B2N — service mirror runtime по DB-03D1.**
 
-Краткий состав: заменить только старый `prinyat_sluzhebny_vhod_telegram` на DB-03D1 `zaregistrirovat_sluzhebnoe_sobytie(jsonb)` и адаптировать ближайший пакет/результат. Старую service queue, topic/mirror claims, Take/Return и manual reply пока не менять.
+Краткий состав: заменить только старый claim зеркала на `zabrat_sobytie_zerkala(jsonb)` и его confirmed/error result на `zafiksirovat_rezultat_zerkala(jsonb)` с worker/fencing. Topic creation, Take/Return и manual reply пока не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

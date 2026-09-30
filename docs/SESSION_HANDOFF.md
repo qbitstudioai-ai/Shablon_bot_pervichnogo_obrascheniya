@@ -159,10 +159,20 @@ PRE-02E остаётся runtime-unverified до запуска в n8n.
 - reminder node disabled до DB-03E apply+verify;
 - workflow: 168 нод / 139 connection keys.
 
+## WF-02B2M завершён offline
+
+Service webhook ingress:
+- normalizer строит DB-03D1 packet с trusted account, update_id, idempotency и raw payload;
+- `prinyat_sluzhebny_vhod_telegram` → `zaregistrirovat_sluzhebnoe_sobytie(jsonb)`;
+- HTTP 200 только после `uspeshno/dublikat`;
+- немедленная связь к legacy `Взять служебное задание` удалена;
+- сами old service queue/topic/mirror/Take/Return/manual ноды не менялись;
+- 168 нод / 139 connection keys; workflow inactive.
+
 ## Следующая задача
 
-**WF-02B2M — durable ingress служебного Telegram.**
+**WF-02B2N — service mirror runtime по DB-03D1.**
 
-Менять только `prinyat_sluzhebny_vhod_telegram` → `zaregistrirovat_sluzhebnoe_sobytie(jsonb)` и ближайшую нормализацию/результат. Service queue/topic/mirror/Take/Return/manual пока не менять.
+Менять только mirror claim + result на lease/fencing API. Topic creation, Take/Return/manual reply не трогать.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.
