@@ -529,11 +529,31 @@ AI, sender и service Telegram в этом блоке не менялись. С�
 
 Обнаружен следующий отдельный gap: обычная ветка после `sozdat_ishodyashchee_deystvie` сохраняет durable outgoing intent, но current processing job ещё нужно явно завершить новым fenced API.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2J — завершение обычного processing после durable outgoing intent. Статус: завершено offline 30 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+В существующем `Сохранить намерение отправки` теперь один DB statement выполняет правильный порядок:
+1. сначала создаёт durable outgoing intent через `sozdat_ishodyashchee_deystvie(jsonb)`;
+2. только если результат `uspeshno` или `dublikat`, обычная processing-ветка вызывает fenced `zavershit_zadanie_obrabotki(status=zaversheno)`;
+3. finish использует исходные `worker_id`, `nomer_vladeniya` и `versiya_dialoga` из `_claim`.
+
+Специальные ветки не дублируются:
+- `peredacha_cheloveku` не вызывает этот finish, потому что `zaprosit_cheloveka` уже отменяет current job;
+- `zapret_iniciativy` не вызывает этот finish, потому что `ustanovit_zapret_iniciativy` уже отменяет current job;
+- thematic warning остаётся отдельной веткой из WF-02B2I.
+
+Таким образом обычный processing job больше не остаётся `v_rabote` после успешного сохранения ответа на отправку.
+
+Структура не изменилась: **168 нод, 139 connection keys**. Processing и sender gates остаются disabled до DB-03E apply+verify. Runtime не проверялся.
+
 ## Текущая задача
 
-**WF-02B2J — завершение обычного processing после durable outgoing intent.**
+**WF-02B2K — статический аудит оставшихся старых DB-вызовов канонического workflow.**
 
-Краткий состав: после успешного или deduplicated `sozdat_ishodyashchee_deystvie` выполнить `zavershit_zadanie_obrabotki(status=zaversheno)` с worker/fencing/version. Специальные warning/handoff/opt-out ветки не дублировать. AI, sender и service Telegram не менять.
+Краткий состав: просмотреть оставшиеся PostgreSQL function calls во всём полном workflow, сопоставить их с DB-03/DB-03E и выделить следующий маленький участок модернизации. Не начинать массовую переделку.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 

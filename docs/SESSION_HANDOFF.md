@@ -127,10 +127,20 @@ PRE-02E остаётся runtime-unverified до запуска в n8n.
 - processing/sender gates остаются disabled;
 - 168 нод / 139 connection keys.
 
+## WF-02B2J завершён offline
+
+В `Сохранить намерение отправки`:
+- сначала durable intent → `sozdat_ishodyashchee_deystvie(jsonb)`;
+- затем при `uspeshno/dublikat` обычный current job → fenced `zavershit_zadanie_obrabotki(status=zaversheno)`;
+- handoff/opt-out finish не дублируется, потому что их DB-03E функции уже закрывают current job;
+- warning остаётся отдельным special path;
+- 168 нод / 139 connection keys;
+- processing/sender gates остаются disabled.
+
 ## Следующая задача
 
-**WF-02B2J — завершение обычного processing после durable outgoing intent.**
+**WF-02B2K — статический аудит оставшихся старых DB-вызовов.**
 
-После `sozdat_ishodyashchee_deystvie` добавить fenced `zavershit_zadanie_obrabotki(zaversheno)` только для обычных веток. Special warning/handoff/opt-out не дублировать.
+Просмотреть PostgreSQL function calls всего канонического workflow и выбрать следующий узкий участок. Массово workflow не переписывать.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.
