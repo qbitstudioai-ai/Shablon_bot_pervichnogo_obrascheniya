@@ -130,7 +130,7 @@
     },
     {
       "parameters": {
-        "content": "## БЛОК 8. DB-КОНТРАКТ\nClient/outgoing/reminders и service ingress/mirror постепенно переведены на DB-03 JSONB API.\n\nMirror runtime: `zabrat_sobytie_zerkala` + `zafiksirovat_rezultat_zerkala` с lease/fencing.\nTopic creation пока legacy и мигрируется отдельным блоком.\n\nЗеркало не блокирует клиентский webhook.",
+        "content": "## БЛОК 8. DB-КОНТРАКТ\nClient/outgoing/reminders и service ingress/mirror/topic переведены на DB-03 JSONB API.\n\nTopic runtime: `zabrat_sozdanie_operator_temy` → Telegram `createForumTopic` → `podtverdit_operator_temu` либо terminal `otmetit_temu_neizvestnoy`, с lease/fencing и без blind retry.\nMirror runtime: `zabrat_sobytie_zerkala` + `zafiksirovat_rezultat_zerkala`.\n\nTopic и mirror claim остаются disabled до test-import/smoke.",
         "height": 760,
         "width": 2200,
         "color": 0
@@ -2347,205 +2347,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "combinator": "and",
-          "conditions": [
-            {
-              "leftValue": "={{ $json.tip_sobytiya === 'lichnoe_uvedomlenie' || Boolean($json.message_thread_id) }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "2a567ce4-a607-4b64-8e0d-ac50fca3ceda",
-      "name": "Тема оператора уже создана?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        25408,
-        6432
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $credentials.baseUrl + '/bot' + $credentials.accessToken + '/createForumTopic' }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "telegramApi",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ {chat_id:$json.gruppa_id || $json._nastroyki.operator.sluzhebnaya_gruppa_id,name:$json.nazvanie_temy} }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "id": "560fb335-fa2e-4b09-b7e1-4e807af1a600",
-      "name": "Создать тему клиента",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.5,
-      "position": [
-        25712,
-        6256
-      ],
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 1200,
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "mode": "combine",
-        "combineBy": "combineByPosition",
-        "options": {}
-      },
-      "id": "b736a4e6-2c0f-4489-ad0f-34f304fd2c5e",
-      "name": "Совместить событие и новую тему",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3.2,
-      "position": [
-        26016,
-        6256
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const x=$json||{},t=x.result?.message_thread_id??x.message_thread_id??null;return [{json:{...x,novaya_tema_id:t,tema_sozdana_seychas:Boolean(t),oshibka_temy:t?null:(x.error?.message||x.message||'tema_ne_sozdana')}}];"
-      },
-      "id": "d5f4f77e-14d1-49ee-a42f-5a3ef292fad5",
-      "name": "Проверить созданную тему",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        26304,
-        6256
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "combinator": "and",
-          "conditions": [
-            {
-              "leftValue": "={{ Boolean($json.novaya_tema_id) }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "ee9cae58-cf18-4369-885c-1422c51e84d9",
-      "name": "Тема создана успешно?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        26608,
-        6256
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "with r as (select * from sohranit_temu_operatora($1::uuid,$2::bigint,$3::bigint)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$4::jsonb as kontekst;",
-        "options": {
-          "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.dialog_id,$json.gruppa_id || $json._nastroyki.operator.sluzhebnaya_gruppa_id,$json.novaya_tema_id,JSON.stringify($json)] }}"
-        }
-      },
-      "id": "3788db31-18f2-4270-a930-2a1db782bafb",
-      "name": "Сохранить тему оператора",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        26912,
-        6176
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "return [{json:{...($json.kontekst||{}),...($json.rezultat_bazy||{}),message_thread_id:$json.kontekst?.novaya_tema_id}}];"
-      },
-      "id": "dbb89ddc-c789-4221-bbbd-e6cbebebac20",
-      "name": "Восстановить событие с темой",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        27216,
-        6176
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const x=$json;return [{json:{...x,tekst_kartochki:`🆕 ${x.nazvanie_temy||'Новый клиент'}\nВладелец: 🤖 бот\nЭтап: ${x.tekushchiy_etap||'новое обращение'}\n\nЗдесь зеркалируется вся переписка.`}}];"
-      },
-      "id": "83d330d3-8b2e-43df-aeaa-fdc341cc71be",
-      "name": "Собрать карточку новой темы",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        27504,
-        6096
-      ]
-    },
-    {
-      "parameters": {
-        "chatId": "={{ $json.gruppa_id || $json._nastroyki.operator.sluzhebnaya_gruppa_id }}",
-        "text": "={{ $json.tekst_kartochki }}",
-        "replyMarkup": "inlineKeyboard",
-        "inlineKeyboard": {
-          "rows": [
-            {
-              "row": {
-                "buttons": [
-                  {
-                    "text": "👤 Забрать диалог",
-                    "additionalFields": {
-                      "callback_data": "={{ 'take:' + $json.dialog_id }}"
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        },
-        "additionalFields": {
-          "appendAttribution": false,
-          "message_thread_id": "={{ $json.message_thread_id }}"
-        }
-      },
-      "id": "b0e715c9-5a7e-4a5d-baca-2577b9673fd0",
-      "name": "Отправить карточку новой темы",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [
-        27808,
-        6096
-      ],
-      "webhookId": "6cc17765-adf0-43ec-b80e-b914d75c3898",
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
         "jsCode": "const x=$json||{},p=x.payload||{};\nlet route='drugoe',text=String(x.tekst||'');\nif(x.tip_sobytiya==='soobshchenie_klienta'){route='tekst_klienta';text='🧑 Клиент: '+text;}\nelse if(x.tip_sobytiya==='otvet_bota'){route='tekst_bota';text='🤖 Бот: '+text;}\nelse if(x.tip_sobytiya==='media_klienta'){route='media_klienta';}\nelse if(x.tip_sobytiya==='nuzhen_chelovek'){route='signal_v_temu';text='🔴 Требуется человек\\n'+(text||String(p.prichina||'Нужна помощь менеджера'));}\nelse if(x.tip_sobytiya==='lichnoe_uvedomlenie'){route='signal_lichno';text='🔴 Требуется подключение\\n'+(text||String(p.prichina||'Нужна помощь'));}\nelse if(x.tip_sobytiya==='zabran'||x.tip_sobytiya==='vozvrashchen'){route='tekst_bota';text=String(x.tekst||'Статус диалога изменён.');}\nelse if(x.tip_sobytiya==='obnovit_kartochku'){\n  route='tekst_bota';\n  const owner=p.vladelec==='chelovek'?'👤 менеджер':'🤖 бот';\n  text=p.rezhim==='initial'\n    ? '🆕 '+String(x.bezopasnaya_podpis_klienta||'Клиент')+'\\nВладелец: '+owner+'\\n\\nЗдесь зеркалируется вся переписка.'\n    : '🔄 Статус диалога\\nВладелец: '+owner;\n}\nreturn [{json:{...x,tip_marshruta_zerkala:route,tekst_dlya_zerkala:text,gruppa_id:x.cel_chat_id||null,message_thread_id:x.cel_thread_id||null,manager_chat_id:x.tip_sobytiya==='lichnoe_uvedomlenie'?(x.cel_chat_id||null):null}}];"
       },
       "id": "ef420f24-d502-4ff1-91a6-441c5f523588",
@@ -3114,24 +2915,6 @@
         6592
       ],
       "notes": "WF-02B2N: до внешнего API известная локальная проблема = oshibka; неоднозначный Telegram transport result = terminal neizvestno. Blind retry не выполняется."
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "select * from otmetit_oshibku_zerkala_operatora($1::uuid,$2::text);",
-        "options": {
-          "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.sobytie_zerkala_id,$json.oshibka_temy||'tema_ne_sozdana'] }}"
-        }
-      },
-      "id": "59dc0c68-d9bd-4261-bb5f-0e4030205360",
-      "name": "Отметить ошибку создания темы",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        26912,
-        6400
-      ]
     },
     {
       "parameters": {
@@ -3949,6 +3732,189 @@
       ],
       "webhookId": "2a54f9dc-13e2-4ce5-a2b7-7a90fd9f6502",
       "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from qbit_bot_pervichnogo_obrascheniya.zabrat_sozdanie_operator_temy($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify({operaciya_id:'topic:claim:'+$execution.id,worker_id:'n8n:'+$json._nastroyki.kompaniya_kod+':'+$json._nastroyki.sreda+':service-topic',arenda_sekund:120}),JSON.stringify($json._nastroyki)] }}"
+        }
+      },
+      "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000001",
+      "name": "Взять создание темы оператора",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        24512,
+        6080
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{};\nconst ok=x.rezultat==='uspeshno'&&Boolean(x.dialog_id)&&Boolean(x.sluzhebnyy_chat_id)&&Boolean(x.operaciya_sozdaniya_id)&&Boolean(x.vladelec_arendy)&&Number(x.nomer_vladeniya)>0;\nreturn [{json:{...x,est_sozdanie_temy:ok,_topic_claim:ok?{dialog_id:x.dialog_id,sluzhebnyy_chat_id:x.sluzhebnyy_chat_id,operaciya_sozdaniya_id:x.operaciya_sozdaniya_id,worker_id:x.vladelec_arendy,nomer_vladeniya:x.nomer_vladeniya,arenda_do:x.arenda_do}:null,nazvanie_temy:String(x.bezopasnaya_podpis_klienta||'Клиент').slice(0,128)}}];"
+      },
+      "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000002",
+      "name": "Проверить создание темы оператора",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        24816,
+        6080
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.est_sozdanie_temy }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000003",
+      "name": "Есть создание темы?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        25104,
+        6080
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $credentials.baseUrl + '/bot' + $credentials.accessToken + '/createForumTopic' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "telegramApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {chat_id:$json._topic_claim.sluzhebnyy_chat_id,name:$json.nazvanie_temy} }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000004",
+      "name": "Создать forum-topic клиента",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        25408,
+        6000
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000005",
+      "name": "Совместить claim и forum-topic",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        25712,
+        6080
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json||{};\nconst thread=x.result?.message_thread_id??null;\nconst ok=thread!==null&&thread!==undefined&&String(thread)!=='';\nreturn [{json:{...x,tema_podtverzhdena:ok,novaya_tema_id:ok?String(thread):null,vremya_podtverzhdeniya_temy:new Date().toISOString(),topic_error_code:ok?null:'create_forum_topic_neizvestno',oshibka_temy:ok?null:String(x.error?.message||x.message||'Telegram createForumTopic result не подтверждён')}}];"
+      },
+      "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000006",
+      "name": "Определить результат создания темы",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        26016,
+        6080
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.tema_podtverzhdena }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000007",
+      "name": "Forum-topic подтверждён?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        26304,
+        6080
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from qbit_bot_pervichnogo_obrascheniya.podtverdit_operator_temu($1::jsonb);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify({operaciya_sozdaniya_id:$json._topic_claim.operaciya_sozdaniya_id,dialog_id:$json._topic_claim.dialog_id,worker_id:$json._topic_claim.worker_id,nomer_vladeniya:$json._topic_claim.nomer_vladeniya,message_thread_id:$json.novaya_tema_id,vremya_podtverzhdeniya:$json.vremya_podtverzhdeniya_temy})] }}"
+        }
+      },
+      "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000008",
+      "name": "Подтвердить тему оператора",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        26608,
+        5984
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from qbit_bot_pervichnogo_obrascheniya.otmetit_temu_neizvestnoy($1::jsonb);",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify({operaciya_sozdaniya_id:$json._topic_claim.operaciya_sozdaniya_id,dialog_id:$json._topic_claim.dialog_id,worker_id:$json._topic_claim.worker_id,nomer_vladeniya:$json._topic_claim.nomer_vladeniya,kod_oshibki:$json.topic_error_code||'create_forum_topic_neizvestno',opisanie_oshibki:String($json.oshibka_temy||'Результат createForumTopic неоднозначен; blind recreate запрещён.')})] }}"
+        }
+      },
+      "id": "a2f2b2a1-4d13-4c43-90aa-020b2o000009",
+      "name": "Отметить тему неизвестной",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        26608,
+        6176
+      ]
     }
   ],
   "pinData": {},
@@ -4081,6 +4047,11 @@
           }
         ],
         [
+          {
+            "node": "Взять создание темы оператора",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Взять событие зеркала оператору",
             "type": "main",
@@ -4987,123 +4958,12 @@
       "main": [
         [
           {
-            "node": "Тема оператора уже создана?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Тема оператора уже создана?": {
-      "main": [
-        [
-          {
             "node": "Подготовить событие зеркала",
             "type": "main",
             "index": 0
           }
         ],
-        [
-          {
-            "node": "Создать тему клиента",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Совместить событие и новую тему",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Создать тему клиента": {
-      "main": [
-        [
-          {
-            "node": "Совместить событие и новую тему",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Совместить событие и новую тему": {
-      "main": [
-        [
-          {
-            "node": "Проверить созданную тему",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Проверить созданную тему": {
-      "main": [
-        [
-          {
-            "node": "Тема создана успешно?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Тема создана успешно?": {
-      "main": [
-        [
-          {
-            "node": "Сохранить тему оператора",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Отметить ошибку создания темы",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Сохранить тему оператора": {
-      "main": [
-        [
-          {
-            "node": "Восстановить событие с темой",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Восстановить событие с темой": {
-      "main": [
-        [
-          {
-            "node": "Собрать карточку новой темы",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Подготовить событие зеркала",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Собрать карточку новой темы": {
-      "main": [
-        [
-          {
-            "node": "Отправить карточку новой темы",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Подготовить событие зеркала": {
@@ -5809,6 +5669,106 @@
             "index": 1
           }
         ]
+      ]
+    },
+    "Взять создание темы оператора": {
+      "main": [
+        [
+          {
+            "node": "Проверить создание темы оператора",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить создание темы оператора": {
+      "main": [
+        [
+          {
+            "node": "Есть создание темы?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Есть создание темы?": {
+      "main": [
+        [
+          {
+            "node": "Создать forum-topic клиента",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Совместить claim и forum-topic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Создать forum-topic клиента": {
+      "main": [
+        [
+          {
+            "node": "Совместить claim и forum-topic",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Совместить claim и forum-topic": {
+      "main": [
+        [
+          {
+            "node": "Определить результат создания темы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Определить результат создания темы": {
+      "main": [
+        [
+          {
+            "node": "Forum-topic подтверждён?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Forum-topic подтверждён?": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить тему оператора",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Отметить тему неизвестной",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подтвердить тему оператора": {
+      "main": [
+        []
+      ]
+    },
+    "Отметить тему неизвестной": {
+      "main": [
+        []
       ]
     }
   },

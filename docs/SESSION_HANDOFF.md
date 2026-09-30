@@ -190,3 +190,8 @@ Service mirror runtime:
 Менять только topic claim → createForumTopic → confirm/unknown с worker/fencing. Mirror/Take/Return/manual не расширять.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.
+
+
+## Передача после WF-02B2O — 30.09.2026
+
+WF-02B2O завершён offline на `main`. Канонический workflow переведён с legacy direct topic/save/error на DB-03D1 topic claim → `createForumTopic` → confirm/unknown с worker/lease/fencing. Blind HTTP retry удалён; ambiguous result terminal `neizvestno`. Initial card создаётся через DB-03D1 mirror event после confirm. Topic и mirror claim disabled; production/traffic/Credentials не менялись. Статика: 167 нод, 140 connection keys, dangling connections нет. Следующий ID: WF-02B3 — test import/smoke в отдельной сессии.
