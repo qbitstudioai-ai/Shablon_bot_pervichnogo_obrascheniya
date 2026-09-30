@@ -114,10 +114,23 @@ PRE-02E остаётся runtime-unverified до запуска в n8n.
 - ручной manager send не менялся;
 - 168 нод / 139 connection keys.
 
+## WF-02B2I завершён offline
+
+В том же полном JSON:
+- thematic violation → `zapisat_narushenie_tematiky(jsonb)`;
+- exact warning → `sozdat_preduprezhdenie_tematiky(jsonb)` без второго generic outgoing;
+- non-block warning завершает current job; blocking warning оставляет stale job для безопасного DB cleanup;
+- handoff → `zaprosit_cheloveka(jsonb)`; current job отменяется внутри DB, owner остаётся bot до Take;
+- opt-out → `ustanovit_zapret_iniciativy(jsonb)`; current job/ожидание/не начатые actions отменяются внутри DB;
+- клиентское handoff/opt-out подтверждение создаётся только после `uspeshno/dublikat`;
+- AI, sender, service Telegram не менялись;
+- processing/sender gates остаются disabled;
+- 168 нод / 139 connection keys.
+
 ## Следующая задача
 
-**WF-02B2I — DB-действия guard/handoff/opt-out.**
+**WF-02B2J — завершение обычного processing после durable outgoing intent.**
 
-Менять только тематическое нарушение/предупреждение, запрос человека и opt-out. AI, sender и service Telegram не менять.
+После `sozdat_ishodyashchee_deystvie` добавить fenced `zavershit_zadanie_obrabotki(zaversheno)` только для обычных веток. Special warning/handoff/opt-out не дублировать.
 
 DB-03E подготовлен, но не применён на Supabase; production/traffic/Credentials не менять без отдельного разрешения Павла.

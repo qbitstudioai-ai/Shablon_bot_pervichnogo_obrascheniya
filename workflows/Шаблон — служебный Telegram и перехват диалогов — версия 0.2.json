@@ -1492,10 +1492,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with r as (select * from zafiksirovat_narushenie($1::uuid,$2::text,$3::text,$4::double precision)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$5::jsonb as kontekst;",
+        "query": "select r.*, $2::jsonb as kontekst from qbit_bot_pervichnogo_obrascheniya.zapisat_narushenie_tematiky($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.zadanie_id,$json.kontrol.deystvie,$json.kontrol.prichina,$json.kontrol.uverennost,JSON.stringify($json)] }}"
+          "queryReplacement": "={{ [\n      JSON.stringify({\n        operaciya_id:'guard:violation:'+String($json._source?.soobshchenie_id||$json.soobshchenie_id_teksta||''),\n        identifikator_kanala_id:$json._source?.identifikator_kanala_id,\n        dialog_id:$json._claim?.dialog_id||$json.dialog_id,\n        soobshchenie_id:$json._source?.soobshchenie_id||$json.soobshchenie_id_teksta,\n        klassifikaciya:$json.kontrol?.deystvie,\n        istochnik:'openai_guard',\n        uverennost:$json.kontrol?.uverennost,\n        prichina:$json.kontrol?.prichina||'',\n        vremya_sobytiya:new Date().toISOString(),\n        limit_narusheniy:$json._nastroyki?.bezopasnost?.limit_narusheniy\n      }),\n      JSON.stringify($json)\n    ] }}"
         }
       },
       "id": "e3d846b8-b556-40d9-8ddc-3263ba43d06b",
@@ -1505,28 +1505,35 @@
       "position": [
         20304,
         5376
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const x={...($json.kontekst||{}),...($json.rezultat_bazy||{})},n=Number(x.schetchik_narusheniy||1),c=x._nastroyki.preduprezhdeniya,t=n>=3?c.tekst_3:n===2?c.tekst_2:c.tekst_1;return [{json:{...x,tekst_otveta:t,tip_otveta:'preduprezhdenie',reshenie:{istochnik:'sistema',tip:'preduprezhdenie',nomer:n}}}];"
-      },
-      "id": "4a4196b9-d9ec-46fd-b612-2cae8f3cec2d",
-      "name": "Собрать предупреждение пользователю",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        20608,
-        5376
-      ]
+      ],
+      "notes": "WF-02B2I: thematic counter only through DB-03C2 zapisat_narushenie_tematiky(jsonb); flood/rate-limit сюда не попадает."
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with r as (select * from peredat_dialog_menedzheru($1::uuid,$2::text)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$3::jsonb as kontekst;",
+        "query": "WITH w AS (\n  SELECT *\n    FROM qbit_bot_pervichnogo_obrascheniya.sozdat_preduprezhdenie_tematiky($1::jsonb)\n),\nf AS (\n  SELECT z.*\n    FROM w\n    CROSS JOIN LATERAL qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_obrabotki($2::jsonb) AS z\n   WHERE w.rezultat IN ('uspeshno','dublikat')\n     AND COALESCE(w.logicheski_zablokirovan,false)=false\n)\nSELECT\n  w.*,\n  (SELECT to_jsonb(f) FROM f LIMIT 1) AS rezultat_finish,\n  $3::jsonb AS kontekst\nFROM w;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.zadanie_id,$json.kontrol?.prichina||$json.prichina_peredachi||'peredacha_po_pravilam',JSON.stringify($json)] }}"
+          "queryReplacement": "={{ (()=>{\n      const k=$json.kontekst||{};\n      const n=Number($json.nomer_narusheniya||1);\n      const c=k._nastroyki?.preduprezhdeniya||{};\n      const t=n>=3?c.tekst_3:n===2?c.tekst_2:c.tekst_1;\n      const warningPayload={\n        operaciya_id:'guard:warning:'+String($json.soobshchenie_id||k._source?.soobshchenie_id||''),\n        dialog_id:$json.dialog_id||k._claim?.dialog_id,\n        soobshchenie_id:$json.soobshchenie_id||k._source?.soobshchenie_id,\n        ozhidaemaya_versiya_dialoga:$json.versiya_dialoga,\n        tekst_ishodnyy:String(t||''),\n        tekst_obezlichennyy:String(t||''),\n        vremya_sobytiya:new Date().toISOString()\n      };\n      const claim=k._claim||{};\n      const finishPayload={\n        operaciya_id:'finish:warning:'+String(claim.zadanie_id||'')+':'+String(claim.nomer_vladeniya||''),\n        zadanie_id:claim.zadanie_id,\n        worker_id:claim.worker_id,\n        nomer_vladeniya:claim.nomer_vladeniya,\n        ozhidaemaya_versiya_dialoga:claim.versiya_dialoga,\n        status:'zaversheno'\n      };\n      return [JSON.stringify(warningPayload),JSON.stringify(finishPayload),JSON.stringify(k)];\n    })() }}"
+        }
+      },
+      "id": "4a4196b9-d9ec-46fd-b612-2cae8f3cec2d",
+      "name": "Создать тематическое предупреждение",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        20608,
+        5376
+      ],
+      "notes": "WF-02B2I: DB-03E создаёт ровно одно warning outgoing, включая специальное третье предупреждение после logical block. Повторно через общий outgoing intent эта ветка не проходит."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as kontekst from qbit_bot_pervichnogo_obrascheniya.zaprosit_cheloveka($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ (()=>{\n      const c=$json._claim||{};\n      const reason=String($json.kontrol?.prichina||$json.prichina_peredachi||'peredacha_po_pravilam');\n      return [\n        JSON.stringify({\n          operaciya_id:'human:'+String(c.zadanie_id||'')+':'+String(c.nomer_vladeniya||''),\n          zadanie_id:c.zadanie_id,\n          worker_id:c.worker_id,\n          nomer_vladeniya:c.nomer_vladeniya,\n          dialog_id:c.dialog_id||$json.dialog_id,\n          ozhidaemaya_versiya_dialoga:c.versiya_dialoga,\n          prichina:reason,\n          tekst:'Требуется подключение менеджера. Причина: '+reason,\n          vremya_sobytiya:new Date().toISOString()\n        }),\n        JSON.stringify($json)\n      ];\n    })() }}"
         }
       },
       "id": "631d5021-6137-417a-b568-fc975de5a98a",
@@ -1536,11 +1543,12 @@
       "position": [
         20304,
         5632
-      ]
+      ],
+      "notes": "WF-02B2I: zaprosit_cheloveka(jsonb) создаёт service mirror signal, переводит этап в peredacha_cheloveku и отменяет текущий processing job; owner остаётся bot до Take."
     },
     {
       "parameters": {
-        "jsCode": "const x={...($json.kontekst||{}),...($json.rezultat_bazy||{})};return [{json:{...x,tekst_otveta:x._nastroyki.peredacha.tekst,tip_otveta:'peredacha_cheloveku',reshenie:{istochnik:'sistema',tip:'peredacha_cheloveku'}}}];"
+        "jsCode": "const r=$json||{},k=r.kontekst||{};\nif(!['uspeshno','dublikat'].includes(r.rezultat)) return [];\nconst x={...k,...r,kontekst:undefined};\nreturn [{json:{...x,tekst_otveta:x._nastroyki.peredacha.tekst,tip_otveta:'peredacha_cheloveku',reshenie:{istochnik:'sistema',tip:'peredacha_cheloveku'}}}];"
       },
       "id": "fb52772d-e0bf-4f97-924f-4f0546e86bfe",
       "name": "Собрать сообщение о передаче",
@@ -1554,10 +1562,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "with r as (select * from ustanovit_zapret_iniciativy($1::uuid)) select coalesce((select to_jsonb(r) from r limit 1),'{}'::jsonb) as rezultat_bazy,$2::jsonb as kontekst;",
+        "query": "select r.*, $2::jsonb as kontekst from qbit_bot_pervichnogo_obrascheniya.ustanovit_zapret_iniciativy($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [$json.zadanie_id,JSON.stringify($json)] }}"
+          "queryReplacement": "={{ (()=>{\n      const c=$json._claim||{};\n      return [\n        JSON.stringify({\n          operaciya_id:'initiative:block:'+String(c.zadanie_id||'')+':'+String(c.nomer_vladeniya||''),\n          zadanie_id:c.zadanie_id,\n          worker_id:c.worker_id,\n          nomer_vladeniya:c.nomer_vladeniya,\n          dialog_id:c.dialog_id||$json.dialog_id,\n          ozhidaemaya_versiya_dialoga:c.versiya_dialoga,\n          zapreshcheno:true,\n          prichina:'yavnyy_zapret_klienta',\n          vremya_sobytiya:new Date().toISOString()\n        }),\n        JSON.stringify($json)\n      ];\n    })() }}"
         }
       },
       "id": "6eb013e6-1408-4af3-afbd-23d53750afbe",
@@ -1567,11 +1575,12 @@
       "position": [
         20304,
         5888
-      ]
+      ],
+      "notes": "WF-02B2I: persistent opt-out через DB-03E; функция отменяет ожидание, reminders, не начатые bot actions и текущий processing job."
     },
     {
       "parameters": {
-        "jsCode": "const x={...($json.kontekst||{}),...($json.rezultat_bazy||{})};return [{json:{...x,tekst_otveta:x._nastroyki.zapret_iniciativy.tekst,tip_otveta:'zapret_iniciativy',reshenie:{istochnik:'sistema',tip:'zapret_iniciativy'}}}];"
+        "jsCode": "const r=$json||{},k=r.kontekst||{};\nif(!['uspeshno','dublikat'].includes(r.rezultat)) return [];\nconst x={...k,...r,kontekst:undefined};\nreturn [{json:{...x,tekst_otveta:x._nastroyki.zapret_iniciativy.tekst,tip_otveta:'zapret_iniciativy',reshenie:{istochnik:'sistema',tip:'zapret_iniciativy'}}}];"
       },
       "id": "be1b0838-34c3-4769-a204-2c26c7df9070",
       "name": "Собрать подтверждение запрета",
@@ -4562,18 +4571,7 @@
       "main": [
         [
           {
-            "node": "Собрать предупреждение пользователю",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Собрать предупреждение пользователю": {
-      "main": [
-        [
-          {
-            "node": "Сохранить намерение отправки",
+            "node": "Создать тематическое предупреждение",
             "type": "main",
             "index": 0
           }
@@ -5788,6 +5786,11 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Создать тематическое предупреждение": {
+      "main": [
+        []
       ]
     }
   },

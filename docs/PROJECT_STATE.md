@@ -509,11 +509,31 @@ DB-03C4 требует trusted reminder window. В `Настройки комп�
 
 Структура: **168 нод, 139 connection keys**. Runtime Telegram/DB sender не проверялся. Ручной ответ менеджера в WF-02B2H не менялся.
 
+## Последний завершённый workflow-блок
+
+**WF-02B2I — DB-действия guard / handoff / opt-out. Статус: завершено offline 30 сентября 2026 года.**
+
+Канонический файл: `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json`.
+
+Изменены только DB-действия после guard:
+- thematic violation → `zapisat_narushenie_tematiky(jsonb)`;
+- thematic warning → DB-03E `sozdat_preduprezhdenie_tematiky(jsonb)`; эта функция сама создаёт exact durable outgoing warning, поэтому ветка больше не идёт в общий `Сохранить намерение отправки`;
+- warning №3 остаётся разрешён exact blocking violation, как предусмотрено DB-03E;
+- non-block warning после сохранения intent делает fenced `zavershit_zadanie_obrabotki(status=zaversheno)`;
+- blocking warning меняет dialog version, поэтому старый job не завершает stale write и остаётся для безопасного DB cleanup/reclaim;
+- handoff → `zaprosit_cheloveka(jsonb)`; функция сама отменяет current processing job и создаёт service mirror event, owner остаётся `bot` до отдельного Take;
+- opt-out → `ustanovit_zapret_iniciativy(jsonb)`; функция сохраняет persistent запрет, отменяет ожидания/не начатые bot actions и current job;
+- клиентские подтверждения handoff/opt-out по-прежнему создаются через уже подготовленный durable outgoing, только если DB action вернул `uspeshno/dublikat`.
+
+AI, sender и service Telegram в этом блоке не менялись. Структура: **168 нод, 139 connection keys**. Processing и sender gates остаются disabled до DB-03E apply+verify.
+
+Обнаружен следующий отдельный gap: обычная ветка после `sozdat_ishodyashchee_deystvie` сохраняет durable outgoing intent, но current processing job ещё нужно явно завершить новым fenced API.
+
 ## Текущая задача
 
-**WF-02B2I — DB-действия guard/handoff/opt-out.**
+**WF-02B2J — завершение обычного processing после durable outgoing intent.**
 
-Краткий состав: в том же полном workflow заменить только старые DB-вызовы тематического нарушения/предупреждения, передачи человеку и запрета инициативы на текущие DB-03C2/DB-03E функции. AI, sender и служебный Telegram пока не менять.
+Краткий состав: после успешного или deduplicated `sozdat_ishodyashchee_deystvie` выполнить `zavershit_zadanie_obrabotki(status=zaversheno)` с worker/fencing/version. Специальные warning/handoff/opt-out ветки не дублировать. AI, sender и service Telegram не менять.
 
 ## Параметры, которые предстоит проверить до реализации/выпуска
 
