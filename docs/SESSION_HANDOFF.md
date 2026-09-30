@@ -287,3 +287,14 @@ Runtime n8n smoke ещё не выполнен и WF-02B3 не закрыт. В 
 - Секреты, private key, DB password, IP и tenant ID в GitHub не записаны.
 - Переносимое правило добавлено в `docs/N8N_POSTGRES_CONNECTION.md`.
 - WF-02B3 не закрыт: дальше проверить `qbit_test_sluzhebnyy`, OpenAI/Telegram/Header Auth, затем controlled ingress → queue → outgoing → operator smoke.
+
+
+## WF-02B3A — mandatory safety correction 30.09.2026
+
+- Проверка исходного кода n8n 2.41.0 подтвердила: disabled обычная нода передаёт первый main input дальше; это не stop-gate.
+- Поэтому прежние пять disabled Postgres worker nodes нельзя использовать как безопасность controlled smoke.
+- До WF-02B3A workflow держать inactive; schedule-trigger runtime smoke не запускать.
+- WF-02B3A должен добавить явные execution gates и runtime validator DB-role/Credential mapping.
+- Runtime export Павла уже содержит 7 DB-03D1 service Postgres nodes с префиксом `Служебный_` и service Credential.
+- Legacy service polling/Take/Return/manual nodes остаются блокером и не должны исполняться.
+- Канонический GitHub export не должен содержать Credential IDs/secrets.

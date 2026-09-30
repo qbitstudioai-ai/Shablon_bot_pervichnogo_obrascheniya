@@ -32,7 +32,7 @@
 - client webhook: `qbit-test-telegram-v2`, `headerAuth`, ответ через Respond to Webhook;
 - service webhook: `qbit-test-service-telegram-v1`, `headerAuth`, ответ через Respond to Webhook.
 
-Опасные runtime-gates до smoke оставлены выключенными:
+Пять worker Postgres-нод в каноническом JSON имеют `disabled=true`:
 
 1. `Взять следующее задание`;
 2. `Взять исходящее действие`;
@@ -40,7 +40,9 @@
 4. `Взять создание темы оператора`;
 5. `Взять событие зеркала оператору`.
 
-Это означает, что сам импорт канонического JSON не должен запускать processing/sender/reminder/topic/mirror worker.
+**Исправление безопасности 30.09.2026:** в n8n 2.41.0 отключённая обычная нода не является stop-gate: execution engine передаёт её вход дальше (`handleDisabledNode` возвращает первый main input). Поэтому эти пять `disabled`-нод нельзя считать надёжной блокировкой runtime. До WF-02B3A workflow обязан оставаться `inactive`, а controlled smoke нельзя запускать через расписания. Источник: исходный код n8n 2.41.0, `packages/core/src/execution-engine/workflow-execute.ts`.
+
+WF-02B3A должен заменить это на явные execution gates, у которых закрытая ветка физически не продолжает worker, и добавить credential-routing validation.
 
 ## S0 — подключение PostgreSQL — PARTIAL VERIFIED
 
@@ -70,7 +72,7 @@ Runtime выполняется только в test n8n и по одному у�
 - импортировать канонический JSON;
 - workflow оставить inactive;
 - убедиться, что n8n не сообщает missing/unknown node type;
-- проверить, что пять runtime-gates выше остаются disabled;
+- проверить, что workflow остаётся inactive; состояние `disabled` worker-нод фиксируется только как структура импорта и **не считается защитным gate**;
 - не подключать production webhook и не переключать Telegram traffic.
 
 Критерий: workflow открывается и сохраняется в test n8n без структурной ошибки.
@@ -85,11 +87,11 @@ Runtime выполняется только в test n8n и по одному у�
 - HTTP 200 выдаётся только после успешной DB-регистрации;
 - повтор того же update не создаёт второй вход/job.
 
-Processing claim при этом остаётся disabled.
+Processing worker при этом остаётся закрыт **явным execution gate WF-02B3A**. До его появления S2 разрешён только как изолированный ручной ingress-test без активации workflow.
 
 ### S3 — queue
 
-Временно включить только `Взять следующее задание`.
+Открыть только явный queue execution gate WF-02B3A. Само переключение `disabled` у Postgres-ноды не используется как механизм безопасности.
 
 Проверить:
 - claim идёт через `zabrat_zadanie_obrabotki(jsonb)`;
@@ -99,11 +101,11 @@ Processing claim при этом остаётся disabled.
 
 До AI/Telegram внешних вызовов smoke должен останавливаться безопасно, если trusted профиль компании ещё не заполнен.
 
-После проверки gate снова выключить.
+После проверки явный execution gate снова закрыть.
 
 ### S4 — outgoing
 
-Создать только тестовое durable outgoing action разрешённым DB API. Затем временно включить `Взять исходящее действие`.
+Создать только тестовое durable outgoing action разрешённым DB API. Затем открыть только явный outgoing execution gate WF-02B3A.
 
 Проверить:
 - claim через `zabrat_ishodyashchee_deystvie(jsonb)`;
@@ -113,7 +115,7 @@ Processing claim при этом остаётся disabled.
 
 Если для Telegram-send нет отдельно разрешённого test Credential/chat, проверка останавливается до внешней отправки и это не считается провалом DB/sender contract.
 
-После проверки gate снова выключить.
+После проверки явный execution gate снова закрыть.
 
 ### S5 — operator
 
@@ -127,7 +129,7 @@ Processing claim при этом остаётся disabled.
 - mirror claim → `zabrat_sobytie_zerkala(jsonb)`;
 - mirror confirmed/unknown/error → `zafiksirovat_rezultat_zerkala(jsonb)`.
 
-Topic и mirror gates включать только по одному и после проверки снова выключать.
+Явные topic и mirror execution gates WF-02B3A открывать только по одному и после проверки снова закрывать.
 
 ## Что не входит в WF-02B3
 
@@ -141,4 +143,4 @@ Topic и mirror gates включать только по одному и пос�
 
 ## Текущий результат
 
-Статический preflight подтверждён. Test Postgres Credential `qbit_test_bot` также прошёл реальный connection test через SSH tunnel и прямой PostgreSQL. Runtime import и ingress/queue/outgoing/operator smoke пока не доказаны, поэтому WF-02B3 остаётся **в работе**.
+Статический preflight подтверждён. Test Postgres Credential `qbit_test_bot` также прошёл реальный connection test через SSH tunnel и прямой PostgreSQL. Дополнительная проверка исходного кода n8n 2.41.0 показала, что `disabled` обычной ноды — pass-through, а не stop-gate. Поэтому runtime smoke заблокирован до WF-02B3A (явные execution gates + автоматический DB Credential audit). WF-02B3 остаётся **в работе**.

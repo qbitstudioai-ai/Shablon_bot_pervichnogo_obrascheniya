@@ -704,3 +704,12 @@ After DB-03E v0.11 verification, removed only obsolete DB-03E verifier files v0.
 В ходе диагностики Supavisor подтвердил работу административного pooler-пути, но custom runtime-role получила password-auth error несмотря на валидный SCRAM secret и успешный прямой TCP login. Для текущей установки базовым runtime-путём n8n поэтому зафиксирован прямой ограниченный PostgreSQL через SSH. Переносимое правило: [N8N_POSTGRES_CONNECTION](N8N_POSTGRES_CONNECTION.md).
 
 Секреты, password, private key, server IP и tenant ID в репозиторий не добавлены. Production и рабочий трафик не затрагивались. WF-02B3 остаётся `[~]`: service DB Credential, OpenAI/Telegram/Header Auth и ingress/queue/outgoing/operator runtime-smoke ещё впереди.
+
+
+### WF-02B3A safety blocker — 30.09.2026
+
+При подготовке runtime-smoke проверен исходный код n8n 2.41.0. Метод `handleDisabledNode` для обычной disabled-ноды возвращает первый main input дальше по графу. Следовательно, пять Postgres-нод с `disabled=true`, ранее называвшиеся runtime-gates, не являются настоящими stop-gates.
+
+До исправления workflow не активировать и schedule-trigger smoke не запускать. Нужен отдельный блок WF-02B3A: явные execution gates с закрытой веткой без продолжения worker + автоматическая проверка соответствия PostgreSQL функций ролям/Credentials. Канонический workflow в GitHub должен оставаться без instance-specific Credential IDs.
+
+Свежий runtime-export Павла показывает 7 уже переименованных DB-03D1 service Postgres-нод с префиксом `Служебный_` и service Credential. Старый service polling/Take/Return/manual блок всё ещё содержит legacy unqualified SQL и не допускается к runtime до миграции/изоляции. Production и рабочий трафик не затрагивались.
