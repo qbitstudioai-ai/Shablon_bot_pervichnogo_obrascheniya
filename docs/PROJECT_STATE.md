@@ -745,3 +745,14 @@ After DB-03E v0.11 verification, removed only obsolete DB-03E verifier files v0.
 Свежий n8n export Павла проверен по полному графу. Найдена одна лишняя связь, отсутствующая в canonical workflow: `Подтвердить приём клиенту -> Не брать job сразу после webhook`. При pass-through semantics disabled ordinary node это могло продолжать execution после durable webhook response вне intended smoke boundary.
 
 Runtime JSON исправлен локально: лишняя связь удалена, все четыре Schedule Trigger disabled, Credentials сохранены. Проверено: 172 nodes, 190 edges, duplicate names=0, dangling connections=0, Merge inputs complete, legacy service polling disconnected. Следующий шаг WF-02B3: импорт repaired runtime JSON, activation test webhook и одно сообщение Telegram.
+
+
+### WF-02B3C event-driven refactor — 01.10.2026
+
+По решению Павла постоянный polling удалён из основной логики. Schedule Trigger nodes удалены, а runtime worker запускаются через защищённые внутренние webhook events: processing, outgoing, operator topic и operator mirror. Клиентский Telegram ingress после durable DB write больше не идёт напрямую в processing; он завершает webhook-response и отдельно будит processing event.
+
+Durable outgoing intent будит sender event. Напоминания переведены на Wait + DB-03E final recheck: Wait reminder1 → DB recheck, затем Wait до reminder2 → DB recheck; confirmed reminder2 создаёт отдельный Wait до loss-check. Резервного sweeper нет.
+
+Service topic/mirror auto-events по умолчанию выключены через trusted setting `operator.sobytiya_vklyucheny=false` до подключения отдельного служебного Telegram Credential. Legacy service Take/Return/manual nodes остаются физически изолированы.
+
+Offline topology: no Schedule Trigger, client response terminal, unique internal event paths, dangling=0. WF-02B3C остаётся [~] до импорта и runtime evidence.

@@ -340,3 +340,15 @@ Runtime n8n smoke ещё не выполнен и WF-02B3 не закрыт. В 
 - Verified repaired runtime graph: 172 nodes / 190 edges / duplicate names 0 / dangling 0 / Merge input pairs OK.
 - Legacy service polling remains disconnected.
 - Next: Pavel imports the repaired JSON, publishes, sends exactly one Telegram message, then inspects the single resulting execution.
+
+
+## WF-02B3C event-driven — 01.10.2026
+
+- Permanent polling removed from canonical workflow.
+- Internal Header-Auth webhooks now wake processing/outgoing/topic/mirror as separate executions.
+- Client ingress persists first, responds to Telegram, and emits processing event; it no longer reaches worker directly.
+- Outgoing intent emits sender event.
+- Reminder scheduling is Wait + DB recheck only; no sweeper.
+- Service events default off with `operator.sobytiya_vklyucheny=false` until service Telegram Credential is configured.
+- Legacy service nodes remain isolated.
+- Next: import Pavel-specific runtime JSON, publish, send one Telegram message and inspect executions.

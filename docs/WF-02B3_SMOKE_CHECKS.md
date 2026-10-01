@@ -209,3 +209,20 @@ WF-02B3A закрыт offline. WF-02B3 остаётся в работе до р�
 - legacy service polling остаётся физически отсоединённым.
 
 Canonical workflow в GitHub уже содержал правильную структуру; executable canonical файл в этом шаге менять не потребовалось.
+
+
+## WF-02B3C — event-driven smoke
+
+Архитектура runtime-smoke изменена после фактического шума от periodic executions.
+
+Ожидаемая цепочка одного клиентского сообщения:
+1. client Telegram webhook execution: durable ingress + HTTP response + emit processing event;
+2. processing event execution: claim/process one DB job; при создании outgoing intent emit sender event;
+3. outgoing event execution: claim/final recheck/send/confirm;
+4. если confirmed message действительно требует ответа — execution переходит в Wait; после пробуждения DB final recheck решает reminder1/reminder2/loss-check.
+
+Schedule Trigger и резервный sweeper отсутствуют.
+
+Service topic/mirror event emissions остаются выключены до отдельного service Telegram Credential.
+
+Критерий первого smoke: после одного Telegram message нет periodic executions; executions появляются только как причинно связанные ingress/event runs.

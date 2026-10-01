@@ -114,7 +114,7 @@
     },
     {
       "parameters": {
-        "content": "## БЛОК 7. НАПОМИНАНИЯ\nDB-03E сама выбирает одно due reminder/loss-check, повторно проверяет owner, новый вход, блокировку, opt-out, подтверждённую основу и окно актуальности. Если reminder разрешён — создаётся обычный outgoing action, который позже забирает общий fenced sender. Blind send из reminder-ветки отсутствует.",
+        "content": "## БЛОК 7. НАПОМИНАНИЯ\nПостоянного polling нет. После подтверждённого сообщения, которое требует ответа, execution уходит в Wait до reminder1. После пробуждения DB-03E делает final recheck; затем Wait до reminder2 и новый DB recheck. После confirmed reminder2 отдельный Wait запускает loss-check. Новый вход, handoff, блокировка или opt-out отсекаются БД.",
         "height": 400,
         "width": 2100,
         "color": 5
@@ -130,7 +130,7 @@
     },
     {
       "parameters": {
-        "content": "## БЛОК 8. DB-КОНТРАКТ\nClient/outgoing/reminders и service ingress/mirror/topic используют DB-03 JSONB API.\n\nWF-02B3A: worker-ветки защищены явными IF-гейтами из `runtime_gates`; все значения по умолчанию `false`. `disabled` обычной ноды n8n не используется как stop-gate.\n\nPostgreSQL: обычные ноды используют bot Credential; актуальные ноды с префиксом `Служебный_` — service Credential. Старые ноды `LEGACY_Служебный_...` отсоединены от автоматического service polling и не должны исполняться до миграции DB-03D1/D2.",
+        "content": "## БЛОК 8. DB-КОНТРАКТ\nWF-02B3C: постоянный polling удалён. Telegram ingress сохраняет вход и будит processing через защищённый внутренний webhook. Processing создаёт durable outgoing intent и будит sender отдельным event execution. Напоминания используют Wait + DB final recheck, без резервного sweeper.\n\nPostgreSQL остаётся источником истины: claim/lease/fencing и final recheck выполняются DB-03 API. Служебные topic/mirror events по умолчанию выключены настройкой `operator.sobytiya_vklyucheny=false` до подключения служебного Telegram Credential.",
         "height": 760,
         "width": 2200,
         "color": 0
@@ -177,112 +177,7 @@
     },
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "seconds",
-              "secondsInterval": 5
-            }
-          ]
-        }
-      },
-      "id": "1ccc04fa-92bc-40a1-a46d-99796d78ebc2",
-      "name": "Проверять очередь",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.4,
-      "position": [
-        9856,
-        4832
-      ],
-      "disabled": true,
-      "notes": "WF-02B3B: disabled during interactive Telegram smoke so production activation does not create periodic executions. Re-enable only when the corresponding worker is intentionally tested."
-    },
-    {
-      "parameters": {
-        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'ochered'}}));"
-      },
-      "id": "744bf467-3f66-475c-8016-78870d4c35fd",
-      "name": "Пометить очередь",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        10128,
-        4832
-      ]
-    },
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 1
-            }
-          ]
-        }
-      },
-      "id": "b004ce98-875a-40f0-b503-e6a367362163",
-      "name": "Проверять напоминания",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.4,
-      "position": [
-        9856,
-        5328
-      ],
-      "disabled": true,
-      "notes": "WF-02B3B: disabled during interactive Telegram smoke so production activation does not create periodic executions. Re-enable only when the corresponding worker is intentionally tested."
-    },
-    {
-      "parameters": {
-        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'napominaniya'}}));"
-      },
-      "id": "2bb29677-826f-4b60-aefa-9621da150aab",
-      "name": "Пометить напоминания",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        10128,
-        5328
-      ]
-    },
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "seconds",
-              "secondsInterval": 3
-            }
-          ]
-        }
-      },
-      "id": "083a4250-776e-4a7a-86ca-2f49b0ff6a16",
-      "name": "Проверять зеркало оператору",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.4,
-      "position": [
-        23904,
-        6432
-      ],
-      "disabled": true,
-      "notes": "WF-02B3B: disabled during interactive Telegram smoke so production activation does not create periodic executions. Re-enable only when the corresponding worker is intentionally tested."
-    },
-    {
-      "parameters": {
-        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'zerkalo_operatoru'}}));"
-      },
-      "id": "ee4d75a0-8395-4823-b21f-1ba87224d0b3",
-      "name": "Пометить зеркало оператору",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        24192,
-        6432
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,region_telefona:null,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,okno_napominaniya_minut:null,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{guard:'gpt-6-luna',planner:'gpt-6-luna',answer:'gpt-6-sol',embedding:'text-embedding-3-large',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nruntime_gates:{processing:false,outgoing:false,reminders:false,operator_topic:false,operator_mirror:false},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{},rem=cfg.napominaniya||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Boolean(cfg.bezopasnost?.region_telefona)&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0&&Number.isInteger(rem.okno_napominaniya_minut)&&rem.okno_napominaniya_minut>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
+        "jsCode": "const cfg={\nversiya_shablona:'client-core-draft-0.2',kompaniya_kod:'qbit',sreda:'test',kanal:'telegram',\nnazvanie_kompanii:'qBit',opisanie_biznesa:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',razreshennye_temy:[],zapreshchennye_temy:[],\ncel:{kod:'osnovnoe_celevoe_deystvie',nazvanie:'ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ',obyazatelnye_polya:['imya','telefon']},\npolya_sbor:[{kod:'imya',nazvanie:'Имя',pii:true,obyazatelno:false},{kod:'telefon',nazvanie:'Телефон',pii:true,obyazatelno:false}],\noperator:{vklyuchen:true,sobytiya_vklyucheny:false,sluzhebnaya_gruppa_id:null,lichnye_uvedomleniya:true,menedzhery_telegram_id:[],tema_prefiks:'Клиент'},\ngolos:{vklyuchen:true,lokalnyy_stt_url:'http://stt-local:8000/v1/transcriptions',max_mb:20,max_sekund:300},\npamyat:{okno_soobshcheniy:5},\nbezopasnost:{limit_narusheniy:3,min_uverennost_dlya_narusheniya:.80,region_telefona:null,limit_chastoty:{okno_sekund:null,limit_soobshcheniy:null},podstavlyat_v_otvet_tipy_pii:['PERSON'],frazy_peredachi:['менеджер','человек','оператор','сотрудник','позовите менеджера','соедините с человеком'],frazy_zapreta:['не пишите мне','не пиши мне','больше не пишите','не надо мне писать','отписаться'],frazy_injection:['system prompt','системный промпт','покажи инструкции','игнорируй инструкции','jailbreak','раскрой секрет','api key','пароль']},\nprodazhi:{etapy:['novoe_obrashchenie','privetstvie','vyyavlenie_potrebnosti','podbor_resheniya','rabota_s_vozrazheniyami','predlozhenie_celevogo_deystviya','celevoe_deystvie','peredacha_cheloveku','zaversheno']},\nnapominaniya:{pervoe_minut:180,vtoroe_minut:720,okno_napominaniya_minut:null,poterya_posle_vtorogo_minut:1440,tekst_1:'Подскажите, вопрос ещё актуален? Я на связи и могу помочь продолжить.',tekst_2:'Если вопрос ещё актуален, напишите — продолжим с того места, где остановились.'},\npreduprezhdeniya:{tekst_1:'Пожалуйста, используйте этот чат по вопросам компании и её услуг. Я помогу по теме обращения.',tekst_2:'Это второе предупреждение: бот предназначен только для вопросов по теме компании и её услуг.',tekst_3:'Это третье предупреждение. Автоматические ответы в этом чате будут остановлены. При необходимости менеджер сможет разблокировать диалог.'},\nperedacha:{tekst:'Передаю диалог менеджеру. Он продолжит общение здесь.'},zapret_iniciativy:{tekst:'Хорошо, больше не будем отправлять инициативные сообщения. Если понадобится помощь, просто напишите.'},\nmedia:{tekst_predlozheniya:'Я не могу распознать информацию на фото или видео. Если там важная информация, я могу позвать менеджера. Позвать?',tekst_otkaza:'Хорошо. Тогда, пожалуйста, опишите вопрос текстом или отправьте голосовое сообщение.',tekst_nepodderzhivaemogo:'Я могу работать с текстом и голосовыми сообщениями. Если важная информация находится во вложении, напишите об этом текстом.'},\nmodel:{guard:'gpt-6-luna',planner:'gpt-6-luna',answer:'gpt-6-sol',embedding:'text-embedding-3-large',razmernost:1024,guard_max_tokens:500,planner_max_tokens:1000,otvet_max_tokens:1200},\nrag:{candidate_top_k:12,evidence_max:8,porog_pohozhesti:null},obrabotka:{max_zadaniy_za_raz:1,max_napominaniy_za_raz:20,max_zerkala_za_raz:1}};\nconst rl=cfg.bezopasnost?.limit_chastoty||{},rem=cfg.napominaniya||{};const ready=cfg.opisanie_biznesa!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&cfg.razreshennye_temy.length>0&&cfg.cel.nazvanie!=='ЗАПОЛНИТЬ ПРИ ВНЕДРЕНИИ'&&(!cfg.operator.vklyuchen||Boolean(cfg.operator.sluzhebnaya_gruppa_id))&&Boolean(cfg.bezopasnost?.region_telefona)&&Number.isInteger(rl.okno_sekund)&&rl.okno_sekund>0&&Number.isInteger(rl.limit_soobshcheniy)&&rl.limit_soobshcheniy>0&&Number.isInteger(rem.okno_napominaniya_minut)&&rem.okno_napominaniya_minut>0;\nreturn $input.all().map(i=>({json:{...i.json,_nastroyki:cfg,profil_kompanii_gotov:ready},binary:i.binary}));"
       },
       "id": "ac9588f3-e428-4d29-a76a-98f289ec9af9",
       "name": "Настройки компании",
@@ -329,7 +224,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.tip_zapuska }}",
-                    "rightValue": "ochered",
+                    "rightValue": "event_processing",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -350,7 +245,7 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.tip_zapuska }}",
-                    "rightValue": "napominaniya",
+                    "rightValue": "event_outgoing",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -371,7 +266,28 @@
                 "conditions": [
                   {
                     "leftValue": "={{ $json.tip_zapuska }}",
-                    "rightValue": "zerkalo_operatoru",
+                    "rightValue": "event_topic",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tip_zapuska }}",
+                    "rightValue": "event_mirror",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -448,27 +364,6 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select null::uuid as zadanie_id where false;",
-        "options": {
-          "queryBatching": "independently",
-          "queryReplacement": "={{ [] }}"
-        }
-      },
-      "id": "74e6ce62-b59d-463b-9a7f-e703711dd9bd",
-      "name": "Не брать job сразу после webhook",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        12016,
-        4368
-      ],
-      "alwaysOutputData": true,
-      "disabled": true,
-      "notes": "WF-02B2A: DB-03 не позволяет claim конкретного job из webhook. Обработка начинается только отдельной очередью."
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
         "query": "select r.*, $2::jsonb as \"_nastroyki\", $3::boolean as profil_kompanii_gotov from qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_obrabotki($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
@@ -484,7 +379,7 @@
         4832
       ],
       "alwaysOutputData": true,
-      "notes": "WF-02B2B: начало processing готово offline. Не включать до применения и проверки DB-03E.\nWF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
+      "notes": "WF-02B2B: начало processing готово offline. Не включать до применения и проверки DB-03E.\nWF-02B3C: запускается только внутренним event webhook, постоянного polling нет."
     },
     {
       "parameters": {
@@ -2003,7 +1898,7 @@
         5168
       ],
       "alwaysOutputData": true,
-      "notes": "WF-02B2H SAFETY GATE: sender claim. Не включать до DB-03E apply+verify; после включения этот один gate активирует sender queue.\nWF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
+      "notes": "WF-02B2H SAFETY GATE: sender claim. Не включать до DB-03E apply+verify; после включения этот один gate активирует sender queue.\nWF-02B3C: запускается только внутренним event webhook, постоянного polling нет."
     },
     {
       "parameters": {
@@ -2178,10 +2073,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select * from qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego($1::jsonb);",
+        "query": "select r.*, $2::jsonb as \"_sender_context\", $3::jsonb as \"_nastroyki\" from qbit_bot_pervichnogo_obrascheniya.zafiksirovat_rezultat_ishodyashchego($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
-          "queryReplacement": "={{ [JSON.stringify({\n      operaciya_id:'out:confirm:'+String($json.deystvie_id)+':'+String($json.nomer_vladeniya),\n      deystvie_id:$json.deystvie_id,\n      worker_id:$json.vladelec_arendy,\n      nomer_vladeniya:$json.nomer_vladeniya,\n      status:'podtverzhdeno',\n      vneshniy_id:String($json.telegram_message_id),\n      vremya_zaprosa:$json.sender_vremya_zaprosa,\n      vremya_podtverzhdeniya:$json.sender_vremya_podtverzhdeniya\n    })] }}"
+          "queryReplacement": "={{ [JSON.stringify({\n      operaciya_id:'out:confirm:'+String($json.deystvie_id)+':'+String($json.nomer_vladeniya),\n      deystvie_id:$json.deystvie_id,\n      worker_id:$json.vladelec_arendy,\n      nomer_vladeniya:$json.nomer_vladeniya,\n      status:'podtverzhdeno',\n      vneshniy_id:String($json.telegram_message_id),\n      vremya_zaprosa:$json.sender_vremya_zaprosa,\n      vremya_podtverzhdeniya:$json.sender_vremya_podtverzhdeniya\n    }), JSON.stringify($json), JSON.stringify($json._nastroyki)] }}"
         }
       },
       "id": "63e9ecb7-65e2-482b-9777-e105a6871842",
@@ -2266,25 +2161,6 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select r.*, $2::jsonb as \"_nastroyki\" from qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie($1::jsonb) r;",
-        "options": {
-          "queryBatching": "independently",
-          "queryReplacement": "={{ (()=>{\n      const n=$json._nastroyki?.napominaniya||{};\n      return [\n        JSON.stringify({\n          operaciya_id:'reminder:next:'+$execution.id,\n          vremya_proverki:new Date().toISOString(),\n          tekst_napominaniya_1:n.tekst_1,\n          tekst_napominaniya_2:n.tekst_2,\n          tekst_obezlichennyy_1:n.tekst_1,\n          tekst_obezlichennyy_2:n.tekst_2,\n          poterya_posle_sekund:Number(n.poterya_posle_vtorogo_minut)*60\n        }),\n        JSON.stringify($json._nastroyki)\n      ];\n    })() }}"
-        }
-      },
-      "id": "db8c8c75-0cbf-4204-b0cc-c14dc6b6f5cf",
-      "name": "Обработать следующее напоминание",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.7,
-      "position": [
-        11104,
-        5328
-      ],
-      "notes": "WF-02B2L SAFETY GATE: DB-03E reminder dispatcher. Не включать до DB-03E apply+verify. Функция сама final-recheck'ит due reminder/loss-check и при необходимости создаёт обычный outgoing action; sender запускается своей общей очередью.\nWF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
         "query": "select r.*, $2::jsonb as \"_nastroyki\" from qbit_bot_pervichnogo_obrascheniya.zabrat_sobytie_zerkala($1::jsonb) r;",
         "options": {
           "queryBatching": "independently",
@@ -2300,7 +2176,7 @@
         6432
       ],
       "alwaysOutputData": true,
-      "notes": "WF-02B2N SAFETY GATE: DB-03D1 mirror claim с lease/fencing. Не включать до миграции topic creation на DB-03D1.\nWF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
+      "notes": "WF-02B2N SAFETY GATE: DB-03D1 mirror claim с lease/fencing. Не включать до миграции topic creation на DB-03D1.\nWF-02B3C: запускается только внутренним event webhook, постоянного polling нет."
     },
     {
       "parameters": {
@@ -3002,28 +2878,6 @@
     },
     {
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "seconds",
-              "secondsInterval": 5
-            }
-          ]
-        }
-      },
-      "id": "cd480b19-11d4-42a4-9c20-0a3aa6b34197",
-      "name": "Проверять служебную очередь",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.4,
-      "position": [
-        22144,
-        12608
-      ],
-      "notes": "WF-02B3A LEGACY BLOCKER: автоматический service polling физически отсоединён. Не подключать до миграции Take/Return/manual на DB-03D1/D2 JSONB API.\nWF-02B3B: disabled during interactive Telegram smoke so production activation does not create periodic executions. Re-enable only when the corresponding worker is intentionally tested.",
-      "disabled": true
-    },
-    {
-      "parameters": {
         "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'vhod'}}));"
       },
       "id": "1ded8f2c-7536-4855-95c7-4e55a28515a0",
@@ -3033,19 +2887,6 @@
       "position": [
         22416,
         12016
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'ochered'}}));"
-      },
-      "id": "8fe897e4-ade1-41cc-8a20-57b9c4a272c5",
-      "name": "Пометить служебную очередь",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        22416,
-        12608
       ]
     },
     {
@@ -3763,7 +3604,7 @@
         24512,
         6080
       ],
-      "notes": "WF-02B3A: execution controlled by explicit runtime gate; do not use disabled=true as safety control."
+      "notes": "WF-02B3C: запускается только внутренним event webhook, постоянного polling нет."
     },
     {
       "parameters": {
@@ -3931,36 +3772,223 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json._nastroyki?.runtime_gates?.processing === true }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
+        "httpMethod": "POST",
+        "path": "qbit-test-event-processing-v1",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
         "options": {}
       },
-      "id": "f2498c6c-6251-57dd-93f7-2d9a84b6d75c",
-      "name": "Гейт_Обработка очереди",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
+      "id": "ecf15dc2-89f8-425d-acdc-401043115fd4",
+      "name": "Событие_Обработка очереди",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
       "position": [
-        15840,
-        11520
+        34544,
+        22592
       ],
-      "notes": "WF-02B3A: явный runtime gate processing. По умолчанию false; закрытая ветка не имеет downstream."
+      "webhookId": "c15537f3-5139-4bb1-bd11-97b021503301",
+      "notes": "WF-02B3C: внутренний event webhook. Отвечает сразу, worker идёт отдельным execution; polling отсутствует."
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'event_processing'}}));"
+      },
+      "id": "06772f8f-6776-47bd-86fa-79c2445fb3f5",
+      "name": "Пометить событие_обработка очереди",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        34816,
+        22592
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qbit-test-event-outgoing-v1",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "72861784-2048-44b6-9c1a-a79efd2627dd",
+      "name": "Событие_Исходящая отправка",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        34544,
+        23088
+      ],
+      "webhookId": "4c0c6864-45f5-4d1c-9420-82c90ffb6e6a",
+      "notes": "WF-02B3C: внутренний event webhook. Отвечает сразу, worker идёт отдельным execution; polling отсутствует."
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'event_outgoing'}}));"
+      },
+      "id": "3203cab4-4d86-4e86-9fcf-43168ac2ce5d",
+      "name": "Пометить событие_исходящая отправка",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        34816,
+        23088
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qbit-test-event-topic-v1",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "9a7ed8ca-410e-4099-a4bf-5ef641534b2d",
+      "name": "Событие_Создание темы оператора",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48592,
+        23936
+      ],
+      "webhookId": "acfdce54-c972-477a-b2ed-716c37fda947",
+      "notes": "WF-02B3C: внутренний event webhook. Отвечает сразу, worker идёт отдельным execution; polling отсутствует."
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'event_topic'}}));"
+      },
+      "id": "10bf07d9-d6eb-4c37-9adf-4fa2982cc911",
+      "name": "Пометить событие_создание темы оператора",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48864,
+        23936
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "qbit-test-event-mirror-v1",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "0b5a4503-0e2b-41c1-b30b-36068843d6ea",
+      "name": "Событие_Зеркало оператору",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48592,
+        24496
+      ],
+      "webhookId": "b1ec116d-1fa7-4860-9cb7-b698eb1045dc",
+      "notes": "WF-02B3C: внутренний event webhook. Отвечает сразу, worker идёт отдельным execution; polling отсутствует."
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{...i.json,tip_zapuska:'event_mirror'}}));"
+      },
+      "id": "91034e3d-4eb5-48f9-840b-316d33c85293",
+      "name": "Пометить событие_зеркало оператору",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48864,
+        24496
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.WEBHOOK_URL || '').replace(/\\/$/,'') + '/webhook/qbit-test-event-processing-v1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "44fa8b4d-8913-455c-9b17-63d9bb9b7aed",
+      "name": "Запустить обработку по событию",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        36688,
+        22128
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 500,
+      "notes": "WF-02B3C: создаёт отдельный event execution через защищённый внутренний webhook. Credential назначается в runtime."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.WEBHOOK_URL || '').replace(/\\/$/,'') + '/webhook/qbit-test-event-outgoing-v1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "4f1ca4d9-5275-4426-bc73-e103a39a7c1a",
+      "name": "Запустить исходящую отправку по событию",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        50416,
+        22720
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 500,
+      "notes": "WF-02B3C: создаёт отдельный event execution через защищённый внутренний webhook. Credential назначается в runtime."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.WEBHOOK_URL || '').replace(/\\/$/,'') + '/webhook/qbit-test-event-topic-v1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "899ff478-0054-4296-b456-877e80afbc28",
+      "name": "Запустить создание темы по событию",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        36976,
+        22368
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 500,
+      "notes": "WF-02B3C: создаёт отдельный event execution через защищённый внутренний webhook. Credential назначается в runtime."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.WEBHOOK_URL || '').replace(/\\/$/,'') + '/webhook/qbit-test-event-mirror-v1' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "37e53c6c-9db9-4cd8-a6f9-a9cc825756df",
+      "name": "Запустить зеркало по событию",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        53104,
+        23472
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 500,
+      "notes": "WF-02B3C: создаёт отдельный event execution через защищённый внутренний webhook. Credential назначается в runtime."
     },
     {
       "parameters": {
@@ -3971,29 +3999,28 @@
             "typeValidation": "strict",
             "version": 3
           },
+          "combinator": "and",
           "conditions": [
             {
-              "leftValue": "={{ $json._nastroyki?.runtime_gates?.outgoing === true }}",
+              "leftValue": "={{ ['uspeshno','dublikat'].includes($json.rezultat) }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
                 "operation": "equals"
               }
             }
-          ],
-          "combinator": "and"
+          ]
         },
         "options": {}
       },
-      "id": "c51cfdbf-e77e-5d18-9407-89ee43dfdb18",
-      "name": "Гейт_Исходящая отправка",
+      "id": "61e19e99-e3fb-40ed-9e4f-5e7353847aeb",
+      "name": "Вход сохранён для события?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        30448,
-        12480
-      ],
-      "notes": "WF-02B3A: явный runtime gate outgoing. По умолчанию false; закрытая ветка не имеет downstream."
+        36384,
+        22272
+      ]
     },
     {
       "parameters": {
@@ -4004,29 +4031,28 @@
             "typeValidation": "strict",
             "version": 3
           },
+          "combinator": "and",
           "conditions": [
             {
-              "leftValue": "={{ $json._nastroyki?.runtime_gates?.reminders === true }}",
+              "leftValue": "={{ Boolean($json._nastroyki?.operator?.sobytiya_vklyucheny === true && $json._nastroyki?.operator?.vklyuchen && $json._nastroyki?.operator?.sluzhebnaya_gruppa_id) }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
                 "operation": "equals"
               }
             }
-          ],
-          "combinator": "and"
+          ]
         },
         "options": {}
       },
-      "id": "29264608-a39f-555f-8cc5-23dfbe7b8f1a",
-      "name": "Гейт_Напоминания",
+      "id": "c9a52c79-cd83-4bf8-8db8-bc2c584079a1",
+      "name": "Служебные события включены? клиент",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        15840,
-        12128
-      ],
-      "notes": "WF-02B3A: явный runtime gate reminders. По умолчанию false; закрытая ветка не имеет downstream."
+        36688,
+        22368
+      ]
     },
     {
       "parameters": {
@@ -4037,29 +4063,65 @@
             "typeValidation": "strict",
             "version": 3
           },
+          "combinator": "and",
           "conditions": [
             {
-              "leftValue": "={{ $json._nastroyki?.runtime_gates?.operator_topic === true }}",
+              "leftValue": "={{ $json.rezultat === 'uspeshno' && $json.status_deystviya === 'podtverzhdeno' && !$json._sender_context?.payload?.napominanie_id && Number($json._sender_context?.payload?.effekty_posle_podtverzhdeniya?.napominanie_1_sekund || 0) > 0 && Boolean($json.t0) }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
                 "operation": "equals"
               }
             }
-          ],
-          "combinator": "and"
+          ]
         },
         "options": {}
       },
-      "id": "4a40182e-87e8-5fc6-a488-5a50b66434a5",
-      "name": "Гейт_Создание темы оператора",
+      "id": "ebb24c52-216b-42d9-ad5a-9364ded4c273",
+      "name": "Нужно запланировать напоминания?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        28928,
-        12704
+        53104,
+        22880
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ Number($json._nastroyki?.napominaniya?.pervoe_minut || 0) }}",
+        "unit": "minutes",
+        "options": {}
+      },
+      "id": "c86e2a07-d6e2-4db9-9f5a-83c2c38db356",
+      "name": "Ждать первое напоминание",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        53408,
+        22880
       ],
-      "notes": "WF-02B3A: явный runtime gate operator_topic. По умолчанию false; закрытая ветка не имеет downstream."
+      "webhookId": "bd6c13c9-e0bc-48e4-9668-983467c21300",
+      "notes": "WF-02B3C: Wait до reminder1; после пробуждения решение заново принимает БД."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ (()=>{ const n=$json._nastroyki?.napominaniya||{}; return [ JSON.stringify({ operaciya_id:'reminder1:'+$execution.id, vremya_proverki:new Date().toISOString(), tekst_napominaniya_1:n.tekst_1, tekst_napominaniya_2:n.tekst_2, tekst_obezlichennyy_1:n.tekst_1, tekst_obezlichennyy_2:n.tekst_2, poterya_posle_sekund:Number(n.poterya_posle_vtorogo_minut)*60 }), JSON.stringify($json._nastroyki) ]; })() }}"
+        }
+      },
+      "id": "484490a1-8ec5-47ca-901a-5bc6c396f42d",
+      "name": "DB recheck первого напоминания",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        53712,
+        22880
+      ],
+      "notes": "WF-02B3C: DB final recheck после Wait; периодический sweeper не используется."
     },
     {
       "parameters": {
@@ -4070,29 +4132,192 @@
             "typeValidation": "strict",
             "version": 3
           },
+          "combinator": "and",
           "conditions": [
             {
-              "leftValue": "={{ $json._nastroyki?.runtime_gates?.operator_mirror === true }}",
+              "leftValue": "={{ ['uspeshno','dublikat'].includes($json.rezultat) && $json.reshenie === 'otpravit' && Boolean($json.deystvie_id) }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
                 "operation": "equals"
               }
             }
-          ],
-          "combinator": "and"
+          ]
         },
         "options": {}
       },
-      "id": "8a3f8139-786e-508e-99dd-7558efc77b9c",
-      "name": "Гейт_Зеркало оператору",
+      "id": "7a5534c1-a05d-4997-946e-aa40d18e5cb8",
+      "name": "Первое напоминание требует отправки?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        28928,
-        13520
+        54016,
+        22768
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ Math.max(0, Number($json._nastroyki?.napominaniya?.vtoroe_minut || 0) - Number($json._nastroyki?.napominaniya?.pervoe_minut || 0)) }}",
+        "unit": "minutes",
+        "options": {}
+      },
+      "id": "64c3edab-3743-4a60-8ef9-cbcbabf9eeff",
+      "name": "Ждать второе напоминание",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        54016,
+        23008
       ],
-      "notes": "WF-02B3A: явный runtime gate operator_mirror. По умолчанию false; закрытая ветка не имеет downstream."
+      "webhookId": "2ad06d7b-300b-4950-9e31-89f764e39100",
+      "notes": "WF-02B3C: Wait до reminder2 как разница reminder2-reminder1; затем DB final recheck."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ (()=>{ const n=$json._nastroyki?.napominaniya||{}; return [ JSON.stringify({ operaciya_id:'reminder2:'+$execution.id, vremya_proverki:new Date().toISOString(), tekst_napominaniya_1:n.tekst_1, tekst_napominaniya_2:n.tekst_2, tekst_obezlichennyy_1:n.tekst_1, tekst_obezlichennyy_2:n.tekst_2, poterya_posle_sekund:Number(n.poterya_posle_vtorogo_minut)*60 }), JSON.stringify($json._nastroyki) ]; })() }}"
+        }
+      },
+      "id": "1415a9d2-fa71-48e5-a3b6-7e81240620c9",
+      "name": "DB recheck второго напоминания",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        54320,
+        23008
+      ],
+      "notes": "WF-02B3C: DB final recheck после Wait; периодический sweeper не используется."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ ['uspeshno','dublikat'].includes($json.rezultat) && $json.reshenie === 'otpravit' && Boolean($json.deystvie_id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Второе напоминание требует отправки?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        54624,
+        23008
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.rezultat === 'uspeshno' && $json.status_deystviya === 'podtverzhdeno' && $json._sender_context?.payload?.tip_napominaniya === 'napominanie_2' && Number($json._sender_context?.payload?.poterya_posle_sekund || 0) >= 3600 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Нужно ждать проверку потери?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        53104,
+        23184
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ Number($json._sender_context?.payload?.poterya_posle_sekund || 0) }}",
+        "unit": "seconds",
+        "options": {}
+      },
+      "name": "Ждать проверку потери",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        53408,
+        23184
+      ],
+      "notes": "WF-02B3C: Wait loss-check только после confirmed reminder2; затем DB final recheck."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select r.*, $2::jsonb as \"_nastroyki\" from qbit_bot_pervichnogo_obrascheniya.obrabotat_sleduyushchee_napominanie($1::jsonb) r;",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ (()=>{ const n=$json._nastroyki?.napominaniya||{}; return [ JSON.stringify({ operaciya_id:'loss-check:'+$execution.id, vremya_proverki:new Date().toISOString(), tekst_napominaniya_1:n.tekst_1, tekst_napominaniya_2:n.tekst_2, tekst_obezlichennyy_1:n.tekst_1, tekst_obezlichennyy_2:n.tekst_2, poterya_posle_sekund:Number(n.poterya_posle_vtorogo_minut)*60 }), JSON.stringify($json._nastroyki) ]; })() }}"
+        }
+      },
+      "name": "DB recheck потери после reminder2",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        53712,
+        23184
+      ],
+      "notes": "WF-02B3C: DB final recheck после Wait; периодический sweeper не используется."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean($json._nastroyki?.operator?.sobytiya_vklyucheny === true && $json._nastroyki?.operator?.vklyuchen && $json._nastroyki?.operator?.sluzhebnaya_gruppa_id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Служебные события включены? зеркало",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        53104,
+        23312
+      ]
     }
   ],
   "pinData": {},
@@ -4109,72 +4334,6 @@
       ]
     },
     "Пометить вход клиента": {
-      "main": [
-        [
-          {
-            "node": "Настройки компании",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Проверять очередь": {
-      "main": [
-        [
-          {
-            "node": "Пометить очередь",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Пометить очередь": {
-      "main": [
-        [
-          {
-            "node": "Настройки компании",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Проверять напоминания": {
-      "main": [
-        [
-          {
-            "node": "Пометить напоминания",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Пометить напоминания": {
-      "main": [
-        [
-          {
-            "node": "Настройки компании",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Проверять зеркало оператору": {
-      "main": [
-        [
-          {
-            "node": "Пометить зеркало оператору",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Пометить зеркало оператору": {
       "main": [
         [
           {
@@ -4207,35 +4366,33 @@
         ],
         [
           {
-            "node": "Гейт_Обработка очереди",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Гейт_Исходящая отправка",
+            "node": "Взять следующее задание",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Гейт_Напоминания",
+            "node": "Взять исходящее действие",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Гейт_Создание темы оператора",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Гейт_Зеркало оператору",
+            "node": "Служебный_Взять создание темы оператора",
             "type": "main",
             "index": 0
           }
-        ]
+        ],
+        [
+          {
+            "node": "Служебный_Взять событие зеркала оператору",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Нормализовать вход клиента": {
@@ -4254,6 +4411,11 @@
         [
           {
             "node": "Подтвердить приём клиенту",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Вход сохранён для события?",
             "type": "main",
             "index": 0
           }
@@ -5034,7 +5196,13 @@
     },
     "Сохранить намерение отправки": {
       "main": [
-        []
+        [
+          {
+            "node": "Запустить исходящую отправку по событию",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Отправить сообщение клиенту": {
@@ -5093,6 +5261,21 @@
         [
           {
             "node": "Нужно поставить интеграцию в очередь?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Нужно запланировать напоминания?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Нужно ждать проверку потери?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Служебные события включены? зеркало",
             "type": "main",
             "index": 0
           }
@@ -5386,22 +5569,6 @@
         ]
       ]
     },
-    "Проверять служебную очередь": {
-      "main": [
-        []
-      ]
-    },
-    "Пометить служебную очередь": {
-      "main": [
-        [
-          {
-            "node": "Настройки служебного бота",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Настройки служебного бота": {
       "main": [
         [
@@ -5576,17 +5743,6 @@
         ]
       ]
     },
-    "Не брать job сразу после webhook": {
-      "main": [
-        [
-          {
-            "node": "Проверить наличие задания",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Получить содержимое задания": {
       "main": [
         [
@@ -5720,12 +5876,13 @@
     },
     "Создать тематическое предупреждение": {
       "main": [
-        []
-      ]
-    },
-    "Обработать следующее напоминание": {
-      "main": [
-        []
+        [
+          {
+            "node": "Запустить исходящую отправку по событию",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Подготовить binary медиа из DB": {
@@ -5764,7 +5921,13 @@
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "Запустить зеркало по событию",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Создать forum-topic клиента": {
@@ -5853,12 +6016,24 @@
     },
     "Служебный_Подтвердить тему оператора": {
       "main": [
-        []
+        [
+          {
+            "node": "Запустить зеркало по событию",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Служебный_Отметить тему неизвестной": {
       "main": [
-        []
+        [
+          {
+            "node": "Запустить зеркало по событию",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "LEGACY_Служебный_Взять служебное задание": {
@@ -5937,11 +6112,104 @@
         ]
       ]
     },
-    "Гейт_Обработка очереди": {
+    "Событие_Обработка очереди": {
       "main": [
         [
           {
-            "node": "Взять следующее задание",
+            "node": "Пометить событие_обработка очереди",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить событие_обработка очереди": {
+      "main": [
+        [
+          {
+            "node": "Настройки компании",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Событие_Исходящая отправка": {
+      "main": [
+        [
+          {
+            "node": "Пометить событие_исходящая отправка",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить событие_исходящая отправка": {
+      "main": [
+        [
+          {
+            "node": "Настройки компании",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Событие_Создание темы оператора": {
+      "main": [
+        [
+          {
+            "node": "Пометить событие_создание темы оператора",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить событие_создание темы оператора": {
+      "main": [
+        [
+          {
+            "node": "Настройки компании",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Событие_Зеркало оператору": {
+      "main": [
+        [
+          {
+            "node": "Пометить событие_зеркало оператору",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить событие_зеркало оператору": {
+      "main": [
+        [
+          {
+            "node": "Настройки компании",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вход сохранён для события?": {
+      "main": [
+        [
+          {
+            "node": "Запустить обработку по событию",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Служебные события включены? клиент",
             "type": "main",
             "index": 0
           }
@@ -5949,11 +6217,11 @@
         []
       ]
     },
-    "Гейт_Исходящая отправка": {
+    "Служебные события включены? клиент": {
       "main": [
         [
           {
-            "node": "Взять исходящее действие",
+            "node": "Запустить создание темы по событию",
             "type": "main",
             "index": 0
           }
@@ -5961,11 +6229,31 @@
         []
       ]
     },
-    "Гейт_Напоминания": {
+    "Запустить обработку по событию": {
+      "main": [
+        []
+      ]
+    },
+    "Запустить исходящую отправку по событию": {
+      "main": [
+        []
+      ]
+    },
+    "Запустить создание темы по событию": {
+      "main": [
+        []
+      ]
+    },
+    "Запустить зеркало по событию": {
+      "main": [
+        []
+      ]
+    },
+    "Служебные события включены? зеркало": {
       "main": [
         [
           {
-            "node": "Обработать следующее напоминание",
+            "node": "Запустить зеркало по событию",
             "type": "main",
             "index": 0
           }
@@ -5973,11 +6261,11 @@
         []
       ]
     },
-    "Гейт_Создание темы оператора": {
+    "Нужно запланировать напоминания?": {
       "main": [
         [
           {
-            "node": "Служебный_Взять создание темы оператора",
+            "node": "Ждать первое напоминание",
             "type": "main",
             "index": 0
           }
@@ -5985,16 +6273,127 @@
         []
       ]
     },
-    "Гейт_Зеркало оператору": {
+    "Ждать первое напоминание": {
       "main": [
         [
           {
-            "node": "Служебный_Взять событие зеркала оператору",
+            "node": "DB recheck первого напоминания",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB recheck первого напоминания": {
+      "main": [
+        [
+          {
+            "node": "Первое напоминание требует отправки?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Ждать второе напоминание",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Первое напоминание требует отправки?": {
+      "main": [
+        [
+          {
+            "node": "Запустить исходящую отправку по событию",
             "type": "main",
             "index": 0
           }
         ],
         []
+      ]
+    },
+    "Ждать второе напоминание": {
+      "main": [
+        [
+          {
+            "node": "DB recheck второго напоминания",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB recheck второго напоминания": {
+      "main": [
+        [
+          {
+            "node": "Второе напоминание требует отправки?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Второе напоминание требует отправки?": {
+      "main": [
+        [
+          {
+            "node": "Запустить исходящую отправку по событию",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Нужно ждать проверку потери?": {
+      "main": [
+        [
+          {
+            "node": "Ждать проверку потери",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Ждать проверку потери": {
+      "main": [
+        [
+          {
+            "node": "DB recheck потери после reminder2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB recheck потери после reminder2": {
+      "main": [
+        []
+      ]
+    },
+    "Служебный_Подтвердить зеркало оператору": {
+      "main": [
+        [
+          {
+            "node": "Запустить зеркало по событию",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Служебный_Зафиксировать проблему зеркала": {
+      "main": [
+        [
+          {
+            "node": "Запустить зеркало по событию",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

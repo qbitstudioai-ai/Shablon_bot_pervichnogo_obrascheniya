@@ -11,14 +11,16 @@ SERVICE_FUNCTIONS={
 LEGACY_SERVICE_FUNCTIONS={'vzyat_sluzhebnoe_zadanie','vzyat_sleduyushchee_sluzhebnoe_zadanie',
 'podgotovit_ruchnoy_otvet','podtverdit_ruchnoy_otvet','otmetit_neizvestnyy_ruchnoy_otvet',
 'zaregistrirovat_menedzhera_telegram'}
-GATES={
-'Гейт_Обработка очереди':('processing','Взять следующее задание'),
-'Гейт_Исходящая отправка':('outgoing','Взять исходящее действие'),
-'Гейт_Напоминания':('reminders','Обработать следующее напоминание'),
-'Гейт_Создание темы оператора':('operator_topic','Служебный_Взять создание темы оператора'),
-'Гейт_Зеркало оператору':('operator_mirror','Служебный_Взять событие зеркала оператору')}
 SEED_BOT='Сохранить вход и поставить в очередь'
 SEED_SERVICE='Служебный_Сохранить служебный вход'
+EVENT_PATHS={
+'Событие_Обработка очереди':'qbit-test-event-processing-v1',
+'Событие_Исходящая отправка':'qbit-test-event-outgoing-v1',
+'Событие_Создание темы оператора':'qbit-test-event-topic-v1',
+'Событие_Зеркало оператору':'qbit-test-event-mirror-v1'}
+EXPECTED_SWITCH=[
+'Нормализовать вход клиента','Взять следующее задание','Взять исходящее действие',
+'Служебный_Взять создание темы оператора','Служебный_Взять событие зеркала оператору']
 
 def cred(n):
  c=(n.get('credentials') or {}).get('postgres') or {}
@@ -39,6 +41,7 @@ def reachable(w):
   for t in a.get(s,[]):
    if t not in seen: seen.add(t); q.append(t)
  return seen
+
 def main():
  ap=argparse.ArgumentParser()
  ap.add_argument('workflow'); ap.add_argument('--template',action='store_true')
@@ -48,25 +51,30 @@ def main():
  err=[]; nodes=w.get('nodes') or []; names=[n.get('name') for n in nodes]; by={n.get('name'):n for n in nodes}; ns=set(names)
  if len(names)!=len(ns): err.append('duplicate node names')
  if w.get('active') is not False: err.append('workflow active must be false')
+ if any(n.get('type')=='n8n-nodes-base.scheduleTrigger' for n in nodes): err.append('Schedule Trigger is forbidden in WF-02B3C')
+ if 'Обработать следующее напоминание' in ns: err.append('old polling reminder node remains')
  for s,kinds in (w.get('connections') or {}).items():
   if s not in ns: err.append('dangling source: '+s)
   for branches in kinds.values():
    for arr in branches:
     for e in arr:
      if e.get('node') not in ns: err.append('dangling target: '+str(e.get('node')))
+ for name,path in EVENT_PATHS.items():
+  n=by.get(name)
+  if not n or n.get('type')!='n8n-nodes-base.webhook' or n.get('parameters',{}).get('path')!=path:
+   err.append('missing/wrong event webhook: '+name)
+ main=((w.get('connections') or {}).get('Развести тип запуска') or {}).get('main') or []
+ for i,target in enumerate(EXPECTED_SWITCH):
+  if i>=len(main) or [x.get('node') for x in main[i]]!=[target]:
+   err.append('wrong event switch route '+str(i))
+ if (((w.get('connections') or {}).get('Подтвердить приём клиенту') or {}).get('main')) != [[]]:
+  err.append('client webhook response must be terminal')
  settings=(by.get('Настройки компании') or {}).get('parameters',{}).get('jsCode','')
- for key in [v[0] for v in GATES.values()]:
-  if not re.search(r'\\b'+re.escape(key)+r'\\s*:\\s*false\\b',settings): err.append('gate default not false: '+key)
- for g,(key,target) in GATES.items():
-  main=((w.get('connections') or {}).get(g) or {}).get('main') or []
-  if len(main)<2: err.append('missing false output: '+g)
-  else:
-   if [x.get('node') for x in main[0]]!=[target]: err.append('wrong true route: '+g)
-   if main[1]: err.append('false branch has downstream: '+g)
-  if (by.get(target) or {}).get('disabled') is True: err.append('worker disabled/pass-through: '+target)
+ if 'sobytiya_vklyucheny:false' not in settings: err.append('service events must default false')
  reach=reachable(w)
  for n in names:
-  if n and n.startswith('LEGACY_Служебный_') and n in reach: err.append('legacy reachable from trigger: '+n)
+  if n and n.startswith('LEGACY_Служебный_') and n in reach:
+   err.append('legacy reachable from trigger: '+n)
  pg=[n for n in nodes if n.get('type')=='n8n-nodes-base.postgres']
  if a.template:
   bad=[n['name'] for n in pg if (n.get('credentials') or {}).get('postgres')]
@@ -87,6 +95,6 @@ def main():
  if err:
   for x in err: print('FAIL:',x)
   return 1
- print('OK: PostgreSQL credential routing and WF-02B3A safety gates verified.')
+ print('OK: WF-02B3C event-driven topology and PostgreSQL credential routing verified.')
  return 0
 if __name__=='__main__': raise SystemExit(main())
