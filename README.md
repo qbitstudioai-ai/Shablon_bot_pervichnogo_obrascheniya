@@ -4,53 +4,41 @@
 
 ## Статус и границы
 
-Подготовлена документационная основа v0.3. 23 сентября 2026 года Павел разрешил перейти к реализации шаблона. Текущий режим — **подготовка реализации**: PRE-01, DB-00, DB-01, DB-02 и весь DB-03 завершены и проверены в `qbit_bot_pervichnogo_obrascheniya`. DB-SCHEMA-01 и финальный DB-SCHEMA-01F также завершены: read-only verifier v0.4 подтвердил canonical schema `qbit_bot_pervichnogo_obrascheniya`, 25 таблиц, 28 SECURITY DEFINER функций, права runtime-ролей и изоляцию; production schema `qbit` на test-stage не требуется и отсутствует. Старую rename-миграцию повторно не запускать.
+Реализация test-контура разрешена. DB-01, DB-02, DB-03/DB-03E и rename qBit schema были завершены ранее. Checkpoint 03.10.2026 зафиксировал последний фактический workflow и остановил дальнейшую реализацию KB до сверки с нормативным DB-04/DB-05.
 
-Текущий этап Supabase завершён. Текущая workflow-задача — модернизировать свежий исходный workflow n8n под уже реализованный DB-03/DB-03E-контракт и OpenAI, сохраняя его бизнес-логику и структуру. Supabase один, развёрнут на сервере Павла. Studio — интерфейс управления этой установкой. Компании используют разные schema одной базы PostgreSQL; облачные проекты Supabase для компаний не создаются.
+Последний фактический workflow Павла сохранён в очищенном виде как точный checkpoint:
 
-У каждой компании свои:
+`workflows/checkpoints/2026-10-03_v0.3/`
 
-- schema одинаковой структуры и ограниченные права доступа;
-- клиентский workflow n8n с адаптерами подключённых каналов;
-- служебный workflow и отдельный служебный Telegram-бот;
-- закрытая служебная Telegram forum-группа: один клиентский диалог — одна тема, создаваемая с первого сообщения;
-- токены каналов и Credentials;
-- отдельный дашборд с серверной частью и оформлением компании.
+Внутри — gzip+base64 части и `MANIFEST.md`; восстановление в обычный import-ready JSON выполняет `tools/restore_workflow_checkpoint.py`. Старый canonical workflow v0.2 удалён из текущего дерева, чтобы его не принять за актуальный. История остаётся в Git.
+
+03.10.2026 в test schema была экспериментально применена часть KB-01 (таблицы + B1/B2). Runtime B1/B2 проверен служебной ролью, но после сверки обнаружено расхождение с нормативным DB-04/DB-05. Поэтому ранее сгенерированный KB workflow в n8n **не импортируется**, B3 остановлен, а текущая задача — [KB-01R](docs/KB-01_RECONCILIATION_PLAN.md).
+
+Supabase один. Компании используют разные schema одной PostgreSQL. Production, рабочий трафик и production schema/roles не меняются без отдельного разрешения Павла.
 
 ## С чего начинает новая сессия
 
 1. [Инструкция ChatGPT](docs/CHATGPT_INSTRUCTIONS.md).
 2. [Текущее состояние](docs/PROJECT_STATE.md).
-3. [План создания шаблона](docs/WORKPLAN_TEMPLATE.md) либо [план внедрения](docs/WORKPLAN_CLIENT_DEPLOYMENT.md).
-4. [Правила передачи между сессиями](docs/SESSION_HANDOFF.md).
+3. [Активный план KB-01R](docs/KB-01_RECONCILIATION_PLAN.md) и при необходимости [общий план](docs/WORKPLAN_TEMPLATE.md).
+4. [Правила передачи](docs/SESSION_HANDOFF.md).
 5. Только документы, необходимые для одной выбранной задачи.
 
-Одна задача — одна сессия — один проверяемый результат и сообщение передачи. GitHub хранит файлы и подтверждения работы; факт наличия файла не означает, что он применён на сервере.
+Одна задача — одна сессия — один проверяемый результат. GitHub хранит файлы и подтверждения; факт наличия файла не означает, что он применён на сервере.
 
 ## Карта документации
 
 | Вопрос | Документ |
 |---|---|
-| Как устроен продукт; где ядро и настройки | [Архитектура](docs/ARCHITECTURE.md) |
-| Где размещаются сервисы и какие данные могут покидать российский сервер | [Российская инфраструктура](docs/INFRASTRUCTURE_RU_SERVER.md) |
-| Названия и смысл таблиц, полей и связей | [Словарь данных](docs/DATA_DICTIONARY.md), [именование](docs/NAMING_CONVENTIONS.md) |
-| Точные поля, индексы, роли и PostgreSQL-функции DB-01…DB-05 | [DB-контракт](docs/specs/DB_CONTRACT.md) |
-| Готовые проверяемые SQL-файлы реализации | [Каталог SQL](sql/) |
-| Как разделены компании в одном Supabase | [Доступ и изоляция](docs/specs/ACCESS_AND_ISOLATION.md) |
-| Как n8n подключается к self-hosted PostgreSQL | [Подключение n8n к PostgreSQL](docs/N8N_POSTGRES_CONNECTION.md) |
-| Что передаётся между компонентами | [Правила обмена](docs/specs/INTEGRATION_CONTRACTS.md) |
-| Как устроен CORE клиентского бота, guard, память, RAG и перехват | [CORE клиентского бота](docs/specs/BOT_CORE_WORKFLOW.md) |
-| Как менеджер видит разговор, забирает его и отвечает из Telegram | [Операторский Telegram и перехват](docs/specs/OPERATOR_HANDOFF.md) |
-| Какой AI/RAG-профиль выбран и что ещё проверить | [Профиль обработки PRE-02](docs/specs/PROCESSING_PROFILE.md) |
-| Завершение разговора, напоминания, возврат | [Жизненный цикл](docs/specs/CONVERSATION_LIFECYCLE.md) |
-| Память, очередь сообщений и восстановление | [Надёжность и память](docs/specs/RELIABILITY_AND_MEMORY.md) |
-| Загрузка и обновление знаний | [Загрузка знаний](docs/specs/KNOWLEDGE_INGESTION.md), [формат Markdown](docs/specs/MARKDOWN_FORMAT.md) |
-| Что считает руководитель | [Метрики](docs/specs/METRICS.md) |
-| Что доступно только Павлу | [Админ-панель](docs/specs/DASHBOARD_ADMIN.md) |
-| Условия допуска к рабочему запуску | [Проверка выпуска](docs/RELEASE_CHECKLIST.md) |
-| Как поддерживать документы | [Правила документации](docs/DOCUMENTATION_RULES.md) |
-| Что исправлено по аудиту | [Проверка документации](docs/DOCUMENTATION_AUDIT.md) |
-
-Шаблоны: [документ знаний](templates/baza-znaniy-shablon.md), [паспорт внедрения](templates/company-passport.md).
+| Архитектура продукта | [ARCHITECTURE](docs/ARCHITECTURE.md) |
+| Имена таблиц/полей | [DATA_DICTIONARY](docs/DATA_DICTIONARY.md), [NAMING_CONVENTIONS](docs/NAMING_CONVENTIONS.md) |
+| Нормативный DB-01…DB-05 | [DB_CONTRACT](docs/specs/DB_CONTRACT.md) |
+| SQL реализации | [sql/](sql/) |
+| Подключение n8n к PostgreSQL | [N8N_POSTGRES_CONNECTION](docs/N8N_POSTGRES_CONNECTION.md) |
+| CORE и RAG | [BOT_CORE_WORKFLOW](docs/specs/BOT_CORE_WORKFLOW.md) |
+| Операторский Telegram | [OPERATOR_HANDOFF](docs/specs/OPERATOR_HANDOFF.md) |
+| Загрузка знаний | [KNOWLEDGE_INGESTION](docs/specs/KNOWLEDGE_INGESTION.md), [MARKDOWN_FORMAT](docs/specs/MARKDOWN_FORMAT.md) |
+| Текущая сверка KB | [KB-01R](docs/KB-01_RECONCILIATION_PLAN.md), [evidence](docs/KB-01_APPLIED_TEST_STATE_2026-10-03.md) |
+| Передача между сессиями | [SESSION_HANDOFF](docs/SESSION_HANDOFF.md) |
 
 Реальные документы компаний, переписки, секреты и дампы БД в этот публичный репозиторий не загружаются.
