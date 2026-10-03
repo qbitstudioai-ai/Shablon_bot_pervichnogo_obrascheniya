@@ -10,97 +10,78 @@
 
 ## Workflow checkpoint
 
-Последний фактический export Павла `Шаблон — служебный Telegram и перехват диалогов — версия 0.2 (6).json` очищен и сохранён как точный checkpoint:
+Последний фактический workflow Павла сохранён как очищенный checkpoint:
 
 `workflows/checkpoints/2026-10-03_v0.3/`
 
-Проверено до упаковки:
-- 189 нод;
-- 153 connection keys;
-- 215 edges;
-- `active=false`;
-- duplicate node names = 0;
-- dangling connections = 0;
-- Credential refs удалены;
-- top-level n8n `id`, `versionId`, `meta.instanceId` удалены;
-- реальный ID служебной Telegram-группы удалён;
-- очевидные API keys/Bearer/Telegram bot tokens не найдены;
-- SHA-256 восстановленного compact JSON: `ca563ebb985be8d3b3f08d6525634b7d623abef7840a617bfbbaf9bdb36ef2f7`.
+Проверено до упаковки: 189 нод, 153 connection keys, 215 edges, `active=false`, duplicate names 0, dangling connections 0; credentials/instance ID/реальный ID служебной группы удалены. SHA-256 восстановленного compact JSON: `ca563ebb985be8d3b3f08d6525634b7d623abef7840a617bfbbaf9bdb36ef2f7`.
 
-Восстановление обычного JSON: `python tools/restore_workflow_checkpoint.py`.
+Старый canonical workflow v0.2 удалён из текущего дерева; история остаётся в Git. Старый сгенерированный `Шаблон_мультиканальный_KB-01_v0.3.json` **не импортировать**.
 
-Старый `workflows/Шаблон — служебный Telegram и перехват диалогов — версия 0.2.json` удалён из текущего дерева; история остаётся в Git.
+## Experimental KB checkpoint
 
-## KB-01 — experimental checkpoint
+03.10.2026 в test schema были экспериментально созданы:
+- `znaniya_dokumenty`;
+- `znaniya_versii`;
+- `znaniya_fragmenty`;
+- `kb01_postavit_dokument(jsonb)`;
+- `kb01_zabrat_sleduyushchuyu_versiyu(jsonb)`.
 
-03.10.2026 в test schema экспериментально применена часть KB-01:
-- созданы `znaniya_dokumenty`, `znaniya_versii`, `znaniya_fragmenty`;
-- B1 `kb01_postavit_dokument(jsonb)` runtime VERIFIED настоящей ролью `qbit_test_sluzhebnyy`;
-- B2 `kb01_zabrat_sleduyushchuyu_versiyu(jsonb)` runtime VERIFIED с lease/fencing и вторым worker=`net_zadaniya`;
-- runtime-тесты завершались `ROLLBACK`;
-- production не менялась.
+B1/B2 ранее runtime VERIFIED служебной ролью, но контракт признан несовместимым с нормативным DB-04/DB-05. B3 не продолжался. Production не менялась.
 
-После сверки с `docs/specs/DB_CONTRACT.md` и `docs/specs/KNOWLEDGE_INGESTION.md` подтверждено, что промежуточный KB-контракт не совпадает с нормативным DB-04/DB-05.
+## KB-01R1 — mapping завершён
 
-Поэтому:
-- B3 не начинать;
-- ранее сгенерированный `Шаблон_мультиканальный_KB-01_v0.3.json` в n8n **не импортировать**;
-- экспериментальные SQL не считать каноническими DB-04/DB-05;
-- клиентский RAG не включать.
+`docs/KB-01R1_INVENTORY_MAPPING.md` зафиксировал, что experimental модель смешивает загрузку, durable job, версию и часть index profile; нормативные контрольные вопросы, проверки и DB-05 publish/search/revoke отсутствуют. Продолжать B3 поверх B1/B2 нельзя.
 
-Подробности checkpoint: [KB-01_APPLIED_TEST_STATE_2026-10-03](KB-01_APPLIED_TEST_STATE_2026-10-03.md).
+## KB-01R2 — выбран recreate
 
-## KB-01R1 — завершённая сверка
+Live read-only `KB-01R2_READ_ONLY_v0.1` подтвердил:
+- все три experimental KB-таблицы содержат 0 строк;
+- active/leased/error/fragmented counts = 0;
+- существуют ровно три experimental таблицы и две B1/B2 функции;
+- дополнительных KB-объектов не обнаружено;
+- у `qbit_test_sluzhebnyy` нет прямого DML/SELECT к этим таблицам.
 
-KB-01R1 выполнена без SQL-изменений на сервере и без изменений production.
+Решение: **recreate**, а не migration-on-place. Подробности: `docs/KB-01R2_DECISION.md`.
 
-Результат: [KB-01R1_INVENTORY_MAPPING](KB-01R1_INVENTORY_MAPPING.md).
+## KB-01R3 — реализация подготовлена
 
-Главный вывод mapping:
-- `znaniya_dokumenty` только частично соответствует `dokumenty_znaniy`;
-- `znaniya_versii` смешивает нормативные `zagruzki_znaniy`, `zadaniya_znaniy`, `versii_dokumentov_znaniy` и часть `profili_indeksa`;
-- `znaniya_fragmenty` только частично соответствует `fragmenty_znaniy`;
-- `kontrolnye_voprosy`, `proverki_znaniy`, нормативные publish/search функции DB-05 отсутствуют;
-- B1/B2 нельзя считать готовыми DB-04 функциями и нельзя продолжать B3 поверх текущего контракта.
+Подготовлены и сохранены в `main`, но **не применены на Supabase**:
 
-## KB-01R2 — путь выбран
+- `sql/DB-04_05_knowledge_recreate_test.sql` — canonical recreate **KB-01R3 v0.2**;
+- `sql/DB-04_05_knowledge_verifier.sql` — read-only verifier **KB-01R3_VERIFIER v0.2**;
+- `sql/DB-04_05_knowledge_rollback_test.sql` — guarded rollback к состоянию «KB отсутствует» пока новые таблицы пустые;
+- `docs/KB-01R3_RECREATE_ROLLBACK.md` — порядок применения и отката.
 
-03.10.2026 выполнен live read-only verifier:
+Recreate v0.2:
+- перед DROP повторно сверяет пустоту experimental tables, точный набор объектов и fingerprints B1/B2;
+- не использует `CASCADE`;
+- в одной транзакции удаляет только подтверждённый experimental KB и создаёт нормативные восемь DB-04 таблиц и DB-05 API;
+- реализует durable queue/lease/fencing, immutable index profile, fragments `vector(1024)`, reference checks, draft search, active-only bot search, atomic publish и admin revoke;
+- не выдаёт runtime-ролям прямой доступ к KB-таблицам;
+- ограничивает изменения sequence только новой KB identity-sequence;
+- при ошибке до COMMIT транзакционно возвращает исходное состояние.
 
-`docs/evidence/KB-01/KB-01R2_READ_ONLY_INVENTORY_v0.1.sql`
+Отдельный verifier проверяет владельцев, отсутствие experimental объектов, HNSW/vector(1024), права и компиляционный вход всех прикладных функций под реальными runtime-ролями в READ ONLY транзакции.
 
-Подтверждено:
-- `znaniya_dokumenty` — 0 строк;
-- `znaniya_versii` — 0 строк;
-- `znaniya_fragmenty` — 0 строк;
-- документов с активной версией — 0;
-- версий с арендой/ошибкой/фрагментами — 0;
-- найдены ровно три experimental KB-таблицы и две функции B1/B2;
-- дополнительных KB-объектов verifier не обнаружил;
-- у `qbit_test_sluzhebnyy` нет прямых `SELECT/INSERT/UPDATE/DELETE` на этих трёх таблицах.
-
-Решение KB-01R2: **recreate** — не мигрировать несовместимую experimental-модель на месте, а в отдельной реализации безопасно удалить только подтверждённые experimental KB-объекты test schema и создать нормативный DB-04/DB-05 с нуля.
-
-Причина: переносить данные не требуется, а структурное несовпадение существенное. Простая migration-on-place добавила бы риск переходного состояния без пользы.
-
-Подробности решения: [KB-01R2_DECISION](KB-01R2_DECISION.md).
+**Важно:** GitHub-файлы созданы; на сервере experimental KB пока остаётся как была. DB-04/DB-05 ещё не applied и не verified.
 
 ## Текущая одна задача
 
-**KB-01R3 — подготовить полный test-only recreate SQL, verifier и rollback-план для нормативного DB-04/DB-05.**
+**KB-01R4 — применить `KB-01R3 v0.2` только в test Supabase и сразу выполнить `KB-01R3_VERIFIER v0.2`.**
 
-Активный план: [KB-01_RECONCILIATION_PLAN](KB-01_RECONCILIATION_PLAN.md).
+Это отдельный server-step. До него:
+- не запускать recreate SQL самостоятельно;
+- не удалять experimental объекты вручную;
+- не импортировать старый KB workflow;
+- не включать client RAG;
+- production не менять.
 
-Важно: KB-01R2 выбрала путь, но не является разрешением уже сейчас удалять объекты или применять новый SQL. Сначала KB-01R3 должна подготовить полный проверяемый файл и защитные проверки live signatures/row counts.
+После `applied + verified` отдельной задачей понадобятся runtime-тесты DB-04/DB-05 и подтверждение PRE-02E embedding 1024; факт structural verifier сам по себе их не заменяет.
 
 ## Ограничения
 
 - Production не изменялась.
-- Experimental KB-объекты пока не удалялись.
-- Новый DB-04/DB-05 SQL на сервер пока не применялся.
-- B3 не продолжать.
-- Старый KB workflow не импортировать.
-- Client RAG не включать.
+- GitHub push и применение SQL на сервер — разные факты.
 - Реальные документы компаний, переписки, пароли, токены и дампы БД в репозиторий не сохраняются.
-- GitHub push и применение на сервере — разные действия.
-- Evidence SQL в `docs/evidence/KB-01/` с пометкой `DO NOT APPLY` сохранён только для истории фактически выполненных test-команд и не запускается повторно.
+- Experimental evidence SQL из `docs/evidence/KB-01/` не запускать повторно.
