@@ -1,6 +1,7 @@
 -- KB-01R2 READ ONLY v0.1
 -- CONTROL STRING: KB-01R2_READ_ONLY_v0.1
 -- Назначение: только read-only инвентаризация experimental KB в test schema.
+-- Файл содержит только SELECT/CTE и чтение pg_catalog.
 -- Не содержит DDL/DML, не вызывает прикладные функции и не читает содержимое документов.
 -- Production schema не затрагивается.
 
@@ -154,20 +155,15 @@ functions_found AS (
                 'owner', pg_catalog.pg_get_userbyid(p.proowner),
                 'security_definer', p.prosecdef,
                 'config', COALESCE(to_jsonb(p.proconfig), '[]'::jsonb),
-                'acl', COALESCE(to_jsonb(p.proacl::text), 'null'::jsonb),
+                'acl', CASE
+                    WHEN p.proacl IS NULL THEN NULL
+                    ELSE p.proacl::text
+                END,
                 'service_execute', pg_catalog.has_function_privilege(
                     'qbit_test_sluzhebnyy', p.oid, 'EXECUTE'
                 ),
-                'public_execute', EXISTS (
-                    SELECT 1
-                    FROM pg_catalog.aclexplode(
-                        COALESCE(
-                            p.proacl,
-                            pg_catalog.acldefault('f', p.proowner)
-                        )
-                    ) AS x
-                    WHERE x.grantee = 0
-                      AND x.privilege_type = 'EXECUTE'
+                'definition_md5', pg_catalog.md5(
+                    pg_catalog.pg_get_functiondef(p.oid)
                 )
             ) ORDER BY p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid)
         ),
