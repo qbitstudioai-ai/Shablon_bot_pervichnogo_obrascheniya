@@ -1,4 +1,4 @@
--- KB-01R3 verifier v0.1: normative DB-04/DB-05 structural/access/compile verification
+-- KB-01R3 verifier v0.2: normative DB-04/DB-05 structural/access/compile verification
 -- READ ONLY. Run only AFTER DB-04_05_knowledge_recreate_test.sql reports applied.
 -- No production objects are referenced.
 
@@ -9,7 +9,6 @@ SET LOCAL search_path=pg_catalog;
 DO $verify$
 DECLARE
     v_name text;
-    v_count integer;
     v_owner text;
 BEGIN
     IF session_user<>'postgres' THEN
@@ -37,9 +36,19 @@ BEGIN
         IF v_owner IS DISTINCT FROM 'qbit_test_owner' THEN
             RAISE EXCEPTION 'Wrong owner for %: %',v_name,v_owner;
         END IF;
-        IF pg_catalog.has_table_privilege('qbit_test_bot',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'SELECT,INSERT,UPDATE,DELETE')
-           OR pg_catalog.has_table_privilege('qbit_test_sluzhebnyy',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'SELECT,INSERT,UPDATE,DELETE')
-           OR pg_catalog.has_table_privilege('qbit_test_dash_admin',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'SELECT,INSERT,UPDATE,DELETE') THEN
+
+        IF pg_catalog.has_table_privilege('qbit_test_bot',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'SELECT')
+           OR pg_catalog.has_table_privilege('qbit_test_bot',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'INSERT')
+           OR pg_catalog.has_table_privilege('qbit_test_bot',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'UPDATE')
+           OR pg_catalog.has_table_privilege('qbit_test_bot',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'DELETE')
+           OR pg_catalog.has_table_privilege('qbit_test_sluzhebnyy',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'SELECT')
+           OR pg_catalog.has_table_privilege('qbit_test_sluzhebnyy',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'INSERT')
+           OR pg_catalog.has_table_privilege('qbit_test_sluzhebnyy',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'UPDATE')
+           OR pg_catalog.has_table_privilege('qbit_test_sluzhebnyy',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'DELETE')
+           OR pg_catalog.has_table_privilege('qbit_test_dash_admin',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'SELECT')
+           OR pg_catalog.has_table_privilege('qbit_test_dash_admin',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'INSERT')
+           OR pg_catalog.has_table_privilege('qbit_test_dash_admin',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'UPDATE')
+           OR pg_catalog.has_table_privilege('qbit_test_dash_admin',pg_catalog.format('qbit_bot_pervichnogo_obrascheniya.%I',v_name),'DELETE') THEN
             RAISE EXCEPTION 'Direct runtime DML leaked on %',v_name;
         END IF;
     END LOOP;
@@ -47,11 +56,7 @@ BEGIN
     IF pg_catalog.format_type(
         (SELECT a.atttypid FROM pg_catalog.pg_attribute a WHERE a.attrelid='qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy'::regclass AND a.attname='vektor' AND a.attnum>0 AND NOT a.attisdropped),
         (SELECT a.atttypmod FROM pg_catalog.pg_attribute a WHERE a.attrelid='qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy'::regclass AND a.attname='vektor' AND a.attnum>0 AND NOT a.attisdropped)
-    ) IS DISTINCT FROM 'extensions.vector(1024)' AND
-       pg_catalog.format_type(
-        (SELECT a.atttypid FROM pg_catalog.pg_attribute a WHERE a.attrelid='qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy'::regclass AND a.attname='vektor' AND a.attnum>0 AND NOT a.attisdropped),
-        (SELECT a.atttypmod FROM pg_catalog.pg_attribute a WHERE a.attrelid='qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy'::regclass AND a.attname='vektor' AND a.attnum>0 AND NOT a.attisdropped)
-       ) IS DISTINCT FROM 'vector(1024)' THEN
+    ) NOT IN ('extensions.vector(1024)','vector(1024)') THEN
         RAISE EXCEPTION 'fragmenty_znaniy.vektor is not vector(1024)';
     END IF;
 
@@ -84,9 +89,16 @@ BEGIN
             RAISE EXCEPTION 'Missing/unsafe function %',v_name;
         END IF;
         IF EXISTS(
-            SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
-            WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya' AND p.proname=v_name
-              AND pg_catalog.has_function_privilege('PUBLIC',p.oid,'EXECUTE')
+            SELECT 1
+            FROM pg_catalog.pg_proc p
+            JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+            CROSS JOIN LATERAL pg_catalog.aclexplode(
+                COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))
+            ) x
+            WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
+              AND p.proname=v_name
+              AND x.grantee=0
+              AND x.privilege_type='EXECUTE'
         ) THEN
             RAISE EXCEPTION 'PUBLIC EXECUTE leaked on %',v_name;
         END IF;
@@ -95,11 +107,22 @@ BEGIN
     IF pg_catalog.to_regprocedure('qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_zagruzku_znaniy(jsonb,bytea)') IS NULL THEN
         RAISE EXCEPTION 'Missing zaregistrirovat_zagruzku_znaniy(jsonb,bytea)';
     END IF;
-    IF pg_catalog.has_function_privilege('PUBLIC','qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_zagruzku_znaniy(jsonb,bytea)','EXECUTE') THEN
+    IF EXISTS(
+        SELECT 1
+        FROM pg_catalog.pg_proc p
+        JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+        CROSS JOIN LATERAL pg_catalog.aclexplode(
+            COALESCE(p.proacl,pg_catalog.acldefault('f',p.proowner))
+        ) x
+        WHERE n.nspname='qbit_bot_pervichnogo_obrascheniya'
+          AND p.proname='zaregistrirovat_zagruzku_znaniy'
+          AND pg_catalog.pg_get_function_identity_arguments(p.oid)='p_dannye jsonb, p_fayl bytea'
+          AND x.grantee=0
+          AND x.privilege_type='EXECUTE'
+    ) THEN
         RAISE EXCEPTION 'PUBLIC EXECUTE leaked on upload registration';
     END IF;
 
-    -- Exact runtime role matrix.
     IF NOT pg_catalog.has_function_privilege('qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.poisk_aktivnyh_znaniy(jsonb)','EXECUTE') THEN RAISE EXCEPTION 'bot lacks active RAG'; END IF;
     IF pg_catalog.has_function_privilege('qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.poisk_chernovika_znaniy(jsonb)','EXECUTE')
        OR pg_catalog.has_function_privilege('qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.opublikovat_versiyu_znaniy(jsonb)','EXECUTE') THEN RAISE EXCEPTION 'bot can access draft/publish'; END IF;
@@ -114,8 +137,7 @@ BEGIN
 END
 $verify$;
 
--- Compile/runtime-entry probes under the actual roles. The transaction is READ ONLY,
--- and every call is deliberately invalid so no application row can be created.
+-- Compile/runtime-entry probes under actual roles. READ ONLY + invalid inputs ensure no row can be created.
 SET LOCAL ROLE qbit_test_sluzhebnyy;
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_zagruzku_znaniy('{}'::jsonb,NULL::bytea) LIMIT 1;
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_znaniy('{}'::jsonb) LIMIT 1;
@@ -140,7 +162,7 @@ RESET ROLE;
 SELECT jsonb_build_object(
     'db04_05_verifier_result',jsonb_build_object(
         'status','verified',
-        'verifier_version','KB-01R3_VERIFIER_v0.1',
+        'verifier_version','KB-01R3_VERIFIER_v0.2',
         'schema','qbit_bot_pervichnogo_obrascheniya',
         'experimental_objects_absent',true,
         'normative_tables_present',true,
