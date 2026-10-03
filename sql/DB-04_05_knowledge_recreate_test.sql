@@ -1,4 +1,4 @@
--- KB-01R3 v0.1: recreate experimental KB as normative DB-04/DB-05 in TEST only
+-- KB-01R3 v0.2: recreate experimental KB as normative DB-04/DB-05 in TEST only
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Contract: docs/specs/DB_CONTRACT.md + docs/specs/KNOWLEDGE_INGESTION.md
 -- TARGET: qbit_bot_pervichnogo_obrascheniya ONLY; owner qbit_test_owner
@@ -336,11 +336,11 @@ SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya
 AS $fn$
 BEGIN
     IF EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy WHERE profil_indeksa_id=OLD.id) THEN RAISE EXCEPTION 'Used index profile is immutable'; END IF;
-    RETURN CASE WHEN TG_OP='DELETE' THEN OLD ELSE NEW END;
+    IF TG_OP='DELETE' THEN RETURN OLD; END IF;
+    RETURN NEW;
 END $fn$;
 CREATE TRIGGER tr_profili_immutable BEFORE UPDATE OR DELETE ON qbit_bot_pervichnogo_obrascheniya.profili_indeksa FOR EACH ROW EXECUTE FUNCTION qbit_bot_pervichnogo_obrascheniya.kb_zapretit_izmenenie_profilya();
 
--- Public API functions are intentionally defined in the companion file below section marker.
 -- CONTROL STRING: KB-01R3_FUNCTIONS_START
 
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_zagruzku_znaniy(p_dannye jsonb,p_fayl bytea)
@@ -348,6 +348,7 @@ RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,pov
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya,extensions
 AS $fn$
+#variable_conflict use_column
 DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_event uuid; v_existing record; v_upload uuid; v_job uuid; v_hash text; v_name text;
 BEGIN
     IF p_dannye IS NULL OR jsonb_typeof(p_dannye)<>'object' OR p_fayl IS NULL THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Нужны JSON object и bytes файла',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::text; RETURN; END IF;
@@ -358,10 +359,13 @@ BEGIN
     BEGIN PERFORM convert_from(p_fayl,'UTF8'); EXCEPTION WHEN OTHERS THEN RETURN QUERY SELECT v_op,'otkaz','ne_utf8','Файл не является корректным UTF-8',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::text; RETURN; END;
     v_hash:=encode(extensions.digest(p_fayl,'sha256'),'hex');
     IF NULLIF(lower(btrim(p_dannye->>'hash_istochnika')),'') IS NOT NULL AND lower(btrim(p_dannye->>'hash_istochnika'))<>v_hash THEN RETURN QUERY SELECT v_op,'konflikt','hash_ne_sovpadaet','SHA-256 не соответствует фактическим bytes',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::text; RETURN; END IF;
+    IF NOT EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy e WHERE e.id=v_event AND e.vneshnee_sobytie_id=p_dannye->>'vneshnee_sobytie_id') THEN RETURN QUERY SELECT v_op,'otkaz','sobytie_ne_zaregistrirovano','Нет соответствующего durable service event',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::text; RETURN; END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended('kb_upload:'||v_event::text,0));
-    SELECT z.id,z.status,j.id AS job_id INTO v_existing FROM qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy z LEFT JOIN qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy j ON j.zagruzka_id=z.id AND j.tip_zadaniya='obrabotka' WHERE z.sobytie_integracii_id=v_event;
-    IF FOUND THEN RETURN QUERY SELECT v_op,'dublikat',NULL::text,'Событие уже зарегистрировано',NULL::timestamptz,v_existing.id,v_existing.job_id,v_existing.status; RETURN; END IF;
-    IF NOT EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.sobytiya_integraciy WHERE id=v_event) THEN RETURN QUERY SELECT v_op,'otkaz','sobytie_ne_zaregistrirovano','Сначала требуется durable service event',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::text; RETURN; END IF;
+    SELECT z.id,z.status,z.hash_istochnika,z.vneshnee_sobytie_id,z.otpravitel_user_id,z.chat_id,z.vneshniy_file_id,z.imya_fayla,j.id AS job_id INTO v_existing FROM qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy z LEFT JOIN qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy j ON j.zagruzka_id=z.id AND j.tip_zadaniya='obrabotka' WHERE z.sobytie_integracii_id=v_event;
+    IF FOUND THEN
+        IF v_existing.hash_istochnika IS DISTINCT FROM v_hash OR v_existing.vneshnee_sobytie_id IS DISTINCT FROM p_dannye->>'vneshnee_sobytie_id' OR v_existing.otpravitel_user_id IS DISTINCT FROM p_dannye->>'otpravitel_user_id' OR v_existing.chat_id IS DISTINCT FROM p_dannye->>'chat_id' OR v_existing.vneshniy_file_id IS DISTINCT FROM p_dannye->>'vneshniy_file_id' OR v_existing.imya_fayla IS DISTINCT FROM v_name THEN RETURN QUERY SELECT v_op,'konflikt','povtor_s_drugim_soderzhaniem','То же service event получило другое содержимое/metadata',NULL::timestamptz,v_existing.id,v_existing.job_id,v_existing.status; RETURN; END IF;
+        RETURN QUERY SELECT v_op,'dublikat',NULL::text,'Событие уже зарегистрировано',NULL::timestamptz,v_existing.id,v_existing.job_id,v_existing.status; RETURN;
+    END IF;
     INSERT INTO qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy(sobytie_integracii_id,vneshnee_sobytie_id,otpravitel_user_id,chat_id,vneshniy_file_id,imya_fayla,ishodnyy_fayl,razmer_bayt,hash_istochnika,vremya_priema,status)
     VALUES(v_event,p_dannye->>'vneshnee_sobytie_id',p_dannye->>'otpravitel_user_id',p_dannye->>'chat_id',p_dannye->>'vneshniy_file_id',v_name,p_fayl,octet_length(p_fayl),v_hash,COALESCE(NULLIF(p_dannye->>'vremya_priema','')::timestamptz,clock_timestamp()),'poluchena') RETURNING id INTO v_upload;
     INSERT INTO qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy(zagruzka_id,tip_zadaniya,status,prioritet,payload) VALUES(v_upload,'obrabotka','ozhidaet',COALESCE(NULLIF(p_dannye->>'prioritet','')::integer,0),'{}'::jsonb) RETURNING id INTO v_job;
@@ -371,13 +375,17 @@ END $fn$;
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,povtor_posle timestamptz,zadanie_id uuid,zagruzka_id uuid,dokument_id uuid,status_zadaniya text,popytki integer,vladelec_arendy text,arenda_do timestamptz,nomer_vladeniya bigint,imya_fayla text,ishodnyy_fayl bytea,hash_istochnika text)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya AS $fn$
+#variable_conflict use_column
 DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_worker text:=NULLIF(btrim(p_dannye->>'worker_id'),''); v_lease integer; v record;
 BEGIN
     BEGIN v_lease:=COALESCE(NULLIF(p_dannye->>'arenda_sekund','')::integer,900); EXCEPTION WHEN OTHERS THEN v_lease:=NULL; END;
     IF v_op IS NULL OR v_worker IS NULL OR v_lease IS NULL OR v_lease<10 OR v_lease>3600 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Нужны operaciya_id, worker_id, arenda_sekund 10..3600',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::uuid,NULL::text,NULL::integer,NULL::text,NULL::timestamptz,NULL::bigint,NULL::text,NULL::bytea,NULL::text; RETURN; END IF;
     WITH candidate AS (
         SELECT j.id FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy j
-        WHERE ((j.status IN ('ozhidaet','povtor') AND j.sleduyushchiy_zapusk<=clock_timestamp()) OR (j.status='v_rabote' AND j.arenda_do<clock_timestamp()))
+        WHERE (
+            (j.status IN ('ozhidaet','povtor') AND j.sleduyushchiy_zapusk<=clock_timestamp() AND (j.dokument_id IS NULL OR NOT EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy x WHERE x.dokument_id=j.dokument_id AND x.status='v_rabote' AND x.id<>j.id)))
+            OR (j.status='v_rabote' AND j.arenda_do<clock_timestamp())
+        )
         ORDER BY CASE WHEN j.status='v_rabote' THEN 0 ELSE 1 END,j.prioritet DESC,j.sleduyushchiy_zapusk,j.vremya_sozdaniya FOR UPDATE SKIP LOCKED LIMIT 1
     ) UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy j SET status='v_rabote',popytki=j.popytki+1,vladelec_arendy=v_worker,nomer_vladeniya=j.nomer_vladeniya+1,arenda_do=clock_timestamp()+make_interval(secs=>v_lease),kod_oshibki=NULL,opisanie_oshibki=NULL,vremya_obnovleniya=clock_timestamp() FROM candidate c WHERE j.id=c.id RETURNING j.* INTO v;
     IF NOT FOUND THEN RETURN QUERY SELECT v_op,'net_zadaniya',NULL::text,NULL::text,NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::uuid,NULL::text,NULL::integer,NULL::text,NULL::timestamptz,NULL::bigint,NULL::text,NULL::bytea,NULL::text; RETURN; END IF;
@@ -388,11 +396,12 @@ END $fn$;
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,povtor_posle timestamptz,zadanie_id uuid,arenda_do timestamptz,nomer_vladeniya bigint)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya AS $fn$
+#variable_conflict use_column
 DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_id uuid; v_worker text:=NULLIF(btrim(p_dannye->>'worker_id'),''); v_fence bigint; v_lease integer; v record;
 BEGIN
     BEGIN v_id:=(p_dannye->>'zadanie_id')::uuid; v_fence:=(p_dannye->>'nomer_vladeniya')::bigint; v_lease:=COALESCE(NULLIF(p_dannye->>'arenda_sekund','')::integer,900); EXCEPTION WHEN OTHERS THEN v_id:=NULL; END;
     IF v_op IS NULL OR v_id IS NULL OR v_worker IS NULL OR v_fence IS NULL OR v_lease<10 OR v_lease>3600 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Некорректные lease параметры',NULL::timestamptz,v_id,NULL::timestamptz,v_fence; RETURN; END IF;
-    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy SET arenda_do=clock_timestamp()+make_interval(secs=>v_lease),vremya_obnovleniya=clock_timestamp() WHERE id=v_id AND status='v_rabote' AND vladelec_arendy=v_worker AND nomer_vladeniya=v_fence AND arenda_do>=clock_timestamp() RETURNING id,arenda_do,nomer_vladeniya INTO v;
+    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy j SET arenda_do=clock_timestamp()+make_interval(secs=>v_lease),vremya_obnovleniya=clock_timestamp() WHERE j.id=v_id AND j.status='v_rabote' AND j.vladelec_arendy=v_worker AND j.nomer_vladeniya=v_fence AND j.arenda_do>=clock_timestamp() RETURNING j.id,j.arenda_do,j.nomer_vladeniya INTO v;
     IF NOT FOUND THEN RETURN QUERY SELECT v_op,'konflikt','stale_lease','Lease/worker/fencing больше не действуют',NULL::timestamptz,v_id,NULL::timestamptz,v_fence; RETURN; END IF;
     RETURN QUERY SELECT v_op,'uspeshno',NULL::text,NULL::text,NULL::timestamptz,v.id,v.arenda_do,v.nomer_vladeniya;
 END $fn$;
@@ -400,11 +409,12 @@ END $fn$;
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,povtor_posle timestamptz,zadanie_id uuid,status_zadaniya text)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya AS $fn$
+#variable_conflict use_column
 DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_id uuid; v_worker text:=NULLIF(btrim(p_dannye->>'worker_id'),''); v_fence bigint; v_status text:=NULLIF(btrim(p_dannye->>'status'),''); v_next timestamptz; v_upload uuid;
 BEGIN
     BEGIN v_id:=(p_dannye->>'zadanie_id')::uuid; v_fence:=(p_dannye->>'nomer_vladeniya')::bigint; v_next:=NULLIF(p_dannye->>'sleduyushchiy_zapusk','')::timestamptz; EXCEPTION WHEN OTHERS THEN v_id:=NULL; END;
     IF v_op IS NULL OR v_id IS NULL OR v_worker IS NULL OR v_fence IS NULL OR v_status NOT IN ('zaversheno','povtor','otmeneno','oshibka') OR (v_status='povtor' AND (v_next IS NULL OR v_next<=clock_timestamp())) THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Некорректное завершение knowledge job',NULL::timestamptz,v_id,NULL::text; RETURN; END IF;
-    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy SET status=v_status,sleduyushchiy_zapusk=COALESCE(v_next,sleduyushchiy_zapusk),vladelec_arendy=NULL,arenda_do=NULL,kod_oshibki=NULLIF(p_dannye->>'kod_oshibki',''),opisanie_oshibki=NULLIF(p_dannye->>'opisanie_oshibki',''),vremya_obnovleniya=clock_timestamp() WHERE id=v_id AND status='v_rabote' AND vladelec_arendy=v_worker AND nomer_vladeniya=v_fence AND arenda_do>=clock_timestamp() RETURNING zagruzka_id INTO v_upload;
+    UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy j SET status=v_status,sleduyushchiy_zapusk=COALESCE(v_next,j.sleduyushchiy_zapusk),vladelec_arendy=NULL,arenda_do=NULL,kod_oshibki=NULLIF(p_dannye->>'kod_oshibki',''),opisanie_oshibki=NULLIF(p_dannye->>'opisanie_oshibki',''),vremya_obnovleniya=clock_timestamp() WHERE j.id=v_id AND j.status='v_rabote' AND j.vladelec_arendy=v_worker AND j.nomer_vladeniya=v_fence AND j.arenda_do>=clock_timestamp() RETURNING j.zagruzka_id INTO v_upload;
     IF NOT FOUND THEN RETURN QUERY SELECT v_op,'konflikt','stale_lease','Job уже не принадлежит worker/fencing',NULL::timestamptz,v_id,NULL::text; RETURN; END IF;
     IF v_status='oshibka' THEN UPDATE qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy SET status='oshibka',kod_oshibki=NULLIF(p_dannye->>'kod_oshibki',''),opisanie_oshibki=NULLIF(p_dannye->>'opisanie_oshibki',''),vremya_obnovleniya=clock_timestamp() WHERE id=v_upload AND status<>'zavershena'; END IF;
     RETURN QUERY SELECT v_op,'uspeshno',NULL::text,NULL::text,CASE WHEN v_status='povtor' THEN v_next ELSE NULL END,v_id,v_status;
@@ -413,25 +423,25 @@ END $fn$;
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.podgotovit_versiyu_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,povtor_posle timestamptz,dokument_id uuid,versiya_id uuid,nomer_versii integer,profil_indeksa_id uuid,ozhidaemaya_aktivnaya_versiya_id uuid,status_versii text)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya AS $fn$
-DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_job uuid; v_worker text:=NULLIF(btrim(p_dannye->>'worker_id'),''); v_fence bigint; v_ident text:=NULLIF(btrim(p_dannye->>'identifikator_dokumenta'),''); v_name text:=NULLIF(btrim(p_dannye->>'nazvanie'),''); v_tip text:=NULLIF(btrim(p_dannye->>'tip_dokumenta'),''); v_hash text:=lower(NULLIF(btrim(p_dannye->>'hash_soderzhaniya'),'')); v_proc text:=lower(NULLIF(btrim(p_dannye->>'otpechatok_obrabotki'),'')); v_prof text:=lower(NULLIF(btrim(p_dannye->>'otpechatok_profilya'),'')); v_model text:=NULLIF(btrim(p_dannye->>'embedding_model'),''); v_dim integer; v_profile uuid; v_doc uuid; v_active uuid; v_version uuid; v_num integer; v_upload uuid; v_existing record; v_jobrow record;
+#variable_conflict use_column
+DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_job uuid; v_worker text:=NULLIF(btrim(p_dannye->>'worker_id'),''); v_fence bigint; v_ident text:=NULLIF(btrim(p_dannye->>'identifikator_dokumenta'),''); v_name text:=NULLIF(btrim(p_dannye->>'nazvanie'),''); v_tip text:=NULLIF(btrim(p_dannye->>'tip_dokumenta'),''); v_hash text:=lower(NULLIF(btrim(p_dannye->>'hash_soderzhaniya'),'')); v_proc text:=lower(NULLIF(btrim(p_dannye->>'otpechatok_obrabotki'),'')); v_prof text:=lower(NULLIF(btrim(p_dannye->>'otpechatok_profilya'),'')); v_model text:=NULLIF(btrim(p_dannye->>'embedding_model'),''); v_parser text:=NULLIF(btrim(p_dannye->>'versiya_parsera'),''); v_clean text:=NULLIF(btrim(p_dannye->>'versiya_ochistki'),''); v_chunk text:=NULLIF(btrim(p_dannye->>'versiya_chunkinga'),''); v_tokenizer text:=NULLIF(btrim(p_dannye->>'tokenizer'),''); v_target integer; v_max integer; v_overlap integer; v_dim integer; v_profile uuid; v_doc uuid; v_active uuid; v_version uuid; v_num integer; v_upload uuid; v_existing record; v_jobrow record;
 BEGIN
-    BEGIN v_job:=(p_dannye->>'zadanie_id')::uuid; v_fence:=(p_dannye->>'nomer_vladeniya')::bigint; v_dim:=(p_dannye->>'razmernost')::integer; EXCEPTION WHEN OTHERS THEN v_job:=NULL; END;
-    IF v_op IS NULL OR v_job IS NULL OR v_worker IS NULL OR v_fence IS NULL OR v_ident !~ '^[a-z][a-z0-9_]{0,79}$' OR v_name IS NULL OR v_tip NOT IN ('opisanie','harakteristiki','instrukciya','faq','usloviya','politika') OR v_hash !~ '^[0-9a-f]{64}$' OR v_proc !~ '^[0-9a-f]{64}$' OR v_prof !~ '^[0-9a-f]{64}$' OR v_model IS NULL OR v_dim<>1024 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Metadata/profile не соответствуют v1 contract',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::integer,NULL::uuid,NULL::uuid,NULL::text; RETURN; END IF;
-    SELECT * INTO v_jobrow FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy WHERE id=v_job FOR UPDATE;
+    BEGIN v_job:=(p_dannye->>'zadanie_id')::uuid; v_fence:=(p_dannye->>'nomer_vladeniya')::bigint; v_dim:=(p_dannye->>'razmernost')::integer; v_target:=COALESCE(NULLIF(p_dannye->>'cel_fragmenta_tokenov','')::integer,600); v_max:=COALESCE(NULLIF(p_dannye->>'maks_fragmenta_tokenov','')::integer,800); v_overlap:=COALESCE(NULLIF(p_dannye->>'overlap_tokenov','')::integer,100); EXCEPTION WHEN OTHERS THEN v_job:=NULL; END;
+    IF v_op IS NULL OR v_job IS NULL OR v_worker IS NULL OR v_fence IS NULL OR v_ident !~ '^[a-z][a-z0-9_]{0,79}$' OR v_name IS NULL OR v_tip NOT IN ('opisanie','harakteristiki','instrukciya','faq','usloviya','politika') OR v_hash !~ '^[0-9a-f]{64}$' OR v_proc !~ '^[0-9a-f]{64}$' OR v_prof !~ '^[0-9a-f]{64}$' OR v_model IS NULL OR v_parser IS NULL OR v_clean IS NULL OR v_chunk IS NULL OR v_tokenizer IS NULL OR v_dim<>1024 OR v_target<=0 OR v_max<v_target OR v_overlap<0 OR v_overlap>=v_target THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Metadata/profile не соответствуют v1 contract',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::integer,NULL::uuid,NULL::uuid,NULL::text; RETURN; END IF;
+    SELECT * INTO v_jobrow FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy j WHERE j.id=v_job FOR UPDATE;
     IF NOT FOUND OR v_jobrow.status<>'v_rabote' OR v_jobrow.vladelec_arendy<>v_worker OR v_jobrow.nomer_vladeniya<>v_fence OR v_jobrow.arenda_do<clock_timestamp() THEN RETURN QUERY SELECT v_op,'konflikt','stale_lease','Job lease/fencing недействительны',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::integer,NULL::uuid,NULL::uuid,NULL::text; RETURN; END IF;
     v_upload:=v_jobrow.zagruzka_id;
     SELECT z.dokument_id,z.versiya_id,v.nomer_versii,v.profil_indeksa_id,v.ozhidaemaya_aktivnaya_versiya_id,v.status INTO v_existing FROM qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy z LEFT JOIN qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v ON v.id=z.versiya_id WHERE z.id=v_upload FOR UPDATE OF z;
     IF v_existing.versiya_id IS NOT NULL THEN RETURN QUERY SELECT v_op,'dublikat',NULL::text,'Версия для этой загрузки уже подготовлена',NULL::timestamptz,v_existing.dokument_id,v_existing.versiya_id,v_existing.nomer_versii,v_existing.profil_indeksa_id,v_existing.ozhidaemaya_aktivnaya_versiya_id,v_existing.status; RETURN; END IF;
-    INSERT INTO qbit_bot_pervichnogo_obrascheniya.profili_indeksa(otpechatok_profilya,embedding_model,razmernost,metrika,versiya_parsera,versiya_ochistki,versiya_chunkinga,tokenizer,cel_fragmenta_tokenov,maks_fragmenta_tokenov,overlap_tokenov)
-    VALUES(v_prof,v_model,v_dim,'cosine',p_dannye->>'versiya_parsera',p_dannye->>'versiya_ochistki',p_dannye->>'versiya_chunkinga',p_dannye->>'tokenizer',COALESCE(NULLIF(p_dannye->>'cel_fragmenta_tokenov','')::integer,600),COALESCE(NULLIF(p_dannye->>'maks_fragmenta_tokenov','')::integer,800),COALESCE(NULLIF(p_dannye->>'overlap_tokenov','')::integer,100)) ON CONFLICT(otpechatok_profilya) DO NOTHING;
-    SELECT id INTO v_profile FROM qbit_bot_pervichnogo_obrascheniya.profili_indeksa WHERE otpechatok_profilya=v_prof;
-    IF NOT EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.profili_indeksa WHERE id=v_profile AND embedding_model=v_model AND razmernost=v_dim AND metrika='cosine' AND versiya_parsera=p_dannye->>'versiya_parsera' AND versiya_ochistki=p_dannye->>'versiya_ochistki' AND versiya_chunkinga=p_dannye->>'versiya_chunkinga' AND tokenizer=p_dannye->>'tokenizer') THEN RETURN QUERY SELECT v_op,'konflikt','profil_ne_sovpadaet','Одинаковый fingerprint не может описывать другой профиль',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::integer,NULL::uuid,NULL::uuid,NULL::text; RETURN; END IF;
+    INSERT INTO qbit_bot_pervichnogo_obrascheniya.profili_indeksa(otpechatok_profilya,embedding_model,razmernost,metrika,versiya_parsera,versiya_ochistki,versiya_chunkinga,tokenizer,cel_fragmenta_tokenov,maks_fragmenta_tokenov,overlap_tokenov) VALUES(v_prof,v_model,v_dim,'cosine',v_parser,v_clean,v_chunk,v_tokenizer,v_target,v_max,v_overlap) ON CONFLICT(otpechatok_profilya) DO NOTHING;
+    SELECT p.id INTO v_profile FROM qbit_bot_pervichnogo_obrascheniya.profili_indeksa p WHERE p.otpechatok_profilya=v_prof;
+    IF NOT EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.profili_indeksa p WHERE p.id=v_profile AND p.embedding_model=v_model AND p.razmernost=v_dim AND p.metrika='cosine' AND p.versiya_parsera=v_parser AND p.versiya_ochistki=v_clean AND p.versiya_chunkinga=v_chunk AND p.tokenizer=v_tokenizer AND p.cel_fragmenta_tokenov=v_target AND p.maks_fragmenta_tokenov=v_max AND p.overlap_tokenov=v_overlap) THEN RETURN QUERY SELECT v_op,'konflikt','profil_ne_sovpadaet','Одинаковый fingerprint не может описывать другой профиль',NULL::timestamptz,NULL::uuid,NULL::uuid,NULL::integer,NULL::uuid,NULL::uuid,NULL::text; RETURN; END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended('kb_doc:'||v_ident,0));
     INSERT INTO qbit_bot_pervichnogo_obrascheniya.dokumenty_znaniy(identifikator_dokumenta) VALUES(v_ident) ON CONFLICT(identifikator_dokumenta) DO NOTHING;
-    SELECT id,aktivnaya_versiya_id INTO v_doc,v_active FROM qbit_bot_pervichnogo_obrascheniya.dokumenty_znaniy WHERE identifikator_dokumenta=v_ident FOR UPDATE;
-    IF EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy WHERE dokument_id=v_doc AND status='v_rabote' AND id<>v_job) THEN UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy SET status='povtor',sleduyushchiy_zapusk=clock_timestamp()+interval '30 seconds',vladelec_arendy=NULL,arenda_do=NULL,vremya_obnovleniya=clock_timestamp() WHERE id=v_job; RETURN QUERY SELECT v_op,'povtor','dokument_zanyat','Другой worker уже обрабатывает этот logical document',clock_timestamp()+interval '30 seconds',v_doc,NULL::uuid,NULL::integer,v_profile,v_active,NULL::text; RETURN; END IF;
-    IF v_active IS NOT NULL AND EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy WHERE id=v_active AND otpechatok_obrabotki=v_proc AND status='opublikovana') THEN UPDATE qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy SET dokument_id=v_doc,versiya_id=v_active,hash_soderzhaniya=v_hash,status='dublikat',vremya_obnovleniya=clock_timestamp() WHERE id=v_upload; UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy SET dokument_id=v_doc,ozhidaemaya_aktivnaya_versiya_id=v_active,status='zaversheno',vladelec_arendy=NULL,arenda_do=NULL,vremya_obnovleniya=clock_timestamp() WHERE id=v_job; SELECT nomer_versii,profil_indeksa_id,status INTO v_num,v_profile,v_tip FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy WHERE id=v_active; RETURN QUERY SELECT v_op,'dublikat',NULL::text,'Отпечаток совпадает с активной версией',NULL::timestamptz,v_doc,v_active,v_num,v_profile,v_active,v_tip; RETURN; END IF;
-    SELECT COALESCE(max(nomer_versii),0)+1 INTO v_num FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy WHERE dokument_id=v_doc;
+    SELECT d.id,d.aktivnaya_versiya_id INTO v_doc,v_active FROM qbit_bot_pervichnogo_obrascheniya.dokumenty_znaniy d WHERE d.identifikator_dokumenta=v_ident FOR UPDATE;
+    IF EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy j WHERE j.dokument_id=v_doc AND j.status='v_rabote' AND j.id<>v_job) THEN UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy SET status='povtor',sleduyushchiy_zapusk=clock_timestamp()+interval '30 seconds',vladelec_arendy=NULL,arenda_do=NULL,vremya_obnovleniya=clock_timestamp() WHERE id=v_job; RETURN QUERY SELECT v_op,'povtor','dokument_zanyat','Другой worker уже обрабатывает этот logical document',clock_timestamp()+interval '30 seconds',v_doc,NULL::uuid,NULL::integer,v_profile,v_active,NULL::text; RETURN; END IF;
+    IF v_active IS NOT NULL AND EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v WHERE v.id=v_active AND v.otpechatok_obrabotki=v_proc AND v.status='opublikovana') THEN UPDATE qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy SET dokument_id=v_doc,versiya_id=v_active,hash_soderzhaniya=v_hash,status='dublikat',vremya_obnovleniya=clock_timestamp() WHERE id=v_upload; UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy SET dokument_id=v_doc,ozhidaemaya_aktivnaya_versiya_id=v_active,status='zaversheno',vladelec_arendy=NULL,arenda_do=NULL,vremya_obnovleniya=clock_timestamp() WHERE id=v_job; SELECT v.nomer_versii,v.profil_indeksa_id,v.status INTO v_num,v_profile,v_tip FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v WHERE v.id=v_active; RETURN QUERY SELECT v_op,'dublikat',NULL::text,'Отпечаток совпадает с активной версией',NULL::timestamptz,v_doc,v_active,v_num,v_profile,v_active,v_tip; RETURN; END IF;
+    SELECT COALESCE(max(v.nomer_versii),0)+1 INTO v_num FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v WHERE v.dokument_id=v_doc;
     INSERT INTO qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy(dokument_id,zagruzka_id,nomer_versii,nazvanie,tip_dokumenta,versiya_istochnika,data_obnovleniya,hash_soderzhaniya,otpechatok_obrabotki,profil_indeksa_id,status,ozhidaemaya_aktivnaya_versiya_id) VALUES(v_doc,v_upload,v_num,v_name,v_tip,NULLIF(p_dannye->>'versiya_istochnika',''),NULLIF(p_dannye->>'data_obnovleniya','')::date,v_hash,v_proc,v_profile,'chernovik',v_active) RETURNING id INTO v_version;
     UPDATE qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy SET dokument_id=v_doc,versiya_id=v_version,hash_soderzhaniya=v_hash,status='obrabotka',vremya_obnovleniya=clock_timestamp() WHERE id=v_upload;
     UPDATE qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy SET dokument_id=v_doc,ozhidaemaya_aktivnaya_versiya_id=v_active,vremya_obnovleniya=clock_timestamp() WHERE id=v_job;
@@ -441,50 +451,62 @@ END $fn$;
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.sohranit_fragmenty_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,povtor_posle timestamptz,versiya_id uuid,sohraneno_fragmentov integer,vsego_fragmentov integer)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya,extensions AS $fn$
-DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_ver uuid; v_job uuid; v_worker text:=NULLIF(btrim(p_dannye->>'worker_id'),''); v_fence bigint; v_items jsonb:=p_dannye->'fragmenty'; v_item jsonb; v_vec extensions.vector; v_profile record; v_count integer:=0; v_existing record; v_total integer;
+#variable_conflict use_column
+DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_ver uuid; v_job uuid; v_worker text:=NULLIF(btrim(p_dannye->>'worker_id'),''); v_fence bigint; v_items jsonb:=p_dannye->'fragmenty'; v_item jsonb; v_vec extensions.vector; v_profile record; v_count integer:=0; v_existing record; v_total integer; v_hash text;
 BEGIN
     BEGIN v_ver:=(p_dannye->>'versiya_id')::uuid; v_job:=(p_dannye->>'zadanie_id')::uuid; v_fence:=(p_dannye->>'nomer_vladeniya')::bigint; EXCEPTION WHEN OTHERS THEN v_ver:=NULL; END;
     IF v_op IS NULL OR v_ver IS NULL OR v_job IS NULL OR v_worker IS NULL OR v_fence IS NULL OR jsonb_typeof(v_items)<>'array' OR jsonb_array_length(v_items)=0 OR jsonb_array_length(v_items)>100 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Нужны live job/version и batch 1..100 fragments',NULL::timestamptz,v_ver,0,0; RETURN; END IF;
     IF NOT EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy j JOIN qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v ON v.zagruzka_id=j.zagruzka_id WHERE j.id=v_job AND v.id=v_ver AND j.status='v_rabote' AND j.vladelec_arendy=v_worker AND j.nomer_vladeniya=v_fence AND j.arenda_do>=clock_timestamp() AND v.status='chernovik') THEN RETURN QUERY SELECT v_op,'konflikt','stale_lease','Job/version больше не доступны для записи',NULL::timestamptz,v_ver,0,0; RETURN; END IF;
     SELECT p.* INTO v_profile FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v JOIN qbit_bot_pervichnogo_obrascheniya.profili_indeksa p ON p.id=v.profil_indeksa_id WHERE v.id=v_ver;
     FOR v_item IN SELECT value FROM jsonb_array_elements(v_items) LOOP
-        IF jsonb_typeof(v_item)<>'object' OR jsonb_typeof(v_item->'vektor')<>'array' THEN RAISE EXCEPTION 'Invalid fragment payload'; END IF;
+        IF jsonb_typeof(v_item)<>'object' OR jsonb_typeof(v_item->'vektor')<>'array' OR NULLIF(v_item->>'tekst_fragmenta','') IS NULL THEN RAISE EXCEPTION 'Invalid fragment payload'; END IF;
         v_vec:=(v_item->'vektor')::text::extensions.vector;
         IF extensions.vector_dims(v_vec)<>v_profile.razmernost THEN RAISE EXCEPTION 'Vector dimension mismatch'; END IF;
-        SELECT hash_fragmenta,put_razdela,tekst_fragmenta,kolichestvo_tokenov INTO v_existing FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy WHERE versiya_id=v_ver AND nomer_fragmenta=(v_item->>'nomer_fragmenta')::integer;
-        IF FOUND THEN IF v_existing.hash_fragmenta IS DISTINCT FROM lower(v_item->>'hash_fragmenta') OR v_existing.put_razdela IS DISTINCT FROM v_item->>'put_razdela' OR v_existing.tekst_fragmenta IS DISTINCT FROM v_item->>'tekst_fragmenta' OR v_existing.kolichestvo_tokenov IS DISTINCT FROM (v_item->>'kolichestvo_tokenov')::integer THEN RAISE EXCEPTION 'Fragment number conflict'; END IF; ELSE INSERT INTO qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy(versiya_id,nomer_fragmenta,put_razdela,tekst_fragmenta,kolichestvo_tokenov,hash_fragmenta,vektor) VALUES(v_ver,(v_item->>'nomer_fragmenta')::integer,v_item->>'put_razdela',v_item->>'tekst_fragmenta',(v_item->>'kolichestvo_tokenov')::integer,lower(v_item->>'hash_fragmenta'),v_vec); v_count:=v_count+1; END IF;
+        v_hash:=encode(extensions.digest(convert_to(v_item->>'tekst_fragmenta','UTF8'),'sha256'),'hex');
+        IF lower(COALESCE(v_item->>'hash_fragmenta',''))<>v_hash THEN RAISE EXCEPTION 'Fragment hash mismatch'; END IF;
+        IF (v_item->>'kolichestvo_tokenov')::integer>v_profile.maks_fragmenta_tokenov THEN RAISE EXCEPTION 'Fragment exceeds profile max tokens'; END IF;
+        SELECT f.hash_fragmenta,f.put_razdela,f.tekst_fragmenta,f.kolichestvo_tokenov INTO v_existing FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy f WHERE f.versiya_id=v_ver AND f.nomer_fragmenta=(v_item->>'nomer_fragmenta')::integer;
+        IF FOUND THEN IF v_existing.hash_fragmenta IS DISTINCT FROM v_hash OR v_existing.put_razdela IS DISTINCT FROM v_item->>'put_razdela' OR v_existing.tekst_fragmenta IS DISTINCT FROM v_item->>'tekst_fragmenta' OR v_existing.kolichestvo_tokenov IS DISTINCT FROM (v_item->>'kolichestvo_tokenov')::integer THEN RAISE EXCEPTION 'Fragment number conflict'; END IF; ELSE INSERT INTO qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy(versiya_id,nomer_fragmenta,put_razdela,tekst_fragmenta,kolichestvo_tokenov,hash_fragmenta,vektor) VALUES(v_ver,(v_item->>'nomer_fragmenta')::integer,v_item->>'put_razdela',v_item->>'tekst_fragmenta',(v_item->>'kolichestvo_tokenov')::integer,v_hash,v_vec); v_count:=v_count+1; END IF;
     END LOOP;
-    SELECT count(*)::integer INTO v_total FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy WHERE versiya_id=v_ver;
+    SELECT count(*)::integer INTO v_total FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy f WHERE f.versiya_id=v_ver;
     RETURN QUERY SELECT v_op,'uspeshno',NULL::text,NULL::text,NULL::timestamptz,v_ver,v_count,v_total;
 END $fn$;
 
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.sohranit_kontrolnye_voprosy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,povtor_posle timestamptz,versiya_id uuid,kolichestvo_voprosov integer)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya AS $fn$
+#variable_conflict use_column
 DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_ver uuid; v_q jsonb:=p_dannye->'voprosy'; v_item jsonb; v_n integer;
 BEGIN
     BEGIN v_ver:=(p_dannye->>'versiya_id')::uuid; EXCEPTION WHEN OTHERS THEN v_ver:=NULL; END;
     IF v_op IS NULL OR v_ver IS NULL OR jsonb_typeof(v_q)<>'array' OR jsonb_array_length(v_q)<3 OR jsonb_array_length(v_q)>10 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Требуется 3..10 контрольных вопросов',NULL::timestamptz,v_ver,0; RETURN; END IF;
-    PERFORM 1 FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy WHERE id=v_ver AND status='chernovik' FOR UPDATE;
+    PERFORM 1 FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v WHERE v.id=v_ver AND v.status='chernovik' FOR UPDATE;
     IF NOT FOUND THEN RETURN QUERY SELECT v_op,'konflikt','versiya_ne_chernovik','Вопросы меняются только у draft version',NULL::timestamptz,v_ver,0; RETURN; END IF;
-    DELETE FROM qbit_bot_pervichnogo_obrascheniya.proverki_znaniy WHERE versiya_id=v_ver; DELETE FROM qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy WHERE versiya_id=v_ver; v_n:=0;
-    FOR v_item IN SELECT value FROM jsonb_array_elements(v_q) LOOP v_n:=v_n+1; INSERT INTO qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy(versiya_id,nomer,vopros,ozhidaemyy_razdel,ozhidaemyy_fakt,istochnik) VALUES(v_ver,v_n,v_item->>'vopros',v_item->>'ozhidaemyy_razdel',NULLIF(v_item->>'ozhidaemyy_fakt',''),COALESCE(NULLIF(v_item->>'istochnik',''),'yaml')); END LOOP;
+    DELETE FROM qbit_bot_pervichnogo_obrascheniya.proverki_znaniy p WHERE p.versiya_id=v_ver; DELETE FROM qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy k WHERE k.versiya_id=v_ver; v_n:=0;
+    FOR v_item IN SELECT value FROM jsonb_array_elements(v_q) LOOP v_n:=v_n+1; IF NULLIF(btrim(v_item->>'vopros'),'') IS NULL OR NULLIF(btrim(v_item->>'ozhidaemyy_razdel'),'') IS NULL THEN RAISE EXCEPTION 'Invalid control question'; END IF; INSERT INTO qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy(versiya_id,nomer,vopros,ozhidaemyy_razdel,ozhidaemyy_fakt,istochnik) VALUES(v_ver,v_n,v_item->>'vopros',v_item->>'ozhidaemyy_razdel',NULLIF(v_item->>'ozhidaemyy_fakt',''),COALESCE(NULLIF(v_item->>'istochnik',''),'yaml')); END LOOP;
     RETURN QUERY SELECT v_op,'uspeshno',NULL::text,NULL::text,NULL::timestamptz,v_ver,v_n;
 END $fn$;
 
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.sohranit_proverki_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,povtor_posle timestamptz,versiya_id uuid,status_versii text,uspeshnyh integer,vsego integer)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya,extensions AS $fn$
-DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_ver uuid; v_profile uuid; v_arr jsonb:=p_dannye->'proverki'; v_item jsonb; v_q uuid; v_ok integer; v_all integer; v_frag integer; v_dim integer; v_status text;
+#variable_conflict use_column
+DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_ver uuid; v_profile uuid; v_arr jsonb:=p_dannye->'proverki'; v_item jsonb; v_q uuid; v_ok integer; v_all integer; v_frag integer; v_dim integer; v_status text; v_limit integer;
 BEGIN
     BEGIN v_ver:=(p_dannye->>'versiya_id')::uuid; v_profile:=(p_dannye->>'profil_indeksa_id')::uuid; EXCEPTION WHEN OTHERS THEN v_ver:=NULL; END;
-    IF v_op IS NULL OR v_ver IS NULL OR v_profile IS NULL OR jsonb_typeof(v_arr)<>'array' THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Некорректный набор проверок',NULL::timestamptz,v_ver,NULL::text,0,0; RETURN; END IF;
+    IF v_op IS NULL OR v_ver IS NULL OR v_profile IS NULL OR jsonb_typeof(v_arr)<>'array' OR jsonb_array_length(v_arr)=0 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Некорректный набор проверок',NULL::timestamptz,v_ver,NULL::text,0,0; RETURN; END IF;
     SELECT p.razmernost INTO v_dim FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v JOIN qbit_bot_pervichnogo_obrascheniya.profili_indeksa p ON p.id=v.profil_indeksa_id WHERE v.id=v_ver AND v.profil_indeksa_id=v_profile AND v.status='chernovik' FOR UPDATE OF v;
     IF NOT FOUND THEN RETURN QUERY SELECT v_op,'konflikt','versiya_ili_profil','Draft version/profile не совпадают',NULL::timestamptz,v_ver,NULL::text,0,0; RETURN; END IF;
-    FOR v_item IN SELECT value FROM jsonb_array_elements(v_arr) LOOP v_q:=(v_item->>'vopros_id')::uuid; IF NOT EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy WHERE id=v_q AND versiya_id=v_ver) THEN RAISE EXCEPTION 'Question does not belong to version'; END IF; INSERT INTO qbit_bot_pervichnogo_obrascheniya.proverki_znaniy(versiya_id,vopros_id,profil_indeksa_id,porog_shodstva,limit_rezultatov,poluchennye_fragmenty,shodstva,rezultat,opisanie) VALUES(v_ver,v_q,v_profile,(v_item->>'porog_shodstva')::numeric,(v_item->>'limit_rezultatov')::integer,ARRAY(SELECT x::uuid FROM jsonb_array_elements_text(COALESCE(v_item->'poluchennye_fragmenty','[]'::jsonb)) x),ARRAY(SELECT x::numeric FROM jsonb_array_elements_text(COALESCE(v_item->'shodstva','[]'::jsonb)) x),v_item->>'rezultat',NULLIF(v_item->>'opisanie','')); END LOOP;
-    SELECT count(*)::integer INTO v_all FROM qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy WHERE versiya_id=v_ver;
-    WITH latest AS (SELECT DISTINCT ON (vopros_id) vopros_id,rezultat FROM qbit_bot_pervichnogo_obrascheniya.proverki_znaniy WHERE versiya_id=v_ver ORDER BY vopros_id,vremya_proverki DESC,id DESC) SELECT count(*) FILTER(WHERE rezultat='uspeshno')::integer INTO v_ok FROM latest;
-    SELECT count(*)::integer INTO v_frag FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy WHERE versiya_id=v_ver AND extensions.vector_dims(vektor)=v_dim;
+    FOR v_item IN SELECT value FROM jsonb_array_elements(v_arr) LOOP
+        v_q:=(v_item->>'vopros_id')::uuid; v_limit:=(v_item->>'limit_rezultatov')::integer;
+        IF NOT EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy k WHERE k.id=v_q AND k.versiya_id=v_ver) THEN RAISE EXCEPTION 'Question does not belong to version'; END IF;
+        IF jsonb_array_length(COALESCE(v_item->'poluchennye_fragmenty','[]'::jsonb))>v_limit THEN RAISE EXCEPTION 'Stored result count exceeds top-k limit'; END IF;
+        IF EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(v_item->'poluchennye_fragmenty','[]'::jsonb)) x WHERE NOT EXISTS (SELECT 1 FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy f WHERE f.id=x::uuid AND f.versiya_id=v_ver)) THEN RAISE EXCEPTION 'Check references fragment outside version'; END IF;
+        INSERT INTO qbit_bot_pervichnogo_obrascheniya.proverki_znaniy(versiya_id,vopros_id,profil_indeksa_id,porog_shodstva,limit_rezultatov,poluchennye_fragmenty,shodstva,rezultat,opisanie) VALUES(v_ver,v_q,v_profile,(v_item->>'porog_shodstva')::numeric,v_limit,ARRAY(SELECT x::uuid FROM jsonb_array_elements_text(COALESCE(v_item->'poluchennye_fragmenty','[]'::jsonb)) x),ARRAY(SELECT x::numeric FROM jsonb_array_elements_text(COALESCE(v_item->'shodstva','[]'::jsonb)) x),v_item->>'rezultat',NULLIF(v_item->>'opisanie',''));
+    END LOOP;
+    SELECT count(*)::integer INTO v_all FROM qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy k WHERE k.versiya_id=v_ver;
+    WITH latest AS (SELECT DISTINCT ON (p.vopros_id) p.vopros_id,p.rezultat FROM qbit_bot_pervichnogo_obrascheniya.proverki_znaniy p WHERE p.versiya_id=v_ver ORDER BY p.vopros_id,p.vremya_proverki DESC,p.id DESC) SELECT count(*) FILTER(WHERE rezultat='uspeshno')::integer INTO v_ok FROM latest;
+    SELECT count(*)::integer INTO v_frag FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy f WHERE f.versiya_id=v_ver AND extensions.vector_dims(f.vektor)=v_dim;
     IF v_all BETWEEN 3 AND 10 AND v_ok=v_all AND v_frag>0 THEN v_status:='gotova'; ELSE v_status:='chernovik'; END IF;
     UPDATE qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy SET status=v_status,vremya_proverki=clock_timestamp() WHERE id=v_ver;
     UPDATE qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy z SET status=CASE WHEN v_status='gotova' THEN 'ozhidaet_proverki' ELSE z.status END,vremya_obnovleniya=clock_timestamp() FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v WHERE v.id=v_ver AND z.id=v.zagruzka_id;
@@ -494,28 +516,31 @@ END $fn$;
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.poisk_chernovika_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,versiya_id uuid,fragment_id uuid,nomer_fragmenta integer,put_razdela text,tekst_fragmenta text,shodstvo numeric)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya,extensions AS $fn$
+#variable_conflict use_column
 DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_ver uuid; v_profile uuid; v_limit integer; v_thr numeric; v_query extensions.vector; v_dim integer;
 BEGIN
     BEGIN v_ver:=(p_dannye->>'versiya_id')::uuid; v_profile:=(p_dannye->>'profil_indeksa_id')::uuid; v_limit:=COALESCE(NULLIF(p_dannye->>'limit','')::integer,5); v_thr:=COALESCE(NULLIF(p_dannye->>'porog_shodstva','')::numeric,0); v_query:=(p_dannye->'vektor')::text::extensions.vector; EXCEPTION WHEN OTHERS THEN v_ver:=NULL; END;
     SELECT p.razmernost INTO v_dim FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v JOIN qbit_bot_pervichnogo_obrascheniya.profili_indeksa p ON p.id=v.profil_indeksa_id WHERE v.id=v_ver AND v.profil_indeksa_id=v_profile AND v.status IN ('chernovik','gotova');
-    IF v_op IS NULL OR v_ver IS NULL OR v_dim IS NULL OR extensions.vector_dims(v_query)<>v_dim OR v_limit<1 OR v_limit>50 OR v_thr<0 OR v_thr>1 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Draft/version/profile/vector не совпадают',v_ver,NULL::uuid,NULL::integer,NULL::text,NULL::text,NULL::numeric; RETURN; END IF;
+    IF v_op IS NULL OR v_ver IS NULL OR v_dim IS NULL OR v_query IS NULL OR extensions.vector_dims(v_query)<>v_dim OR v_limit<1 OR v_limit>50 OR v_thr<0 OR v_thr>1 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Draft/version/profile/vector не совпадают',v_ver,NULL::uuid,NULL::integer,NULL::text,NULL::text,NULL::numeric; RETURN; END IF;
     RETURN QUERY WITH ranked AS (SELECT f.id,f.nomer_fragmenta,f.put_razdela,f.tekst_fragmenta,(1-(f.vektor OPERATOR(extensions.<=>) v_query))::numeric AS sim FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy f WHERE f.versiya_id=v_ver ORDER BY f.vektor OPERATOR(extensions.<=>) v_query LIMIT v_limit) SELECT v_op,'uspeshno',NULL::text,NULL::text,v_ver,r.id,r.nomer_fragmenta,r.put_razdela,r.tekst_fragmenta,r.sim FROM ranked r WHERE r.sim>=v_thr;
 END $fn$;
 
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.poisk_aktivnyh_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,dokument_id uuid,identifikator_dokumenta text,versiya_id uuid,fragment_id uuid,nomer_fragmenta integer,put_razdela text,tekst_fragmenta text,shodstvo numeric)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya,extensions AS $fn$
+#variable_conflict use_column
 DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_profile uuid; v_limit integer; v_thr numeric; v_query extensions.vector; v_dim integer;
 BEGIN
     BEGIN v_profile:=(p_dannye->>'profil_indeksa_id')::uuid; v_limit:=COALESCE(NULLIF(p_dannye->>'limit','')::integer,5); v_thr:=COALESCE(NULLIF(p_dannye->>'porog_shodstva','')::numeric,0); v_query:=(p_dannye->'vektor')::text::extensions.vector; EXCEPTION WHEN OTHERS THEN v_profile:=NULL; END;
-    SELECT razmernost INTO v_dim FROM qbit_bot_pervichnogo_obrascheniya.profili_indeksa WHERE id=v_profile;
-    IF v_op IS NULL OR v_profile IS NULL OR v_dim IS NULL OR extensions.vector_dims(v_query)<>v_dim OR v_limit<1 OR v_limit>50 OR v_thr<0 OR v_thr>1 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Profile/vector/search параметры некорректны',NULL::uuid,NULL::text,NULL::uuid,NULL::uuid,NULL::integer,NULL::text,NULL::text,NULL::numeric; RETURN; END IF;
+    SELECT p.razmernost INTO v_dim FROM qbit_bot_pervichnogo_obrascheniya.profili_indeksa p WHERE p.id=v_profile;
+    IF v_op IS NULL OR v_profile IS NULL OR v_dim IS NULL OR v_query IS NULL OR extensions.vector_dims(v_query)<>v_dim OR v_limit<1 OR v_limit>50 OR v_thr<0 OR v_thr>1 THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Profile/vector/search параметры некорректны',NULL::uuid,NULL::text,NULL::uuid,NULL::uuid,NULL::integer,NULL::text,NULL::text,NULL::numeric; RETURN; END IF;
     RETURN QUERY WITH ranked AS (SELECT d.id AS did,d.identifikator_dokumenta,v.id AS vid,f.id AS fid,f.nomer_fragmenta,f.put_razdela,f.tekst_fragmenta,(1-(f.vektor OPERATOR(extensions.<=>) v_query))::numeric AS sim FROM qbit_bot_pervichnogo_obrascheniya.dokumenty_znaniy d JOIN qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy v ON v.id=d.aktivnaya_versiya_id AND v.dokument_id=d.id AND v.status='opublikovana' AND v.profil_indeksa_id=v_profile JOIN qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy f ON f.versiya_id=v.id ORDER BY f.vektor OPERATOR(extensions.<=>) v_query LIMIT v_limit) SELECT v_op,'uspeshno',NULL::text,NULL::text,r.did,r.identifikator_dokumenta,r.vid,r.fid,r.nomer_fragmenta,r.put_razdela,r.tekst_fragmenta,r.sim FROM ranked r WHERE r.sim>=v_thr;
 END $fn$;
 
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.opublikovat_versiyu_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,povtor_posle timestamptz,dokument_id uuid,versiya_id uuid,predydushchaya_aktivnaya_versiya_id uuid,status_versii text,status_zagruzki text)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya,extensions AS $fn$
+#variable_conflict use_column
 DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_ver uuid; v_expected uuid; v record; v_current uuid; v_q integer; v_ok integer; v_frag integer; v_bad integer;
 BEGIN
     BEGIN v_ver:=(p_dannye->>'versiya_id')::uuid; v_expected:=NULLIF(p_dannye->>'ozhidaemaya_aktivnaya_versiya_id','')::uuid; EXCEPTION WHEN OTHERS THEN v_ver:=NULL; END;
@@ -523,14 +548,14 @@ BEGIN
     PERFORM pg_advisory_xact_lock(hashtextextended('kb_publish_op:'||v_op,0));
     SELECT vv.*,p.razmernost INTO v FROM qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy vv JOIN qbit_bot_pervichnogo_obrascheniya.profili_indeksa p ON p.id=vv.profil_indeksa_id WHERE vv.id=v_ver FOR UPDATE OF vv;
     IF NOT FOUND THEN RETURN QUERY SELECT v_op,'otkaz','versiya_ne_naydena','Version not found',NULL::timestamptz,NULL::uuid,v_ver,NULL::uuid,NULL::text,NULL::text; RETURN; END IF;
-    SELECT aktivnaya_versiya_id INTO v_current FROM qbit_bot_pervichnogo_obrascheniya.dokumenty_znaniy WHERE id=v.dokument_id FOR UPDATE;
+    SELECT d.aktivnaya_versiya_id INTO v_current FROM qbit_bot_pervichnogo_obrascheniya.dokumenty_znaniy d WHERE d.id=v.dokument_id FOR UPDATE;
     IF v_current=v_ver AND v.status='opublikovana' THEN RETURN QUERY SELECT v_op,'dublikat',NULL::text,'Версия уже активна',NULL::timestamptz,v.dokument_id,v_ver,v_expected,'opublikovana','zavershena'; RETURN; END IF;
     IF v_current IS DISTINCT FROM v_expected OR v.ozhidaemaya_aktivnaya_versiya_id IS DISTINCT FROM v_expected THEN RETURN QUERY SELECT v_op,'konflikt','stale_expected_active','Активная версия изменилась после начала обработки',NULL::timestamptz,v.dokument_id,v_ver,v_current,v.status,NULL::text; RETURN; END IF;
     IF v.status<>'gotova' THEN RETURN QUERY SELECT v_op,'otkaz','versiya_ne_gotova','Публикация разрешена только status=gotova',NULL::timestamptz,v.dokument_id,v_ver,v_current,v.status,NULL::text; RETURN; END IF;
-    SELECT count(*)::integer INTO v_frag FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy WHERE versiya_id=v_ver;
-    SELECT count(*)::integer INTO v_bad FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy WHERE versiya_id=v_ver AND extensions.vector_dims(vektor)<>v.razmernost;
-    SELECT count(*)::integer INTO v_q FROM qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy WHERE versiya_id=v_ver;
-    WITH latest AS (SELECT DISTINCT ON(vopros_id) vopros_id,rezultat FROM qbit_bot_pervichnogo_obrascheniya.proverki_znaniy WHERE versiya_id=v_ver ORDER BY vopros_id,vremya_proverki DESC,id DESC) SELECT count(*) FILTER(WHERE rezultat='uspeshno')::integer INTO v_ok FROM latest;
+    SELECT count(*)::integer INTO v_frag FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy f WHERE f.versiya_id=v_ver;
+    SELECT count(*)::integer INTO v_bad FROM qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy f WHERE f.versiya_id=v_ver AND extensions.vector_dims(f.vektor)<>v.razmernost;
+    SELECT count(*)::integer INTO v_q FROM qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy k WHERE k.versiya_id=v_ver;
+    WITH latest AS (SELECT DISTINCT ON(p.vopros_id) p.vopros_id,p.rezultat FROM qbit_bot_pervichnogo_obrascheniya.proverki_znaniy p WHERE p.versiya_id=v_ver ORDER BY p.vopros_id,p.vremya_proverki DESC,p.id DESC) SELECT count(*) FILTER(WHERE rezultat='uspeshno')::integer INTO v_ok FROM latest;
     IF v_frag=0 OR v_bad<>0 OR v_q NOT BETWEEN 3 AND 10 OR v_ok<>v_q THEN RETURN QUERY SELECT v_op,'otkaz','proverki_ne_proydeny','Fragments/vectors/reference checks incomplete',NULL::timestamptz,v.dokument_id,v_ver,v_current,v.status,NULL::text; RETURN; END IF;
     IF v_current IS NOT NULL THEN UPDATE qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy SET status='arhiv',vremya_arhivirovaniya=clock_timestamp() WHERE id=v_current AND dokument_id=v.dokument_id AND status='opublikovana'; END IF;
     UPDATE qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy SET status='opublikovana',vremya_publikacii=clock_timestamp() WHERE id=v_ver;
@@ -543,12 +568,13 @@ END $fn$;
 CREATE FUNCTION qbit_bot_pervichnogo_obrascheniya.otozvat_dokument_znaniy(p_dannye jsonb)
 RETURNS TABLE(operaciya_id text,rezultat text,kod_oshibki text,opisanie text,povtor_posle timestamptz,dokument_id uuid,predydushchaya_aktivnaya_versiya_id uuid)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,qbit_bot_pervichnogo_obrascheniya AS $fn$
+#variable_conflict use_column
 DECLARE v_op text:=NULLIF(btrim(p_dannye->>'operaciya_id'),''); v_doc uuid; v_expected uuid; v_reason text:=NULLIF(btrim(p_dannye->>'prichina'),''); v_actor text:=COALESCE(NULLIF(btrim(p_dannye->>'avtor_id'),''),session_user); v_current uuid;
 BEGIN
     BEGIN v_doc:=(p_dannye->>'dokument_id')::uuid; v_expected:=NULLIF(p_dannye->>'ozhidaemaya_aktivnaya_versiya_id','')::uuid; EXCEPTION WHEN OTHERS THEN v_doc:=NULL; END;
     IF v_op IS NULL OR v_doc IS NULL OR v_reason IS NULL THEN RETURN QUERY SELECT v_op,'otkaz','nekorrektnyy_vhod','Нужны operation/document/expected active/reason',NULL::timestamptz,v_doc,NULL::uuid; RETURN; END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended('kb_revoke_op:'||v_op,0));
-    SELECT aktivnaya_versiya_id INTO v_current FROM qbit_bot_pervichnogo_obrascheniya.dokumenty_znaniy WHERE id=v_doc FOR UPDATE;
+    SELECT d.aktivnaya_versiya_id INTO v_current FROM qbit_bot_pervichnogo_obrascheniya.dokumenty_znaniy d WHERE d.id=v_doc FOR UPDATE;
     IF NOT FOUND THEN RETURN QUERY SELECT v_op,'otkaz','dokument_ne_nayden','Document not found',NULL::timestamptz,v_doc,NULL::uuid; RETURN; END IF;
     IF v_current IS NULL AND v_expected IS NULL THEN RETURN QUERY SELECT v_op,'dublikat',NULL::text,'Документ уже отозван',NULL::timestamptz,v_doc,NULL::uuid; RETURN; END IF;
     IF v_current IS DISTINCT FROM v_expected THEN RETURN QUERY SELECT v_op,'konflikt','stale_expected_active','Active version changed',NULL::timestamptz,v_doc,v_current; RETURN; END IF;
@@ -559,7 +585,7 @@ BEGIN
 END $fn$;
 
 REVOKE ALL ON TABLE qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy,qbit_bot_pervichnogo_obrascheniya.zadaniya_znaniy,qbit_bot_pervichnogo_obrascheniya.dokumenty_znaniy,qbit_bot_pervichnogo_obrascheniya.versii_dokumentov_znaniy,qbit_bot_pervichnogo_obrascheniya.profili_indeksa,qbit_bot_pervichnogo_obrascheniya.fragmenty_znaniy,qbit_bot_pervichnogo_obrascheniya.kontrolnye_voprosy,qbit_bot_pervichnogo_obrascheniya.proverki_znaniy FROM PUBLIC,qbit_test_bot,qbit_test_sluzhebnyy,qbit_test_dash_read,qbit_test_dash_admin;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA qbit_bot_pervichnogo_obrascheniya FROM PUBLIC,qbit_test_bot,qbit_test_sluzhebnyy,qbit_test_dash_read,qbit_test_dash_admin;
+REVOKE ALL ON SEQUENCE qbit_bot_pervichnogo_obrascheniya.zagruzki_znaniy_poryadok_priema_seq FROM PUBLIC,qbit_test_bot,qbit_test_sluzhebnyy,qbit_test_dash_read,qbit_test_dash_admin;
 REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.kb_proverit_aktivnuyu_versiyu() FROM PUBLIC;
 REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.kb_zapretit_izmenenie_profilya() FROM PUBLIC;
 REVOKE ALL ON FUNCTION qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_zagruzku_znaniy(jsonb,bytea) FROM PUBLIC;
@@ -602,4 +628,4 @@ END $check$;
 
 COMMIT;
 
-SELECT jsonb_build_object('kb01r3_result',jsonb_build_object('status','applied','migration','KB-01R3_v0.1','schema','qbit_bot_pervichnogo_obrascheniya','next','run sql/DB-04_05_knowledge_verifier.sql before any n8n import or client RAG')) AS kb01r3_result;
+SELECT jsonb_build_object('kb01r3_result',jsonb_build_object('status','applied','migration','KB-01R3_v0.2','schema','qbit_bot_pervichnogo_obrascheniya','next','run sql/DB-04_05_knowledge_verifier.sql before any n8n import or client RAG')) AS kb01r3_result;
