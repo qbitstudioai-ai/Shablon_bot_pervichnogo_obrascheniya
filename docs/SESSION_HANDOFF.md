@@ -6,10 +6,10 @@
 
 Ветка: `main`.
 
-До checkpoint HEAD был:
-`13badcd14d709e0d8696cdc2fec46fee2e94650e` — `WF-02B3C replace polling with event-driven workers`.
+Checkpoint до KB-01R1:
+`bb729507ba1ccfc33e2a93c009b37fd3010df191` — `checkpoint KB-01 state and current workflow`.
 
-Новая сессия сначала проверяет актуальный HEAD после checkpoint.
+Новая сессия сначала проверяет актуальный `main` HEAD и читает `docs/KB-01_RECONCILIATION_PLAN.md`.
 
 ## Workflow
 
@@ -34,9 +34,9 @@ SHA-256 compact JSON:
 
 Старый canonical `версия 0.2.json` удалён из текущего дерева Git.
 
-## KB-01 — фактическое состояние
+## KB-01 — фактическое состояние checkpoint
 
-В test schema существуют экспериментальные:
+В test schema существуют experimental:
 - `znaniya_dokumenty`;
 - `znaniya_versii`;
 - `znaniya_fragmenty`.
@@ -56,23 +56,40 @@ B2 `kb01_zabrat_sleduyushchuyu_versiyu(jsonb)` VERIFIED:
 
 Production не затрагивалась.
 
-## Обнаруженное расхождение
+## KB-01R1 — выполнено
 
-Экспериментальная модель не соответствует нормативному DB-04/DB-05 и `KNOWLEDGE_INGESTION`:
-- норматив v1 принимает только `.md` UTF-8 до 5 MiB;
-- норматив различает загрузку, очередь, документ, версию, профиль, фрагменты, контрольные вопросы и проверки;
-- ранее generated KB workflow собран под другой промежуточный API;
-- B1/B2 фактически возвращают `jsonb`;
-- B3/publish/error/search отсутствуют.
+Read-only/documentary mapping сохранён в:
+[KB-01R1_INVENTORY_MAPPING](KB-01R1_INVENTORY_MAPPING.md).
 
-**Не импортировать** `Шаблон_мультиканальный_KB-01_v0.3.json`.
-**Не продолжать B3** до KB-01R.
+Сопоставление показало:
+- `znaniya_dokumenty` — частичное соответствие `dokumenty_znaniy`;
+- `znaniya_versii` смешивает загрузку, durable job, версию и часть index profile;
+- `znaniya_fragmenty` — частичное соответствие `fragmenty_znaniy`;
+- нормативные `kontrolnye_voprosy`, `proverki_znaniy` отсутствуют;
+- нормативные draft/active search, atomic publish и revoke отсутствуют;
+- B1/B2 нельзя продолжать через B3 как готовую основу DB-04/DB-05.
+
+Во время KB-01R1 SQL на сервер не выполнялся. Прямого DB-доступа в сессии не было, поэтому mapping основан на checkpoint/evidence 03.10.2026, а не на новом live `pg_catalog` snapshot.
 
 ## Следующая одна задача
 
-Открыть [KB-01_RECONCILIATION_PLAN](KB-01_RECONCILIATION_PLAN.md) и выполнить только **KB-01R1**: read-only инвентаризация текущих experimental KB objects и mapping к нормативному DB-04/DB-05.
+**KB-01R2 — выбрать безопасный путь migration vs recreate.**
 
-Не удалять test KB-объекты, не применять новую миграцию и не менять production без отдельного решения.
+Перед решением:
+- перечитать `docs/KB-01R1_INVENTORY_MAPPING.md`;
+- при необходимости получить только read-only row counts/object signatures test schema;
+- не считать experimental таблицы пустыми без проверки;
+- не применять DDL/DML и не удалять объекты до выбора пути;
+- production не менять.
+
+После выбора пути отдельной задачей KB-01R3 подготовить полный SQL, проверки и rollback-план. Не начинать KB-01R3 автоматически в той же сессии, если Павел поручил только KB-01R2.
+
+## Запреты остаются
+
+**Не импортировать** `Шаблон_мультиканальный_KB-01_v0.3.json`.
+**Не продолжать B3**.
+**Не включать client RAG**.
+**Не применять evidence SQL повторно**.
 
 ## Evidence
 

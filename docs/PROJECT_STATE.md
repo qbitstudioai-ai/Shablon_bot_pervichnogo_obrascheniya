@@ -48,15 +48,34 @@
 - экспериментальные SQL не считать каноническими DB-04/DB-05;
 - клиентский RAG не включать.
 
-Подробности: [KB-01_APPLIED_TEST_STATE_2026-10-03](KB-01_APPLIED_TEST_STATE_2026-10-03.md).
+Подробности checkpoint: [KB-01_APPLIED_TEST_STATE_2026-10-03](KB-01_APPLIED_TEST_STATE_2026-10-03.md).
+
+## KB-01R1 — завершённая сверка
+
+KB-01R1 выполнена без SQL на сервере и без изменений production.
+
+Результат: [KB-01R1_INVENTORY_MAPPING](KB-01R1_INVENTORY_MAPPING.md).
+
+Главный вывод mapping:
+- `znaniya_dokumenty` только частично соответствует `dokumenty_znaniy`;
+- `znaniya_versii` смешивает нормативные `zagruzki_znaniy`, `zadaniya_znaniy`, `versii_dokumentov_znaniy` и часть `profili_indeksa`;
+- `znaniya_fragmenty` только частично соответствует `fragmenty_znaniy`;
+- `kontrolnye_voprosy`, `proverki_znaniy`, нормативные publish/search функции DB-05 отсутствуют;
+- B1/B2 нельзя считать готовыми DB-04 функциями и нельзя продолжать B3 поверх текущего контракта.
+
+В этой сессии прямого подключения к test PostgreSQL/Supabase не было. Поэтому инвентаризация фиксирует подтверждённый checkpoint/evidence 03.10.2026 и не заявляет новый live `pg_catalog` snapshot.
 
 ## Текущая одна задача
 
-**KB-01R — сверка экспериментального KB-01 с нормативным DB-04/DB-05.**
+**KB-01R2 — выбрать безопасный путь: миграция experimental KB или пересоздание нормативного DB-04/DB-05.**
 
 Активный план: [KB-01_RECONCILIATION_PLAN](KB-01_RECONCILIATION_PLAN.md).
 
-Первый подшаг следующей сессии: **KB-01R1 — read-only инвентаризация и mapping**. Никакого удаления test KB-объектов и никакого нового SQL до выбора безопасного пути миграции/пересоздания.
+До решения KB-01R2:
+- ничего не удалять в test KB;
+- новый KB SQL на сервер не применять;
+- при необходимости сначала получить read-only row counts/object signatures;
+- production не менять.
 
 ## Ограничения
 
