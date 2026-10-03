@@ -1,114 +1,88 @@
-# KB-01R — сверка фактического KB-01 с нормативным DB-04/DB-05
+# KB-01R — сверка и исправление experimental KB → нормативный DB-04/DB-05
 
-Статус: **активная задача после checkpoint 03.10.2026**.
+Статус: **reconciliation preparation завершена; следующий шаг — test application KB-01R4**.
 
-## Почему нужна эта задача
+## Исходное расхождение
 
-03.10.2026 в test schema `qbit_bot_pervichnogo_obrascheniya` были экспериментально созданы три таблицы знаний и две SECURITY DEFINER-функции KB-01. Их B1/B2 runtime-поведение проверено настоящей ролью `qbit_test_sluzhebnyy`.
+03.10.2026 в test schema `qbit_bot_pervichnogo_obrascheniya` были экспериментально созданы три KB-таблицы и две SECURITY DEFINER-функции B1/B2. После сверки выяснилось, что этот промежуточный контракт не совпадает с нормативным DB-04/DB-05: норматив разделяет загрузку, durable queue, документ, версию, profile, fragments, контрольные вопросы и проверки, а DB-05 отдельно задаёт draft/active search, atomic publish и revoke.
 
-После сверки с нормативными документами репозитория обнаружено, что этот экспериментальный контракт не совпадает с DB-04/DB-05:
+Старый локально сгенерированный workflow `Шаблон_мультиканальный_KB-01_v0.3.json` под этот промежуточный API не является каноническим и не импортируется.
 
-- нормативный DB-04 разделяет загрузку, очередь знаний, документ, версию, профиль индекса, фрагменты, контрольные вопросы и проверки;
-- нормативный v1 принимает только `.md` UTF-8 до 5 MiB;
-- публикация и клиентский поиск относятся к DB-05 и должны работать только через опубликованную активную версию;
-- сгенерированный локально workflow `Шаблон_мультиканальный_KB-01_v0.3.json` использует другой промежуточный API и поэтому **не является каноническим и не должен импортироваться в n8n**.
+## KB-01R1 — inventory + mapping — **ГОТОВО**
 
-## Фактически применено в test Supabase
+Результат: `docs/KB-01R1_INVENTORY_MAPPING.md`.
 
-Только test schema; production не изменялась.
+Подтверждено, что:
+- `znaniya_dokumenty` только частично соответствует `dokumenty_znaniy`;
+- `znaniya_versii` смешивает upload/job/version/profile concerns;
+- `znaniya_fragmenty` только частично соответствует нормативному fragment;
+- значительная часть DB-04/DB-05 отсутствует;
+- B3 нельзя продолжать поверх B1/B2.
 
-1. `qbit_test_owner` получил `USAGE` на schema `extensions`.
-2. Созданы экспериментальные таблицы:
-   - `znaniya_dokumenty`;
-   - `znaniya_versii`;
-   - `znaniya_fragmenty` с `extensions.vector(1024)`.
-3. Добавлены FK активной версии и два индекса.
-4. Создана `kb01_postavit_dokument(jsonb)`:
-   - owner `qbit_test_owner`;
-   - `SECURITY DEFINER`;
-   - `EXECUTE` у `qbit_test_sluzhebnyy`;
-   - runtime VERIFIED: первый вызов `uspeshno / ozhidaet`, повтор по тому же idempotency key — `dublikat`; тест завершён `ROLLBACK`.
-5. Создана `kb01_zabrat_sleduyushchuyu_versiyu(jsonb)`:
-   - owner `qbit_test_owner`;
-   - `SECURITY DEFINER`;
-   - `EXECUTE` у `qbit_test_sluzhebnyy`;
-   - runtime VERIFIED: первый worker получает `v_rabote`, `nomer_vladeniya=1`, `popytki=1`; второй worker получает `net_zadaniya`; тест завершён `ROLLBACK`.
+## KB-01R2 — выбор пути — **ГОТОВО**
 
-## Что не сделано в experimental KB
+Read-only live verifier `KB-01R2_READ_ONLY_v0.1` подтвердил:
+- `znaniya_dokumenty` = 0;
+- `znaniya_versii` = 0;
+- `znaniya_fragmenty` = 0;
+- active/leased/error/fragmented = 0;
+- найдено ровно три experimental KB-таблицы и две B1/B2 функции;
+- дополнительных KB-объектов нет;
+- runtime service role не имеет прямого table DML/SELECT.
 
-- `kb01_sohranit_fragment(jsonb)` не создана.
-- функция публикации не создана.
-- функция ошибки не создана.
-- DB-05 поиск не реализован.
-- полномасштабный KB workflow в n8n не импортирован.
-- первая реальная `.md` загрузка не выполнялась.
-- экспериментальные таблицы/функции не признаны DB-04/DB-05.
+Выбран путь **recreate**. Решение: `docs/KB-01R2_DECISION.md`.
 
-## Подзадачи KB-01R
+## KB-01R3 — подготовка реализации recreate — **ГОТОВО К ОТДЕЛЬНОМУ ПРИМЕНЕНИЮ**
 
-### KB-01R1 — read-only инвентаризация и mapping — **ГОТОВО**
+Подготовлены:
 
-Результат: [KB-01R1_INVENTORY_MAPPING](KB-01R1_INVENTORY_MAPPING.md).
+1. `sql/DB-04_05_knowledge_recreate_test.sql` — **KB-01R3 v0.2**.
+2. `sql/DB-04_05_knowledge_verifier.sql` — **KB-01R3_VERIFIER v0.2**, READ ONLY.
+3. `sql/DB-04_05_knowledge_rollback_test.sql` — guarded emergency rollback, только пока новые KB-таблицы пустые.
+4. `docs/KB-01R3_RECREATE_ROLLBACK.md` — порядок применения и отката.
 
-Зафиксировано:
-- подтверждённый checkpoint-набор experimental таблиц/связей/индексов/функций;
-- field/role mapping к восьми нормативным DB-04 сущностям;
-- mapping B1/B2 к нормативным функциям DB-04/DB-05;
-- перечень отсутствующих DB-04/DB-05 объектов;
-- контрактные причины, почему B3 нельзя продолжать поверх текущей модели.
+Recreate SQL содержит:
+- preflight до destructive-части: test schema/owner, DB-03 prerequisites, pgvector/digest, точный experimental object set, `row_counts=0`, fingerprints B1/B2, отсутствие уже созданного нормативного DB-04;
+- DROP только подтверждённых experimental объектов, без `CASCADE`;
+- восемь нормативных DB-04 таблиц и необходимые FK/indexes/HNSW;
+- `zaregistrirovat_zagruzku_znaniy`, knowledge queue claim/lease/finish, version/profile/fragments/check functions;
+- DB-05 draft search, active-only bot search, atomic publish и admin revoke;
+- точечную EXECUTE matrix и отсутствие direct runtime table DML;
+- structural self-check до COMMIT.
 
-### KB-01R2 — выбрать безопасный путь — **ГОТОВО**
+Каноническая v0.2 дополнительно устранила технические риски первичной сборки: нет широкого revoke чужих sequences, PL/pgSQL conflict resolution зафиксирован, service-event repeats сверяются по content/metadata, queue учитывает active job того же document, profile fingerprint проверяет chunking параметры, fragment hash пересчитывается в БД.
 
-Read-only verifier:
+**Факт:** KB-01R3 подготовила файлы в GitHub. Никакой KB-01R3 SQL на сервер в этой задаче не запускался.
 
-`docs/evidence/KB-01/KB-01R2_READ_ONLY_INVENTORY_v0.1.sql`
+## KB-01R4 — test apply + structural verifier — **СЛЕДУЮЩАЯ ЗАДАЧА**
 
-Live-проверка 03.10.2026 подтвердила:
-- `znaniya_dokumenty` = 0 строк;
-- `znaniya_versii` = 0 строк;
-- `znaniya_fragmenty` = 0 строк;
-- active/leased/error/fragmented state counts = 0;
-- существуют ровно три experimental KB-таблицы и две функции B1/B2;
-- дополнительных KB-таблиц/функций verifier не обнаружил;
-- у `qbit_test_sluzhebnyy` нет прямого DML/SELECT к трём таблицам.
+После явной команды Павла на этот server-step:
 
-Выбран путь **recreate**:
-- данные мигрировать не требуется;
-- experimental-модель не переделывается на месте;
-- в KB-01R3 готовится безопасное удаление только подтверждённых experimental KB-объектов test schema и создание нормативного DB-04/DB-05 с нуля.
+1. проверить актуальный `main` HEAD;
+2. запустить целиком `sql/DB-04_05_knowledge_recreate_test.sql` только в test Supabase;
+3. принять только итог `status=applied`, `migration=KB-01R3_v0.2`;
+4. до каких-либо n8n/KB действий запустить целиком `sql/DB-04_05_knowledge_verifier.sql`;
+5. принять только `status=verified`, `verifier_version=KB-01R3_VERIFIER_v0.2`;
+6. при verifier failure и пустых новых таблицах использовать только подготовленный rollback-план; не импровизировать с DROP.
 
-Решение: [KB-01R2_DECISION](KB-01R2_DECISION.md).
+KB-01R4 не включает импорт n8n workflow, первую реальную загрузку документа или client RAG.
 
-KB-01R2 не давала разрешения выполнить destructive SQL: на сервере ничего не удалялось и нормативный DB-04/DB-05 ещё не применялся.
+## После KB-01R4
 
-### KB-01R3 — подготовить реализацию recreate — **СЛЕДУЮЩАЯ ЗАДАЧА**
+Отдельными задачами нужны runtime-проверки DB-04/DB-05: очередь/lease/fencing, duplicate semantics, fragments/profile, draft isolation, stale publish, atomic active switch, active-only search, revoke, а также фактическое подтверждение PRE-02E embedding dimension 1024.
 
-Подготовить, но не применять автоматически:
+## Постоянные запреты до applied + verified
 
-1. полный test-only SQL recreate;
-2. preflight, который до destructive-части проверяет schema, owner, точный набор experimental объектов, function fingerprints и `row_counts=0`;
-3. удаление только подтверждённых experimental B1/B2 и трёх experimental таблиц в безопасном порядке;
-4. создание нормативных объектов DB-04/DB-05 по `docs/specs/DB_CONTRACT.md` и `docs/specs/KNOWLEDGE_INGESTION.md`;
-5. grants/owners/SECURITY DEFINER/search_path по действующим правилам изоляции;
-6. отдельный verifier результата;
-7. rollback-план с чётким описанием, что можно откатить транзакционно и что должно быть восстановлено при неуспешной runtime-проверке.
-
-SQL не применять на сервер в момент подготовки без отдельного шага применения и проверки.
-
-## Ограничения до реализации KB-01R3
-
-- не продолжать B3;
+- не продолжать старый B3;
 - не импортировать `Шаблон_мультиканальный_KB-01_v0.3.json`;
-- не включать клиентский RAG;
+- не включать client RAG;
 - не менять production;
-- не удалять test KB-объекты вручную;
-- не применять evidence SQL повторно;
-- не считать подготовленный SQL применённым, пока нет фактического server result и verifier.
+- не запускать experimental evidence SQL повторно;
+- не считать подготовленный GitHub SQL применённым без server result.
 
-## Критерий готовности KB-01R
+## Критерий reconciliation preparation
 
-Есть:
-1. проверяемая таблица соответствия experimental и нормативных объектов — **готово в KB-01R1**;
-2. выбран путь migration/recreate — **готово в KB-01R2: recreate**;
-3. подготовлен полный SQL с verifier и rollback-планом — **ожидает KB-01R3**;
-4. `PROJECT_STATE` однозначно указывает следующий ID — **KB-01R3**.
+1. mapping experimental → normative — **готово KB-01R1**;
+2. выбран migration/recreate — **готово KB-01R2: recreate**;
+3. полный recreate SQL + verifier + rollback — **готово KB-01R3**;
+4. следующий server-step однозначен — **KB-01R4**.
