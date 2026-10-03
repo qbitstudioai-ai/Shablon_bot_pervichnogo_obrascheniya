@@ -6,11 +6,11 @@
 
 ## Подготовленные файлы
 
-1. `sql/DB-04_05_knowledge_recreate_test.sql` — полный test-only recreate experimental KB → нормативный DB-04/DB-05.
-2. `sql/DB-04_05_knowledge_verifier.sql` — обязательный read-only verifier после COMMIT.
+1. `sql/DB-04_05_knowledge_recreate_test.sql` — canonical **KB-01R3 v0.2**, полный test-only recreate experimental KB → нормативный DB-04/DB-05.
+2. `sql/DB-04_05_knowledge_verifier.sql` — read-only **KB-01R3_VERIFIER v0.2** после COMMIT.
 3. `sql/DB-04_05_knowledge_rollback_test.sql` — аварийный rollback к состоянию «KB отсутствует/выключена», только пока новые KB-таблицы пустые.
 
-## Что делает recreate
+## Что делает recreate v0.2
 
 В одной транзакции:
 
@@ -24,15 +24,26 @@
 - отзывает прямой доступ runtime-ролей к KB-таблицам и выдаёт только точечный `EXECUTE`;
 - выполняет structural self-check до COMMIT.
 
+После первичной сборки v0.1 файл был технически усилен до v0.2:
+
+- убран широкий `REVOKE` на все sequences schema; права меняются только у новой KB identity-sequence;
+- во всех прикладных PL/pgSQL-функциях зафиксировано разрешение конфликтов имён, а критические SQL-ссылки дополнительно квалифицированы alias;
+- повтор того же service event с другими bytes/metadata теперь даёт conflict, а не молчаливый duplicate;
+- claim очереди не пытается одновременно перевести второй job того же известного документа в `v_rabote`;
+- immutable profile сравнивает также chunking limits/overlap;
+- при сохранении fragment SQL сам сверяет SHA-256 точного `tekst_fragmenta`, размерность vector и max tokens профиля;
+- сохранённые результаты контрольных проверок не могут ссылаться на fragment другой версии.
+
 Если любая команда до `COMMIT` завершается ошибкой, PostgreSQL откатывает и DROP experimental-объектов, и создание новых объектов одной транзакцией. В этом случае отдельный rollback SQL не запускать.
 
-## Обязательный порядок после разрешения Павла на применение
+## Обязательный порядок после отдельного разрешения Павла на применение
 
-1. Открыть актуальный `sql/DB-04_05_knowledge_recreate_test.sql` из `main` и запустить файл целиком в test Supabase.
-2. Убедиться, что итоговый результат содержит `status=applied` и `migration=KB-01R3_v0.1`.
-3. Ничего не импортировать в n8n и не включать client RAG.
-4. Запустить целиком `sql/DB-04_05_knowledge_verifier.sql`.
-5. Только `status=verified` разрешает перейти к runtime-тестам DB-04/DB-05.
+1. Открыть актуальный `sql/DB-04_05_knowledge_recreate_test.sql` из `main` и проверить первую строку `KB-01R3 v0.2`.
+2. Запустить файл целиком в **test Supabase**.
+3. Убедиться, что итоговый результат содержит `status=applied` и `migration=KB-01R3_v0.2`.
+4. Ничего не импортировать в n8n и не включать client RAG.
+5. Запустить целиком `sql/DB-04_05_knowledge_verifier.sql`; первая строка должна быть `KB-01R3 verifier v0.2`.
+6. Только результат `status=verified` / `verifier_version=KB-01R3_VERIFIER_v0.2` разрешает перейти к отдельным runtime-тестам DB-04/DB-05.
 
 ## Rollback до COMMIT
 
