@@ -26,51 +26,79 @@ R1 зафиксировал несовпадение experimental KB с норм
 
 ## KB-01R5A — выполнено
 
-Файл runtime-probe:
+`sql/KB-01R5A_runtime_ingestion_queue_probe.sql` запущен в n8n через фактический Credential `qbit_test_sluzhebnyy`.
 
-`sql/KB-01R5A_runtime_ingestion_queue_probe.sql`
-
-Запущен в n8n Postgres node через фактический Credential `qbit_test_sluzhebnyy`.
-
-Фактический результат:
+PASS:
 
 `KB-01R5A_PASS ... attempts=2 fence1=1 fence2=2 rollback=guaranteed`
 
-Подтверждено:
-- durable service event create + duplicate;
-- knowledge upload create + duplicate;
-- same event + changed bytes → conflict;
-- первый claim → attempts=1, fence=1;
-- heartbeat текущего worker;
-- stale heartbeat чужого worker;
-- retry;
-- второй claim → attempts=2, fence=2;
-- stale finish старого worker;
-- успешный finish текущего worker;
-- после finish → `net_zadaniya`.
+Подтверждены ingestion/duplicate/conflict, claim, heartbeat, retry, fencing/stale worker и finish. Финальный intentional exception откатил синтетические строки.
 
-Финальный PASS exception намеренно откатил все синтетические строки statement, поэтому cleanup вручную не нужен.
+## KB-01R5B — выполнено
+
+При подготовке найден runtime API-gap: service workflow не мог получить внутренний UUID вопроса при запрещённом direct SELECT. Применён test-only backward-compatible patch:
+
+`sql/KB-01R5B_patch_question_number_test.sql`
+
+Server result:
+
+`KB-01R5B_PATCH_v0.1 applied`, `question_reference=vopros_id_or_nomer_voprosa`.
+
+Основной runtime probe:
+
+`sql/KB-01R5B_runtime_version_fragments_draft_probe.sql`
+
+PASS:
+
+`KB-01R5B_PASS ... fragments=2 questions=3 checks=3 status=gotova draft_search=verified rollback=guaranteed`
+
+Guards probe:
+
+`sql/KB-01R5B_runtime_guards_probe.sql` v0.2
+
+PASS:
+
+`KB-01R5B_GUARDS_PASS hash_guard=true dimension_guard=true token_guard=true profile_fingerprint_guard=true service_active_search_denied=true rollback=guaranteed`
+
+R5B runtime подтверждает:
+- version/profile creation;
+- synthetic `vector(1024)` storage;
+- fragment batch idempotency;
+- hash/dimension/token guards;
+- profile fingerprint immutability semantics;
+- 3 reference questions + 3 successful checks;
+- transition to `gotova`;
+- explicit draft search before publication;
+- service credential cannot call client active search.
+
+Оба probe откатили синтетические rows intentional PASS exception. PRE-02E с реальным OpenAI embedding остаётся отдельным.
 
 ## Следующая одна задача
 
-**KB-01R5B — version/profile/fragments/reference checks + draft search.**
+**KB-01R5C — publish concurrency + atomic active switch + bot active-only search + revoke.**
 
-Цель: runtime через фактический `qbit_test_sluzhebnyy` проверить подготовку версии, immutable profile, сохранение fragments, hash/vector/token guards, 3–10 контрольных вопросов, сохранение результатов проверок и draft-only search.
+Нужно проверить runtime на синтетических test-data:
+1. создать ready version и опубликовать её;
+2. подготовить следующую version того же logical document;
+3. проверить stale expected-active conflict;
+4. корректно опубликовать следующую version и подтвердить archive предыдущей + active switch;
+5. через реальный Credential `qbit_test_bot` доказать, что client search видит только active published version и не видит draft;
+6. проверить `otozvat_dokument_znaniy` через разрешённый `qbit_test_dash_admin` путь;
+7. подтвердить отсутствие лишних EXECUTE/DML прав.
 
-Для DB-теста использовать синтетический `vector(1024)`; не подключать OpenAI embeddings в эту задачу. PRE-02E остаётся отдельной задачей.
+По возможности сохранить быстрый формат: подготовительный service probe + отдельные короткие проверки реальными bot/dash credentials, с синтетическими данными и контролируемым rollback/cleanup.
 
-Не переходить автоматически к R5C.
+Не переходить автоматически к PRE-02E до закрытия R5C.
 
-## После R5B
+## После R5C
 
-- **KB-01R5C:** stale/parallel publish, atomic active switch, bot active-only search, revoke.
 - **PRE-02E:** фактический OpenAI embedding `dimensions=1024` в каноническом workflow.
 
 ## Запреты
 
 **Не продолжать старый B3.**
 **Не импортировать старый KB workflow.**
-**Не включать client RAG до нужных runtime-тестов.**
+**Не включать client RAG workflow до закрытия R5C.**
 **Не применять experimental evidence SQL повторно.**
 **Не менять production.**
 **Не запускать аварийный rollback после появления нужных KB-данных без отдельного плана сохранения.**
