@@ -20,7 +20,7 @@
 
 Git checkpoint 03.10.2026 основан на export `(6)`. Павел передал `Шаблон — служебный Telegram и перехват диалогов — версия 0.2 (7).json`.
 
-У `(7)` проверена топология: 189 nodes / 153 connection keys / 215 edges / inactive / duplicate names 0 / dangling 0. Поскольку Git manifest называл исходником именно `(6)`, `(7)` принят как более свежая фактическая основа. Raw SHA-256 `(7)`: `2ebd7d7b44e42fc941bb70bdc8e01ce44f9e5a1472beb653e7e4331e77da1fb3`. На нём подготовлен v0.4 KB-01A; большой JSON/checkpoint ещё не записан в Git.
+У `(7)` проверена топология: 189 nodes / 153 connection keys / 215 edges / inactive / duplicate names 0 / dangling 0. Поскольку Git manifest называл исходником именно `(6)`, `(7)` принят как более свежая фактическая основа. Raw SHA-256 `(7)`: `2ebd7d7b44e42fc941bb70bdc8e01ce44f9e5a1472beb653e7e4331e77da1fb3`. На нём подготовлен v0.4 KB-01A; точный checkpoint сохранён в Git в `workflows/checkpoints/2026-10-04_v0.4_KB-01A/`.
 
 Полный import-ready JSON подготовлен локально в этой сессии:
 
@@ -30,7 +30,7 @@ SHA-256 pretty JSON: `4bc5efda58a36634f7931618e22c4ebdacba8d6510357a2d53ad689664
 
 Подготовленный compact checkpoint SHA-256: `e9a196e03281704c6b08ae7512e7f3790317a22c5040e7a93a74e2e44b6fa26a`.
 
-**Важно:** из-за ограничения GitHub-коннектора большой локальный JSON/checkpoint ещё не записан в Git. Перед runtime помощник VSCode должен сохранить ровно этот файл в `workflows/`, создать `workflows/checkpoints/2026-10-04_v0.4_KB-01A/`, обновить restore script, проверить hashes и commit+push. Не пересобирать workflow с нуля.
+**Важно:** checkpoint v0.4 KB-01A уже сохранён в Git. `python tools/restore_workflow_checkpoint.py` восстанавливает полный import-ready JSON и проверяет SHA-256. Не пересобирать workflow с нуля.
 
 ## DB-04 / DB-05
 
@@ -78,7 +78,7 @@ SHA-256 pretty JSON: `4bc5efda58a36634f7931618e22c4ebdacba8d6510357a2d53ad689664
 
 Продолжить тот же ID `KB-01A`, не начинать KB-01B.
 
-1. Сначала убедиться, что помощник VSCode сохранил подготовленный v0.4 JSON/checkpoint в Git и SHA совпадает; затем импортировать JSON **неактивным**.
+1. Восстановить канонический v0.4 через `python tools/restore_workflow_checkpoint.py`, убедиться, что SHA совпадает, затем импортировать JSON **неактивным**.
 2. В UI n8n назначить существующие Credentials:
    - служебный Telegram — всем новым KB Telegram nodes;
    - `qbit_test_sluzhebnyy` — `Служебный_KB_Зарегистрировать загрузку`;

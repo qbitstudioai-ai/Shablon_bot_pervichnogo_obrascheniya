@@ -14,7 +14,7 @@
 
 Git checkpoint `workflows/checkpoints/2026-10-03_v0.3/` был сделан из фактического export `... версия 0.2 (6).json`. Павел передал более поздний файл `... версия 0.2 (7).json`. Его топология: 189 nodes / 153 connection keys / 215 edges / `active=false`; это совпадает с checkpoint по структуре, но manifest Git прямо фиксирует источником `(6)`, поэтому считать `(7)` уже сохранённым в репозитории было нельзя.
 
-Для продолжения `(7)` принят как фактическая новая исходная копия. Raw SHA-256 переданного `(7)`: `2ebd7d7b44e42fc941bb70bdc8e01ce44f9e5a1472beb653e7e4331e77da1fb3`. На его основе подготовлен очищенный v0.4 KB-01A; большой JSON/checkpoint ещё не записан в Git из-за ограничения текущего GitHub-коннектора. Сырый `(7)` с instance-specific Credential refs в Git не сохраняется.
+Для продолжения `(7)` принят как фактическая новая исходная копия. Raw SHA-256 переданного `(7)`: `2ebd7d7b44e42fc941bb70bdc8e01ce44f9e5a1472beb653e7e4331e77da1fb3`. На его основе подготовлен очищенный v0.4 KB-01A. Он сохранён в Git как точный gzip+base64 checkpoint `workflows/checkpoints/2026-10-04_v0.4_KB-01A/`; restore script восстанавливает полный import-ready JSON с проверкой SHA-256. Сырый `(7)` с instance-specific Credential refs в Git не сохраняется.
 
 ## DB-04 / DB-05 — фактическое состояние
 
@@ -45,7 +45,7 @@ Git checkpoint `workflows/checkpoints/2026-10-03_v0.3/` был сделан из
 KB-01/KB-02/KB-03 разбиты на:
 `KB-01A` → `KB-01B` → `KB-02A` → `KB-02B` → `KB-03A` → `KB-03B` → `KB-03C`.
 
-## KB-01A — реализация подготовлена, Git persistence и runtime ожидаются
+## KB-01A — реализация и Git persistence готовы, runtime ожидается
 
 Полный import-ready workflow создан в этой сессии из переданного `(7)`:
 
@@ -55,7 +55,7 @@ SHA-256 pretty JSON: `4bc5efda58a36634f7931618e22c4ebdacba8d6510357a2d53ad689664
 
 Compact JSON SHA-256 подготовленного checkpoint: `e9a196e03281704c6b08ae7512e7f3790317a22c5040e7a93a74e2e44b6fa26a`.
 
-Из-за ограничения текущего GitHub-коннектора большой локальный JSON/checkpoint **не записан в Git в этой сессии**. Нельзя считать его уже сохранённым в репозитории. Следующий обязательный технический шаг перед runtime — помощник VSCode копирует ровно подготовленный JSON, создаёт `workflows/checkpoints/2026-10-04_v0.4_KB-01A/`, обновляет restore script, проверяет hashes и делает commit+push.
+В Git сохранён точный checkpoint `workflows/checkpoints/2026-10-04_v0.4_KB-01A/`: 10 base64-частей gzip, `MANIFEST.md` и обновлённый `tools/restore_workflow_checkpoint.py`. Restore восстанавливает полный import-ready JSON и проверяет SHA-256 `4bc5efda58a36634f7931618e22c4ebdacba8d6510357a2d53ad689664c5f959`.
 
 Статически проверено:
 - 196 nodes;
@@ -83,7 +83,7 @@ KB-01A добавляет реальный intake `.md` через сущест�
 
 ## Почему KB-01A ещё не `[x]`
 
-По команде Павла реальный `.md` тест оставлен следующей сессии. До него нужно сначала сохранить подготовленный JSON/checkpoint в Git через помощника VSCode. Этот JSON не импортировался в n8n и server runtime не менялся.
+Реальный `.md` runtime-тест ещё не выполнен. JSON не импортировался в n8n и server runtime не менялся.
 
 Перед runtime-test Павел в n8n:
 - выбирает существующий служебный Telegram Credential для Telegram нод KB-01A;

@@ -20,7 +20,11 @@ DB-01, DB-02, DB-03/DB-03E и canonical schema `qbit_bot_pervichnogo_obrascheniy
 
 SHA-256 файла: `4bc5efda58a36634f7931618e22c4ebdacba8d6510357a2d53ad689664c5f959`.
 
-Из-за ограничения текущего GitHub-коннектора большой локальный JSON/checkpoint ещё не записан в Git. Помощник VSCode должен сохранить **ровно этот подготовленный файл** в `workflows/`, создать checkpoint `workflows/checkpoints/2026-10-04_v0.4_KB-01A/`, обновить restore script, проверить hashes и сделать commit+push. До этого Git-источником полного workflow остаётся checkpoint 03.10.2026 из `(6)`.
+Подготовленный KB-01A сохранён в Git как точный checkpoint:
+
+`workflows/checkpoints/2026-10-04_v0.4_KB-01A/`
+
+`python tools/restore_workflow_checkpoint.py` восстанавливает полный import-ready JSON `workflows/Шаблон — мультиканальный бот и служебный Telegram — версия 0.4 KB-01A.json` с SHA-256 `4bc5efda58a36634f7931618e22c4ebdacba8d6510357a2d53ad689664c5f959`. Предыдущий checkpoint 03.10.2026 сохранён для истории.
 
 Старый experimental `Шаблон_мультиканальный_KB-01_v0.3.json` не импортировать.
 
@@ -30,7 +34,7 @@ SHA-256 файла: `4bc5efda58a36634f7931618e22c4ebdacba8d6510357a2d53ad689664c
 
 Текущий ID: **KB-01A** — реальный приём `.md` через существующий служебный Telegram webhook до нормативного DB-04 upload + durable knowledge job.
 
-JSON подготовлен и статически проверен, но ещё не сохранён в Git и не импортирован. Сначала помощник VSCode должен сохранить ровно подготовленный файл/checkpoint и сделать commit+push; реальный import/runtime test с безопасным `.md` выполняется следующей сессией. KB-01A пока не закрыт.
+JSON подготовлен, статически проверен и сохранён в Git checkpoint. Он ещё не импортирован в n8n и не runtime-проверен реальным `.md`, поэтому KB-01A пока не закрыт.
 
 PRE-02E отдельно не тестируется: document embeddings OpenAI `text-embedding-3-large` с `dimensions=1024` будут встроены и runtime-проверены внутри того же канонического workflow на `KB-03A`.
 
