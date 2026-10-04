@@ -28,46 +28,77 @@ KB-01R1 выполнила mapping experimental KB к нормативному D
 
 04.10.2026 в n8n выполнен `sql/KB-01R5A_runtime_ingestion_queue_probe.sql` через фактический Postgres Credential `qbit_test_sluzhebnyy`.
 
-n8n вернул ожидаемую intentional error:
+Фактический PASS:
 
 `KB-01R5A_PASS ... attempts=2 fence1=1 fence2=2 rollback=guaranteed`
 
-Это подтверждает runtime под реальным служебным Credential:
-- durable service event registration;
-- service-event duplicate semantics;
-- knowledge upload creation;
-- upload duplicate с теми же IDs;
-- changed-content conflict;
-- первый claim: `popytki=1`, `nomer_vladeniya=1`;
-- heartbeat текущего worker;
-- stale heartbeat чужого worker;
-- retry;
-- второй claim: `popytki=2`, `nomer_vladeniya=2`;
-- stale finish старого worker;
-- успешный finish текущего worker;
-- после finish очередь возвращает `net_zadaniya`.
+Подтверждены durable service event, upload create/duplicate/conflict, claim, heartbeat, retry, fencing/stale worker и finish. Финальный PASS exception откатил синтетические строки.
 
-Финальный PASS exception намеренно откатил весь statement, поэтому синтетические service event/upload/job не сохранились.
+## KB-01R5B — version/profile/fragments/reference checks + draft search VERIFIED
+
+04.10.2026 сначала применён test-only patch:
+
+`sql/KB-01R5B_patch_question_number_test.sql`
+
+Результат: `KB-01R5B_PATCH_v0.1 applied`. Patch обратно-совместимо разрешил `sohranit_proverki_znaniy` принимать `nomer_voprosa` вместо необходимости узнавать скрытый внутренний UUID вопроса; прежний `vopros_id` сохранён.
+
+Основной runtime probe:
+
+`sql/KB-01R5B_runtime_version_fragments_draft_probe.sql`
+
+Фактический PASS:
+
+`KB-01R5B_PASS ... fragments=2 questions=3 checks=3 status=gotova draft_search=verified rollback=guaranteed`
+
+Подтверждены:
+- подготовка logical document/version;
+- index profile `razmernost=1024`;
+- сохранение двух fragments и идемпотентный повтор batch;
+- version-scoped draft search с ожидаемым fragment и cosine similarity;
+- 3 контрольных вопроса;
+- 3 успешные проверки по `nomer_voprosa`;
+- переход draft version в `gotova`;
+- draft search после `gotova` до публикации.
+
+Дополнительный guards probe:
+
+`sql/KB-01R5B_runtime_guards_probe.sql` v0.2
+
+Фактический PASS:
+
+`KB-01R5B_GUARDS_PASS hash_guard=true dimension_guard=true token_guard=true profile_fingerprint_guard=true service_active_search_denied=true rollback=guaranteed`
+
+Подтверждены отрицательные защиты:
+- неверный fragment hash отклоняется;
+- неправильная размерность vector отклоняется;
+- превышение max token count отклоняется;
+- один profile fingerprint нельзя переиспользовать с другим profile/model;
+- `qbit_test_sluzhebnyy` не может вызывать клиентский `poisk_aktivnyh_znaniy`.
+
+Оба runtime probe завершались intentional exception и откатили синтетические строки. Фактический OpenAI embedding всё ещё отдельно проверяется в PRE-02E.
 
 ## Что ещё не проверено
 
-- version/profile/fragments/reference checks;
-- draft isolation/search;
 - stale/parallel publish и atomic active switch;
-- bot active-only search;
-- admin revoke;
+- bot active-only search через реальный `qbit_test_bot` Credential;
+- dash_admin revoke;
 - PRE-02E OpenAI embedding `dimensions=1024`.
 
 Реальная `.md` база компании не загружалась. Client RAG не включался. Production не менялась.
 
 ## Текущая одна задача
 
-**KB-01R5B — runtime-проверить version/profile/fragments/reference checks + draft search.**
+**KB-01R5C — runtime-проверить publish concurrency, atomic active switch, bot active-only search и admin revoke.**
 
-Для DB-поведения допустимы синтетические `vector(1024)`. Фактический OpenAI embedding отдельно проверяется в PRE-02E.
+Цель R5C:
+- подготовить синтетические ready versions;
+- доказать stale/expected-active protection при публикации;
+- доказать атомарное переключение active version и архивирование предыдущей;
+- проверить `poisk_aktivnyh_znaniy` через фактический Credential `qbit_test_bot`;
+- подтвердить, что draft не попадает в client active search;
+- проверить `otozvat_dokument_znaniy` через разрешённый `dash_admin` API и отсутствие лишних прав.
 
-Следующие этапы, не начинать автоматически:
-- **KB-01R5C** — publish concurrency/active-only search/revoke;
+Следующий этап после R5C, не начинать автоматически:
 - **PRE-02E** — фактический OpenAI embedding `dimensions=1024` в каноническом workflow.
 
 ## Ограничения
@@ -75,6 +106,6 @@ n8n вернул ожидаемую intentional error:
 - Production не изменялась.
 - Старый B3 не продолжать.
 - Старый KB workflow не импортировать.
-- Client RAG не включать до нужных runtime-тестов.
+- Client RAG не включать до завершения R5C.
 - Experimental evidence SQL повторно не запускать.
 - `sql/DB-04_05_knowledge_rollback_test.sql` теперь только аварийный rollback; после появления нужных KB-данных его нельзя запускать без отдельного плана сохранения.
