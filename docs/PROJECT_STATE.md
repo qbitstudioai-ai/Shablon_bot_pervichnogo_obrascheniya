@@ -18,61 +18,55 @@
 
 Старый experimental `Шаблон_мультиканальный_KB-01_v0.3.json` **не импортировать**.
 
-## KB-01R1…R3
+## KB-01R1…R4
 
-KB-01R1 выполнила mapping experimental KB к нормативному DB-04/DB-05. KB-01R2 live read-only инвентаризация подтвердила нулевые row counts и выбрала путь **recreate**. KB-01R3 подготовила canonical test-only recreate `KB-01R3 v0.2`, verifier и guarded rollback.
+KB-01R1 выполнила mapping experimental KB к нормативному DB-04/DB-05. KB-01R2 выбрала recreate. KB-01R3 подготовила canonical recreate `KB-01R3 v0.2`. KB-01R4 применила его в test Supabase и structurally verified через `KB-01R4_VERIFIER_v0.4_NO_ROLE_SWITCH`.
 
-## KB-01R4 — applied + structurally verified
+Подтверждено: experimental KB отсутствует; нормативные DB-04/DB-05 созданы; owners/search_path/SECURITY DEFINER/EXECUTE matrix корректны; direct runtime table DML запрещён; `vector(1024)` + HNSW и integrity triggers присутствуют. Production не менялась.
 
-04.10.2026 Павел запустил `sql/DB-04_05_knowledge_recreate_test.sql` в test Supabase.
+## KB-01R5A — runtime ingestion + queue VERIFIED
 
-Фактический результат:
-- `status=applied`;
-- `migration=KB-01R3_v0.2`;
-- schema `qbit_bot_pervichnogo_obrascheniya`.
+04.10.2026 в n8n выполнен `sql/KB-01R5A_runtime_ingestion_queue_probe.sql` через фактический Postgres Credential `qbit_test_sluzhebnyy`.
 
-Experimental B1/B2 и три experimental KB-таблицы больше не являются live test state. На их месте создан нормативный DB-04/DB-05.
+n8n вернул ожидаемую intentional error:
 
-Первый verifier с `SET ROLE qbit_test_sluzhebnyy` не смог переключить роль (`42501`). Эта ошибка была только в verifier и не откатывала уже committed recreate. Для проверки без изменения membership создан `sql/DB-04_05_knowledge_verifier_v0.4_no_role_switch.sql`.
+`KB-01R5A_PASS ... attempts=2 fence1=1 fence2=2 rollback=guaranteed`
 
-Фактический успешный verifier `KB-01R4_VERIFIER_v0.4_NO_ROLE_SWITCH` подтвердил:
-- `status=verified`;
-- experimental objects absent;
-- normative tables present and empty;
-- owners OK;
-- SECURITY DEFINER/search_path OK;
-- PUBLIC EXECUTE denied;
-- direct runtime table DML denied;
-- EXECUTE matrix OK;
-- `vector(1024)` + HNSW OK;
-- integrity triggers OK;
-- role switch не использовался.
+Это подтверждает runtime под реальным служебным Credential:
+- durable service event registration;
+- service-event duplicate semantics;
+- knowledge upload creation;
+- upload duplicate с теми же IDs;
+- changed-content conflict;
+- первый claim: `popytki=1`, `nomer_vladeniya=1`;
+- heartbeat текущего worker;
+- stale heartbeat чужого worker;
+- retry;
+- второй claim: `popytki=2`, `nomer_vladeniya=2`;
+- stale finish старого worker;
+- успешный finish текущего worker;
+- после finish очередь возвращает `net_zadaniya`.
 
-Evidence: `docs/evidence/KB-01/KB-01R4_APPLIED_VERIFIED_2026-10-04.md`.
+Финальный PASS exception намеренно откатил весь statement, поэтому синтетические service event/upload/job не сохранились.
 
 ## Что ещё не проверено
 
-Structural verifier **не** проверял выполнение функций через реальные n8n Postgres Credentials. Также не подтверждён PRE-02E OpenAI embedding `dimensions=1024`.
-
-Пока отдельно не проверены:
-- service ingestion и duplicate semantics;
-- queue claim/lease/fencing/retry;
 - version/profile/fragments/reference checks;
 - draft isolation/search;
 - stale/parallel publish и atomic active switch;
 - bot active-only search;
-- admin revoke.
+- admin revoke;
+- PRE-02E OpenAI embedding `dimensions=1024`.
 
 Реальная `.md` база компании не загружалась. Client RAG не включался. Production не менялась.
 
 ## Текущая одна задача
 
-**KB-01R5A — runtime-проверить ingestion и knowledge queue под реальным Credential `qbit_test_sluzhebnyy`, используя только синтетические test-данные и завершая тест откатом/очисткой согласно подготовленному сценарию.**
+**KB-01R5B — runtime-проверить version/profile/fragments/reference checks + draft search.**
 
-Цель KB-01R5A: доказать реальное выполнение `zaregistrirovat_zagruzku_znaniy`, duplicate/conflict semantics, `zabrat_zadanie_znaniy`, lease/fencing и корректное завершение/retry без перехода к embeddings/publish.
+Для DB-поведения допустимы синтетические `vector(1024)`. Фактический OpenAI embedding отдельно проверяется в PRE-02E.
 
-Следующие подэтапы после R5A, не начинать автоматически:
-- **KB-01R5B** — version/profile/fragments/reference checks + draft search;
+Следующие этапы, не начинать автоматически:
 - **KB-01R5C** — publish concurrency/active-only search/revoke;
 - **PRE-02E** — фактический OpenAI embedding `dimensions=1024` в каноническом workflow.
 
@@ -83,4 +77,4 @@ Structural verifier **не** проверял выполнение функци�
 - Старый KB workflow не импортировать.
 - Client RAG не включать до нужных runtime-тестов.
 - Experimental evidence SQL повторно не запускать.
-- `sql/DB-04_05_knowledge_rollback_test.sql` теперь является только аварийным rollback; после появления реальных/нужных KB-данных его нельзя запускать без отдельного плана.
+- `sql/DB-04_05_knowledge_rollback_test.sql` теперь только аварийный rollback; после появления нужных KB-данных его нельзя запускать без отдельного плана сохранения.
