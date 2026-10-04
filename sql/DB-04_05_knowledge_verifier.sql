@@ -1,6 +1,10 @@
--- KB-01R3 verifier v0.2: normative DB-04/DB-05 structural/access/compile verification
+-- KB-01R3 verifier v0.3: normative DB-04/DB-05 structural/access/compile verification
 -- READ ONLY. Run only AFTER DB-04_05_knowledge_recreate_test.sql reports applied.
 -- No production objects are referenced.
+-- Runtime-role permissions are verified from catalogs; compile probes run from the trusted
+-- SQL session and enter the SECURITY DEFINER functions as qbit_test_owner.
+-- This intentionally does NOT SET ROLE: the trusted postgres SQL session is not required
+-- to be a member of qbit_test_bot/qbit_test_sluzhebnyy/qbit_test_dash_admin.
 
 BEGIN READ ONLY;
 SET LOCAL statement_timeout='180s';
@@ -123,6 +127,7 @@ BEGIN
         RAISE EXCEPTION 'PUBLIC EXECUTE leaked on upload registration';
     END IF;
 
+    -- Exact runtime role matrix is verified from PostgreSQL ACL catalogs.
     IF NOT pg_catalog.has_function_privilege('qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.poisk_aktivnyh_znaniy(jsonb)','EXECUTE') THEN RAISE EXCEPTION 'bot lacks active RAG'; END IF;
     IF pg_catalog.has_function_privilege('qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.poisk_chernovika_znaniy(jsonb)','EXECUTE')
        OR pg_catalog.has_function_privilege('qbit_test_bot','qbit_bot_pervichnogo_obrascheniya.opublikovat_versiyu_znaniy(jsonb)','EXECUTE') THEN RAISE EXCEPTION 'bot can access draft/publish'; END IF;
@@ -137,8 +142,11 @@ BEGIN
 END
 $verify$;
 
--- Compile/runtime-entry probes under actual roles. READ ONLY + invalid inputs ensure no row can be created.
-SET LOCAL ROLE qbit_test_sluzhebnyy;
+-- Compile/runtime-entry probes.
+-- The caller remains the trusted postgres SQL session because that session is not
+-- intentionally a member of the runtime roles. ACL correctness for those roles was
+-- checked above. Every function is SECURITY DEFINER and the invalid input below exits
+-- before an application write; the whole verifier is READ ONLY and ends in ROLLBACK.
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_zagruzku_znaniy('{}'::jsonb,NULL::bytea) LIMIT 1;
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.zabrat_zadanie_znaniy('{}'::jsonb) LIMIT 1;
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.prodlit_arendu_zadaniya_znaniy('{}'::jsonb) LIMIT 1;
@@ -149,20 +157,13 @@ SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.sohranit_kontrolnye_vopro
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.sohranit_proverki_znaniy('{}'::jsonb) LIMIT 1;
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.poisk_chernovika_znaniy('{}'::jsonb) LIMIT 1;
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.opublikovat_versiyu_znaniy('{}'::jsonb) LIMIT 1;
-RESET ROLE;
-
-SET LOCAL ROLE qbit_test_bot;
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.poisk_aktivnyh_znaniy('{}'::jsonb) LIMIT 1;
-RESET ROLE;
-
-SET LOCAL ROLE qbit_test_dash_admin;
 SELECT rezultat FROM qbit_bot_pervichnogo_obrascheniya.otozvat_dokument_znaniy('{}'::jsonb) LIMIT 1;
-RESET ROLE;
 
 SELECT jsonb_build_object(
     'db04_05_verifier_result',jsonb_build_object(
         'status','verified',
-        'verifier_version','KB-01R3_VERIFIER_v0.2',
+        'verifier_version','KB-01R3_VERIFIER_v0.3',
         'schema','qbit_bot_pervichnogo_obrascheniya',
         'experimental_objects_absent',true,
         'normative_tables_present',true,
@@ -172,7 +173,8 @@ SELECT jsonb_build_object(
         'runtime_direct_dml_denied',true,
         'execute_matrix_ok',true,
         'vector_1024_hnsw_ok',true,
-        'compile_probes_ok',true,
+        'compile_probes_trusted_session_ok',true,
+        'role_switch_required',false,
         'production_untouched_informational',true
     )
 ) AS db04_05_verifier_result;
