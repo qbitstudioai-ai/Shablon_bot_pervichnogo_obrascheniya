@@ -4,27 +4,45 @@
 
 ## Статус и границы
 
-Реализация test-контура разрешена. DB-01, DB-02, DB-03/DB-03E и rename qBit schema были завершены ранее. Checkpoint 03.10.2026 зафиксировал последний фактический workflow и остановил дальнейшую реализацию KB до сверки с нормативным DB-04/DB-05.
+Реализация test-контура разрешена. Production, рабочий трафик и рабочие данные не меняются без отдельного явного разрешения Павла.
 
-Последний фактический workflow Павла сохранён в очищенном виде как точный checkpoint:
+DB-01, DB-02, DB-03/DB-03E и canonical schema `qbit_bot_pervichnogo_obrascheniya` завершены ранее. Нормативные DB-04/DB-05 после KB-01R4/R5 также существуют в test и runtime-проверены для текущего bot/service контура. Старые `[ ] DB-04/DB-05` в `WORKPLAN_TEMPLATE.md` — отставшая сводная отметка, а не текущее фактическое состояние.
 
-`workflows/checkpoints/2026-10-03_v0.3/`
+Текущая работа — реальный knowledge workflow поверх полного фактического workflow, без отдельного skeleton.
 
-Внутри — gzip+base64 части и `MANIFEST.md`; восстановление в обычный import-ready JSON выполняет `tools/restore_workflow_checkpoint.py`. Старый canonical workflow v0.2 удалён из текущего дерева, чтобы его не принять за актуальный. История остаётся в Git.
+## Канонический workflow
 
-03.10.2026 в test schema была экспериментально применена часть KB-01 (таблицы + B1/B2). Runtime B1/B2 проверен служебной ролью, но после сверки обнаружено расхождение с нормативным DB-04/DB-05. Поэтому ранее сгенерированный KB workflow в n8n **не импортируется**, B3 остановлен, а текущая задача — [KB-01R](docs/KB-01_RECONCILIATION_PLAN.md).
+Павел передал более поздний фактический export `(7)`, тогда как checkpoint 03.10.2026 был сделан из `(6)`. `(7)` принят как более свежая фактическая основа.
 
-Supabase один. Компании используют разные schema одной PostgreSQL. Production, рабочий трафик и production schema/roles не меняются без отдельного разрешения Павла.
+В этой сессии подготовлен полный очищенный import-ready файл:
+
+`Шаблон — мультиканальный бот и служебный Telegram — версия 0.4 KB-01A.json`
+
+SHA-256 файла: `4bc5efda58a36634f7931618e22c4ebdacba8d6510357a2d53ad689664c5f959`.
+
+Из-за ограничения текущего GitHub-коннектора большой локальный JSON/checkpoint ещё не записан в Git. Помощник VSCode должен сохранить **ровно этот подготовленный файл** в `workflows/`, создать checkpoint `workflows/checkpoints/2026-10-04_v0.4_KB-01A/`, обновить restore script, проверить hashes и сделать commit+push. До этого Git-источником полного workflow остаётся checkpoint 03.10.2026 из `(6)`.
+
+Старый experimental `Шаблон_мультиканальный_KB-01_v0.3.json` не импортировать.
+
+## Активная задача
+
+Активный план: [KB-WF](docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md).
+
+Текущий ID: **KB-01A** — реальный приём `.md` через существующий служебный Telegram webhook до нормативного DB-04 upload + durable knowledge job.
+
+JSON подготовлен и статически проверен, но ещё не сохранён в Git и не импортирован. Сначала помощник VSCode должен сохранить ровно подготовленный файл/checkpoint и сделать commit+push; реальный import/runtime test с безопасным `.md` выполняется следующей сессией. KB-01A пока не закрыт.
+
+PRE-02E отдельно не тестируется: document embeddings OpenAI `text-embedding-3-large` с `dimensions=1024` будут встроены и runtime-проверены внутри того же канонического workflow на `KB-03A`.
 
 ## С чего начинает новая сессия
 
 1. [Инструкция ChatGPT](docs/CHATGPT_INSTRUCTIONS.md).
 2. [Текущее состояние](docs/PROJECT_STATE.md).
-3. [Активный план KB-01R](docs/KB-01_RECONCILIATION_PLAN.md) и при необходимости [общий план](docs/WORKPLAN_TEMPLATE.md).
-4. [Правила передачи](docs/SESSION_HANDOFF.md).
-5. Только документы, необходимые для одной выбранной задачи.
+3. [Активный план KB-WF](docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md).
+4. [Передача](docs/SESSION_HANDOFF.md).
+5. Только спецификации, необходимые текущему ID.
 
-Одна задача — одна сессия — один проверяемый результат. GitHub хранит файлы и подтверждения; факт наличия файла не означает, что он применён на сервере.
+Одна небольшая задача — одна сессия. Наличие JSON или SQL в Git не означает, что он импортирован, применён на сервере или runtime-проверен.
 
 ## Карта документации
 
@@ -38,7 +56,8 @@ Supabase один. Компании используют разные schema о�
 | CORE и RAG | [BOT_CORE_WORKFLOW](docs/specs/BOT_CORE_WORKFLOW.md) |
 | Операторский Telegram | [OPERATOR_HANDOFF](docs/specs/OPERATOR_HANDOFF.md) |
 | Загрузка знаний | [KNOWLEDGE_INGESTION](docs/specs/KNOWLEDGE_INGESTION.md), [MARKDOWN_FORMAT](docs/specs/MARKDOWN_FORMAT.md) |
-| Текущая сверка KB | [KB-01R](docs/KB-01_RECONCILIATION_PLAN.md), [evidence](docs/KB-01_APPLIED_TEST_STATE_2026-10-03.md) |
+| Активная реализация knowledge workflow | [KB-WF](docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md) |
+| Завершённая сверка DB-04/DB-05 | [KB-01R](docs/KB-01_RECONCILIATION_PLAN.md), [evidence](docs/evidence/KB-01/) |
 | Передача между сессиями | [SESSION_HANDOFF](docs/SESSION_HANDOFF.md) |
 
-Реальные документы компаний, переписки, секреты и дампы БД в этот публичный репозиторий не загружаются.
+Реальные документы компаний, переписки, секреты и дампы БД в публичный репозиторий не загружаются.
