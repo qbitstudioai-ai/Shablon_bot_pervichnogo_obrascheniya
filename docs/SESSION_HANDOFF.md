@@ -1,17 +1,14 @@
 # SESSION HANDOFF
 
-Обновлено: 2026-10-03.
+Обновлено: 2026-10-04.
 
 ## Исходная точка
 
 Рабочая ветка: `main`.
 
-Checkpoint до reconciliation:
-`bb729507ba1ccfc33e2a93c009b37fd3010df191` — `checkpoint KB-01 state and current workflow`.
+На старте новой сессии сначала проверить актуальный `main` HEAD и прочитать `docs/PROJECT_STATE.md` + `docs/KB-01_RECONCILIATION_PLAN.md`.
 
-KB-01R1, KB-01R2 и подготовка KB-01R3 выполнены после checkpoint. Новая сессия сначала проверяет актуальный `main` HEAD и читает `docs/PROJECT_STATE.md` + `docs/KB-01_RECONCILIATION_PLAN.md`.
-
-## Workflow
+## Workflow checkpoint
 
 Последний фактический workflow Павла сохранён как очищенный checkpoint:
 
@@ -21,56 +18,76 @@ KB-01R1, KB-01R2 и подготовка KB-01R3 выполнены после c
 
 Старый `Шаблон_мультиканальный_KB-01_v0.3.json` не импортировать.
 
-## Experimental KB live state перед recreate
+## KB-01R1/R2/R3
 
-KB-01R2 read-only verifier 03.10.2026 подтвердил в test schema:
-- `znaniya_dokumenty` = 0 строк;
-- `znaniya_versii` = 0 строк;
-- `znaniya_fragmenty` = 0 строк;
-- active/leased/error/fragmented = 0;
-- ровно три experimental tables;
-- ровно две functions B1/B2;
-- B1 definition md5 `56654d3112113f99acda41df4a53b8e8`;
-- B2 definition md5 `4ea8ce93b420723239fbe6fabec868ed`;
-- service role не имеет direct table DML/SELECT.
+R1 зафиксировал несовпадение experimental KB с нормативным DB-04/DB-05. R2 live read-only проверка подтвердила пустые experimental таблицы и выбрала recreate. R3 подготовил canonical recreate `KB-01R3 v0.2`, verifier и rollback.
 
-Решение KB-01R2: **recreate**.
+## KB-01R4 — выполнено
 
-## KB-01R3 — подготовлено, но не applied
+04.10.2026 Павел применил в test Supabase:
 
-Canonical files в `main`:
+`sql/DB-04_05_knowledge_recreate_test.sql`
 
-- `sql/DB-04_05_knowledge_recreate_test.sql` — **KB-01R3 v0.2**;
-- `sql/DB-04_05_knowledge_verifier.sql` — **KB-01R3_VERIFIER v0.2**;
-- `sql/DB-04_05_knowledge_rollback_test.sql` — rollback только пока новые KB tables пустые;
-- `docs/KB-01R3_RECREATE_ROLLBACK.md` — применение/rollback.
+Фактический результат:
+- `status=applied`;
+- `migration=KB-01R3_v0.2`;
+- schema `qbit_bot_pervichnogo_obrascheniya`.
 
-Recreate v0.2 перед DROP повторно проверяет live state, fingerprints и `row_counts=0`; при расхождении останавливается. DROP выполняется без CASCADE и только по подтверждённому experimental набору. Всё находится в одной транзакции: ошибка до COMMIT восстанавливает старое состояние автоматически.
+После COMMIT experimental B1/B2 и три experimental KB-таблицы больше не являются live state; создан нормативный DB-04/DB-05.
 
-Нормативный набор создаёт восемь DB-04 tables и DB-05 API: durable knowledge queue/lease/fencing, immutable profile, fragment vectors 1024, reference checks, draft search, bot active-only search, atomic publish и dash_admin revoke. Runtime roles не получают прямой table DML.
+Первые verifier-попытки упирались в `SET ROLE qbit_test_sluzhebnyy` (`42501`), потому что trusted SQL-session не является членом runtime-роли. DB-04/DB-05 из-за этого не менялся.
 
-**На сервере эти файлы ещё не запускались.** Experimental B1/B2 и три experimental tables пока остаются фактическим test состоянием.
+Успешная structural проверка выполнена файлом:
+
+`sql/DB-04_05_knowledge_verifier_v0.4_no_role_switch.sql`
+
+Результат:
+- `status=verified`;
+- `verifier_version=KB-01R4_VERIFIER_v0.4_NO_ROLE_SWITCH`;
+- `experimental_objects_absent=true`;
+- `normative_tables_present_and_empty=true`;
+- `owners_ok=true`;
+- `security_definer_and_search_path_ok=true`;
+- `public_execute_denied=true`;
+- `runtime_direct_dml_denied=true`;
+- `execute_matrix_ok=true`;
+- `vector_1024_hnsw_ok=true`;
+- `integrity_triggers_ok=true`;
+- `role_switch_used=false`;
+- `runtime_execution_under_credentials_tested_here=false`.
+
+Evidence:
+`docs/evidence/KB-01/KB-01R4_APPLIED_VERIFIED_2026-10-04.md`.
+
+## Фактическое состояние test DB сейчас
+
+- Нормативный DB-04/DB-05 создан и structurally verified.
+- Восемь новых KB-таблиц на момент verifier пустые.
+- Experimental KB отсутствует.
+- Прямой DML/SELECT runtime-ролей к KB-таблицам запрещён.
+- EXECUTE matrix структурно подтверждена.
+- Production не менялась.
 
 ## Следующая одна задача
 
-**KB-01R4 — применить recreate v0.2 в test Supabase и сразу выполнить structural verifier v0.2.**
+**KB-01R5A — runtime ingestion + knowledge queue через реальный Credential `qbit_test_sluzhebnyy`.**
 
-После явной команды Павла:
+Цель:
+1. зарегистрировать только синтетическую test `.md` загрузку через `zaregistrirovat_zagruzku_znaniy`;
+2. проверить same-event duplicate и changed-content conflict;
+3. claim job через `zabrat_zadanie_znaniy`;
+4. проверить heartbeat lease;
+5. проверить fencing/stale worker;
+6. проверить retry/finish semantics;
+7. завершить тест в заранее контролируемом состоянии без перехода к embeddings/publish.
 
-1. проверить актуальный `main` HEAD;
-2. открыть `sql/DB-04_05_knowledge_recreate_test.sql` именно из `main`; первая строка должна быть `KB-01R3 v0.2`;
-3. запустить весь файл один раз в test Supabase;
-4. прислать полный результат; ожидание: `status=applied`, `migration=KB-01R3_v0.2`;
-5. если applied — до любых n8n/KB действий запустить весь `sql/DB-04_05_knowledge_verifier.sql`; первая строка `KB-01R3 verifier v0.2`;
-6. ожидание verifier: `status=verified`, `verifier_version=KB-01R3_VERIFIER_v0.2`;
-7. если recreate упал до COMMIT — отдельный rollback не запускать;
-8. если recreate committed, но verifier failed и новые KB tables всё ещё пустые — следовать `docs/KB-01R3_RECREATE_ROLLBACK.md`, не делать ручных DROP.
+Это должна быть одна небольшая runtime-задача. Не переходить автоматически к R5B/R5C.
 
-KB-01R4 не включает импорт n8n, первую реальную `.md` загрузку или включение client RAG.
+## После R5A
 
-## После structural verification
-
-Нужны отдельные runtime-тесты DB-04/DB-05 и фактическое PRE-02E подтверждение OpenAI embedding `dimensions=1024`. Structural verifier не заменяет эти проверки.
+- **KB-01R5B:** version/profile/fragments/reference checks + draft search.
+- **KB-01R5C:** stale/parallel publish, atomic active switch, active-only bot search, revoke.
+- **PRE-02E:** отдельно подтвердить фактический OpenAI embedding `dimensions=1024` в каноническом workflow.
 
 ## Запреты
 
@@ -79,11 +96,4 @@ KB-01R4 не включает импорт n8n, первую реальную `.
 **Не включать client RAG до нужных runtime-тестов.**
 **Не применять experimental evidence SQL повторно.**
 **Не менять production.**
-
-## Evidence / решения
-
-- `docs/KB-01_APPLIED_TEST_STATE_2026-10-03.md`
-- `docs/KB-01R1_INVENTORY_MAPPING.md`
-- `docs/KB-01R2_DECISION.md`
-- `docs/KB-01R3_RECREATE_ROLLBACK.md`
-- `docs/evidence/KB-01/KB-01R2_READ_ONLY_INVENTORY_v0.1.sql`
+**Не запускать аварийный rollback после появления нужных KB-данных без отдельного плана сохранения.**
