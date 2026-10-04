@@ -1,88 +1,62 @@
 # KB-01R — сверка и исправление experimental KB → нормативный DB-04/DB-05
 
-Статус: **reconciliation применена и structurally verified в test; следующий этап — runtime validation**.
+Статус: **reconciliation применена; structural verification и runtime R5A завершены; следующий этап — KB-01R5B**.
 
-## Исходное расхождение
+## KB-01R1 — inventory + mapping — ГОТОВО
 
-03.10.2026 в test schema `qbit_bot_pervichnogo_obrascheniya` были экспериментально созданы три KB-таблицы и две SECURITY DEFINER-функции B1/B2. После сверки выяснилось, что промежуточный контракт не совпадает с нормативным DB-04/DB-05.
+Зафиксировано структурное несовпадение experimental и нормативной моделей; старый B3 поверх B1/B2 продолжать нельзя.
 
-Старый локально сгенерированный workflow `Шаблон_мультиканальный_KB-01_v0.3.json` под этот API не является каноническим и не импортируется.
+## KB-01R2 — выбор пути — ГОТОВО
 
-## KB-01R1 — inventory + mapping — **ГОТОВО**
+Live read-only verifier подтвердил нулевые row counts и отсутствие дополнительных KB-объектов. Выбран путь **recreate**.
 
-Результат: `docs/KB-01R1_INVENTORY_MAPPING.md`.
+## KB-01R3 — подготовка recreate — ГОТОВО
 
-Подтверждено структурное несовпадение experimental и нормативной моделей; B3 поверх B1/B2 продолжать нельзя.
+Подготовлены canonical recreate `KB-01R3 v0.2`, guarded rollback и verifier.
 
-## KB-01R2 — выбор пути — **ГОТОВО**
+## KB-01R4 — test apply + structural verifier — ГОТОВО
 
-Live read-only verifier подтвердил нулевые row counts и отсутствие дополнительных KB-объектов. Выбран путь **recreate**, а не migration-on-place.
+04.10.2026 recreate v0.2 применён в test Supabase. Финальная structural проверка выполнена `sql/DB-04_05_knowledge_verifier_v0.4_no_role_switch.sql`.
 
-Решение: `docs/KB-01R2_DECISION.md`.
-
-## KB-01R3 — подготовка recreate — **ГОТОВО**
-
-Подготовлены:
-
-1. `sql/DB-04_05_knowledge_recreate_test.sql` — canonical **KB-01R3 v0.2**.
-2. `sql/DB-04_05_knowledge_rollback_test.sql` — guarded emergency rollback.
-3. исходные verifier-файлы и отдельный verifier без role switching.
-4. `docs/KB-01R3_RECREATE_ROLLBACK.md` — порядок применения и отката.
-
-## KB-01R4 — test apply + structural verifier — **ГОТОВО**
-
-04.10.2026 recreate v0.2 применён в test Supabase.
-
-Server result:
-- `status=applied`;
-- `migration=KB-01R3_v0.2`;
-- schema `qbit_bot_pervichnogo_obrascheniya`.
-
-Первый verifier с `SET ROLE` выявил только ограничение trusted SQL-session: `postgres` не может `SET ROLE qbit_test_sluzhebnyy`. Сам DB-04/DB-05 к этому моменту уже был committed.
-
-Финальная structural проверка выполнена отдельным файлом:
-
-`sql/DB-04_05_knowledge_verifier_v0.4_no_role_switch.sql`
-
-Результат `KB-01R4_VERIFIER_v0.4_NO_ROLE_SWITCH`:
-- `status=verified`;
-- experimental objects absent;
-- normative tables present and empty;
-- owners/SECURITY DEFINER/search_path OK;
-- PUBLIC EXECUTE denied;
-- runtime direct table DML denied;
-- EXECUTE matrix OK;
-- vector(1024) + HNSW OK;
-- integrity triggers OK;
-- role switching не использовался.
-
-Evidence: `docs/evidence/KB-01/KB-01R4_APPLIED_VERIFIED_2026-10-04.md`.
-
-## Reconciliation result
-
-Structural reconciliation experimental KB → normative DB-04/DB-05 **завершена**. Старые experimental B1/B2 и таблицы больше не являются live test-состоянием.
-
-Это не означает полного runtime завершения KB-01: verifier не выполнял API через фактические n8n Credentials и не проверял OpenAI embeddings.
+Подтверждено: experimental objects absent; нормативные таблицы присутствуют; owners/SECURITY DEFINER/search_path и EXECUTE matrix корректны; direct runtime table DML запрещён; `vector(1024)` + HNSW и integrity triggers присутствуют.
 
 ## KB-01R5 — runtime validation
 
-Чтобы не делать один большой тест, runtime validation разделяется на три небольшие задачи.
+### KB-01R5A — ingestion + knowledge queue — ГОТОВО
 
-### KB-01R5A — **СЛЕДУЮЩАЯ ЗАДАЧА**
+04.10.2026 выполнен `sql/KB-01R5A_runtime_ingestion_queue_probe.sql` в n8n Postgres node через фактический Credential `qbit_test_sluzhebnyy`.
 
-Проверить под фактическим Credential `qbit_test_sluzhebnyy`:
-- регистрацию синтетической `.md` загрузки;
-- duplicate и conflict semantics;
-- claim knowledge job;
-- lease heartbeat;
-- fencing/stale worker;
-- retry/finish semantics.
+Ожидаемый итог:
 
-Тест не включает embeddings, publish или client RAG. Синтетические данные должны быть удалены/откачены по заранее определённому test-сценарию, не ручным произвольным DELETE.
+`KB-01R5A_PASS ... attempts=2 fence1=1 fence2=2 rollback=guaranteed`
 
-### KB-01R5B — после R5A
+Runtime подтверждены:
+- durable service event registration и duplicate semantics;
+- knowledge upload create/duplicate/conflict;
+- claim;
+- heartbeat;
+- stale worker rejection;
+- retry;
+- повторный claim с увеличением attempts и fencing;
+- stale finish старого worker;
+- finish текущего worker;
+- `net_zadaniya` после finish.
 
-Version/profile/fragments/reference checks + draft-only search. Для DB-поведения допустимы синтетические vector(1024); фактический OpenAI embedding проверяется отдельно PRE-02E.
+Финальный intentional exception откатил все синтетические строки этого statement.
+
+### KB-01R5B — СЛЕДУЮЩАЯ ЗАДАЧА
+
+Проверить под фактическим `qbit_test_sluzhebnyy`:
+- `podgotovit_versiyu_znaniy`;
+- immutable index profile semantics;
+- batch `sohranit_fragmenty_znaniy`;
+- fragment hash/vector dimension/token checks;
+- `sohranit_kontrolnye_voprosy`;
+- `sohranit_proverki_znaniy`;
+- draft-only `poisk_chernovika_znaniy`;
+- изоляцию draft от active/client search.
+
+Для DB runtime допустим синтетический `vector(1024)`. Фактический OpenAI embedding отдельно проверяется PRE-02E.
 
 ### KB-01R5C — после R5B
 
@@ -90,7 +64,7 @@ Stale/parallel publish, atomic active switch, bot active-only search и dash_adm
 
 ## Отдельная зависимость PRE-02E
 
-Фактическая длина embedding `text-embedding-3-large` с `dimensions=1024` должна быть подтверждена в каноническом OpenAI workflow. Structural DB verifier этого не доказывает.
+Фактическая длина embedding `text-embedding-3-large` с `dimensions=1024` должна быть подтверждена в каноническом OpenAI workflow. DB runtime с синтетическим vector этого не заменяет.
 
 ## Постоянные ограничения
 
