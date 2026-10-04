@@ -20,92 +20,82 @@
 
 ## KB-01R1…R4
 
-KB-01R1 выполнила mapping experimental KB к нормативному DB-04/DB-05. KB-01R2 выбрала recreate. KB-01R3 подготовила canonical recreate `KB-01R3 v0.2`. KB-01R4 применила его в test Supabase и structurally verified через `KB-01R4_VERIFIER_v0.4_NO_ROLE_SWITCH`.
+R1 выполнил mapping experimental KB к нормативному DB-04/DB-05. R2 выбрал recreate. R3 подготовил canonical recreate `KB-01R3 v0.2`. R4 применил его в test Supabase и structurally verified через `KB-01R4_VERIFIER_v0.4_NO_ROLE_SWITCH`.
 
 Подтверждено: experimental KB отсутствует; нормативные DB-04/DB-05 созданы; owners/search_path/SECURITY DEFINER/EXECUTE matrix корректны; direct runtime table DML запрещён; `vector(1024)` + HNSW и integrity triggers присутствуют. Production не менялась.
 
-## KB-01R5A — runtime ingestion + queue VERIFIED
+## KB-01R5A — VERIFIED
 
-04.10.2026 в n8n выполнен `sql/KB-01R5A_runtime_ingestion_queue_probe.sql` через фактический Postgres Credential `qbit_test_sluzhebnyy`.
+`sql/KB-01R5A_runtime_ingestion_queue_probe.sql` выполнен через фактический `qbit_test_sluzhebnyy`.
 
-Фактический PASS:
+PASS: `KB-01R5A_PASS ... attempts=2 fence1=1 fence2=2 rollback=guaranteed`.
 
-`KB-01R5A_PASS ... attempts=2 fence1=1 fence2=2 rollback=guaranteed`
+Подтверждены durable service event, upload create/duplicate/conflict, claim, heartbeat, retry, fencing/stale worker и finish.
 
-Подтверждены durable service event, upload create/duplicate/conflict, claim, heartbeat, retry, fencing/stale worker и finish. Финальный PASS exception откатил синтетические строки.
+## KB-01R5B — VERIFIED
 
-## KB-01R5B — version/profile/fragments/reference checks + draft search VERIFIED
+Применён test-only backward-compatible patch `sql/KB-01R5B_patch_question_number_test.sql`: `sohranit_proverki_znaniy` принимает `vopros_id` или `nomer_voprosa`.
 
-04.10.2026 сначала применён test-only patch:
-
-`sql/KB-01R5B_patch_question_number_test.sql`
-
-Результат: `KB-01R5B_PATCH_v0.1 applied`. Patch обратно-совместимо разрешил `sohranit_proverki_znaniy` принимать `nomer_voprosa` вместо необходимости узнавать скрытый внутренний UUID вопроса; прежний `vopros_id` сохранён.
-
-Основной runtime probe:
-
-`sql/KB-01R5B_runtime_version_fragments_draft_probe.sql`
-
-Фактический PASS:
+Основной PASS:
 
 `KB-01R5B_PASS ... fragments=2 questions=3 checks=3 status=gotova draft_search=verified rollback=guaranteed`
 
-Подтверждены:
-- подготовка logical document/version;
-- index profile `razmernost=1024`;
-- сохранение двух fragments и идемпотентный повтор batch;
-- version-scoped draft search с ожидаемым fragment и cosine similarity;
-- 3 контрольных вопроса;
-- 3 успешные проверки по `nomer_voprosa`;
-- переход draft version в `gotova`;
-- draft search после `gotova` до публикации.
-
-Дополнительный guards probe:
-
-`sql/KB-01R5B_runtime_guards_probe.sql` v0.2
-
-Фактический PASS:
+Guards PASS:
 
 `KB-01R5B_GUARDS_PASS hash_guard=true dimension_guard=true token_guard=true profile_fingerprint_guard=true service_active_search_denied=true rollback=guaranteed`
 
-Подтверждены отрицательные защиты:
-- неверный fragment hash отклоняется;
-- неправильная размерность vector отклоняется;
-- превышение max token count отклоняется;
-- один profile fingerprint нельзя переиспользовать с другим profile/model;
-- `qbit_test_sluzhebnyy` не может вызывать клиентский `poisk_aktivnyh_znaniy`.
+Фактический OpenAI embedding всё ещё отдельно проверяется в PRE-02E.
 
-Оба runtime probe завершались intentional exception и откатили синтетические строки. Фактический OpenAI embedding всё ещё отдельно проверяется в PRE-02E.
+## KB-01R5C — publish + active-only search VERIFIED
 
-## Что ещё не проверено
+04.10.2026 runtime-проверка выполнена на синтетическом logical document через реальные n8n Credentials.
 
-- stale/parallel publish и atomic active switch;
-- bot active-only search через реальный `qbit_test_bot` Credential;
-- dash_admin revoke;
-- PRE-02E OpenAI embedding `dimensions=1024`.
+Service (`qbit_test_sluzhebnyy`):
 
-Реальная `.md` база компании не загружалась. Client RAG не включался. Production не менялась.
+- `KB-01R5C_PHASE1_v0.1` → `v1_published`;
+- `KB-01R5C_PHASE2A_v0.1` → `v2_v3_ready`;
+- `KB-01R5C_PHASE2B_v0.1` → `v2_published_v3_stale`;
+- stale V3 → `konflikt / stale_expected_active`;
+- V2 стала active, V1 архивирована.
+
+Bot (`qbit_test_bot`):
+
+`KB-01R5C_BOT_v0.2 status=verified`
+
+Подтверждено:
+- `active_v2_found=true`;
+- `archived_v1_hidden=true`;
+- `unpublished_v3_hidden=true`;
+- `draft_search_denied=true`.
+
+Синтетические данные затем удалены guarded cleanup:
+
+`KB-01R5C_CLEANUP_v0.3 status=cleaned`
+
+Удалено 3 versions, 3 uploads, 3 jobs, 3 events, 3 fragments, 9 questions, 9 checks. Production не затрагивалась.
+
+Evidence: `docs/evidence/KB-01/KB-01R5C_RUNTIME_VERIFIED_2026-10-04.md`.
+
+Ранний `sql/KB-01R5C_service_publish_prepare.sql` помечен `OBSOLETE_DO_NOT_RUN`: несколько успешных active-switch внутри одной SQL transaction не моделируют обычный n8n runtime.
+
+## KB-01R5D — dash_admin runtime revoke — DEFERRED
+
+Отдельный n8n Credential `qbit_test_dash_admin` сейчас не создан; в n8n фактически есть только bot и service Credentials. Структурная EXECUTE matrix dash_admin уже проверена в R4, но реальный runtime revoke не объявляется проверенным.
+
+`KB-01R5D` выполнить на этапе подключения dashboard, когда появится фактический dash_admin connection. Создавать третий n8n Credential только ради текущего теста не требуется.
 
 ## Текущая одна задача
 
-**KB-01R5C — runtime-проверить publish concurrency, atomic active switch, bot active-only search и admin revoke.**
+**PRE-02E — подтвердить фактический OpenAI embedding `text-embedding-3-large` с `dimensions=1024` в каноническом workflow.**
 
-Цель R5C:
-- подготовить синтетические ready versions;
-- доказать stale/expected-active protection при публикации;
-- доказать атомарное переключение active version и архивирование предыдущей;
-- проверить `poisk_aktivnyh_znaniy` через фактический Credential `qbit_test_bot`;
-- подтвердить, что draft не попадает в client active search;
-- проверить `otozvat_dokument_znaniy` через разрешённый `dash_admin` API и отсутствие лишних прав.
-
-Следующий этап после R5C, не начинать автоматически:
-- **PRE-02E** — фактический OpenAI embedding `dimensions=1024` в каноническом workflow.
+PRE-02E не считать выполненной по синтетическим vectors DB-проверок: нужен фактический OpenAI runtime результат.
 
 ## Ограничения
 
 - Production не изменялась.
 - Старый B3 не продолжать.
 - Старый KB workflow не импортировать.
-- Client RAG не включать до завершения R5C.
+- Client RAG пока не включать до проверки PRE-02E.
 - Experimental evidence SQL повторно не запускать.
-- `sql/DB-04_05_knowledge_rollback_test.sql` теперь только аварийный rollback; после появления нужных KB-данных его нельзя запускать без отдельного плана сохранения.
+- `sql/KB-01R5C_service_publish_prepare.sql` не запускать.
+- `sql/DB-04_05_knowledge_rollback_test.sql` использовать только как аварийный rollback по отдельному плану.

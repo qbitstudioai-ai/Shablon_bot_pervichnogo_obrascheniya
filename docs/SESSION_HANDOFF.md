@@ -6,11 +6,11 @@
 
 Рабочая ветка: `main`.
 
-На старте следующей сессии сначала проверить актуальный `main` HEAD и прочитать `docs/PROJECT_STATE.md` + `docs/KB-01_RECONCILIATION_PLAN.md`.
+На старте следующей сессии проверить актуальный `main` HEAD и прочитать `README.md`, `docs/PROJECT_STATE.md`, `docs/SESSION_HANDOFF.md`, `docs/KB-01_RECONCILIATION_PLAN.md` и `docs/PRE-02E_OPENAI_PROFILE.md`.
 
 ## Workflow checkpoint
 
-Последний фактический workflow Павла сохранён как очищенный checkpoint:
+Последний фактический workflow Павла:
 
 `workflows/checkpoints/2026-10-03_v0.3/`
 
@@ -20,85 +20,75 @@
 
 ## KB-01R1…R4
 
-R1 зафиксировал несовпадение experimental KB с нормативным DB-04/DB-05. R2 выбрал recreate. R3 подготовил canonical recreate `KB-01R3 v0.2`. R4 применил его в test Supabase и structurally verified через `KB-01R4_VERIFIER_v0.4_NO_ROLE_SWITCH`.
-
-Нормативный DB-04/DB-05 является live test state. Production не менялась.
+R1 mapping → R2 recreate decision → R3 canonical recreate → R4 test apply + structural verifier. Нормативный DB-04/DB-05 является live test state. Production не менялась.
 
 ## KB-01R5A — выполнено
 
-`sql/KB-01R5A_runtime_ingestion_queue_probe.sql` запущен в n8n через фактический Credential `qbit_test_sluzhebnyy`.
-
-PASS:
+PASS через фактический `qbit_test_sluzhebnyy`:
 
 `KB-01R5A_PASS ... attempts=2 fence1=1 fence2=2 rollback=guaranteed`
 
-Подтверждены ingestion/duplicate/conflict, claim, heartbeat, retry, fencing/stale worker и finish. Финальный intentional exception откатил синтетические строки.
-
 ## KB-01R5B — выполнено
 
-При подготовке найден runtime API-gap: service workflow не мог получить внутренний UUID вопроса при запрещённом direct SELECT. Применён test-only backward-compatible patch:
-
-`sql/KB-01R5B_patch_question_number_test.sql`
-
-Server result:
-
-`KB-01R5B_PATCH_v0.1 applied`, `question_reference=vopros_id_or_nomer_voprosa`.
-
-Основной runtime probe:
-
-`sql/KB-01R5B_runtime_version_fragments_draft_probe.sql`
+Test-only patch `sql/KB-01R5B_patch_question_number_test.sql` разрешил `sohranit_proverki_znaniy` принимать `vopros_id` или `nomer_voprosa`.
 
 PASS:
 
 `KB-01R5B_PASS ... fragments=2 questions=3 checks=3 status=gotova draft_search=verified rollback=guaranteed`
 
-Guards probe:
-
-`sql/KB-01R5B_runtime_guards_probe.sql` v0.2
-
-PASS:
+Guards PASS:
 
 `KB-01R5B_GUARDS_PASS hash_guard=true dimension_guard=true token_guard=true profile_fingerprint_guard=true service_active_search_denied=true rollback=guaranteed`
 
-R5B runtime подтверждает:
-- version/profile creation;
-- synthetic `vector(1024)` storage;
-- fragment batch idempotency;
-- hash/dimension/token guards;
-- profile fingerprint immutability semantics;
-- 3 reference questions + 3 successful checks;
-- transition to `gotova`;
-- explicit draft search before publication;
-- service credential cannot call client active search.
+## KB-01R5C — выполнено для текущего bot/service runtime
 
-Оба probe откатили синтетические rows intentional PASS exception. PRE-02E с реальным OpenAI embedding остаётся отдельным.
+Service `qbit_test_sluzhebnyy`:
+
+- `KB-01R5C_PHASE1_v0.1` → V1 published;
+- `KB-01R5C_PHASE2A_v0.1` → V2/V3 ready;
+- `KB-01R5C_PHASE2B_v0.1` → V2 published, V3 stale conflict;
+- `stale_expected_active` подтверждён;
+- active switch V1→V2 и archive предыдущей версии подтверждены.
+
+Bot `qbit_test_bot`:
+
+`KB-01R5C_BOT_v0.2 status=verified`
+
+Подтверждено: active V2 видна, archived V1 скрыта, unpublished V3 скрыта, draft-search denied.
+
+Cleanup:
+
+`KB-01R5C_CLEANUP_v0.3 status=cleaned`
+
+Удалено 3 versions, 3 uploads, 3 jobs, 3 events, 3 fragments, 9 questions, 9 checks. Production не затрагивалась.
+
+Evidence: `docs/evidence/KB-01/KB-01R5C_RUNTIME_VERIFIED_2026-10-04.md`.
+
+`sql/KB-01R5C_service_publish_prepare.sql` теперь только tombstone `OBSOLETE_DO_NOT_RUN`.
+
+## KB-01R5D — отложено до dashboard stage
+
+В n8n сейчас существуют только два фактических Postgres Credentials: bot и service. Отдельный `qbit_test_dash_admin` Credential не создавался.
+
+Поэтому runtime revoke через `otozvat_dokument_znaniy` не объявляется проверенным. Structural EXECUTE matrix dash_admin уже проверена R4. Когда начнётся dashboard stage и появится реальный dash_admin connection, выполнить отдельную задачу `KB-01R5D`.
 
 ## Следующая одна задача
 
-**KB-01R5C — publish concurrency + atomic active switch + bot active-only search + revoke.**
+**PRE-02E — фактический OpenAI embedding `text-embedding-3-large` с `dimensions=1024` в каноническом workflow.**
 
-Нужно проверить runtime на синтетических test-data:
-1. создать ready version и опубликовать её;
-2. подготовить следующую version того же logical document;
-3. проверить stale expected-active conflict;
-4. корректно опубликовать следующую version и подтвердить archive предыдущей + active switch;
-5. через реальный Credential `qbit_test_bot` доказать, что client search видит только active published version и не видит draft;
-6. проверить `otozvat_dokument_znaniy` через разрешённый `qbit_test_dash_admin` путь;
-7. подтвердить отсутствие лишних EXECUTE/DML прав.
+В начале следующей сессии:
 
-По возможности сохранить быстрый формат: подготовительный service probe + отдельные короткие проверки реальными bot/dash credentials, с синтетическими данными и контролируемым rollback/cleanup.
-
-Не переходить автоматически к PRE-02E до закрытия R5C.
-
-## После R5C
-
-- **PRE-02E:** фактический OpenAI embedding `dimensions=1024` в каноническом workflow.
+1. проверить `main` HEAD;
+2. прочитать `docs/PRE-02E_OPENAI_PROFILE.md`;
+3. не считать synthetic `vector(1024)` доказательством OpenAI dimensions;
+4. работать только с checkpoint `workflows/checkpoints/2026-10-03_v0.3/`;
+5. не включать client RAG и не менять production без отдельного разрешения.
 
 ## Запреты
 
 **Не продолжать старый B3.**
 **Не импортировать старый KB workflow.**
-**Не включать client RAG workflow до закрытия R5C.**
+**Не запускать `sql/KB-01R5C_service_publish_prepare.sql`.**
 **Не применять experimental evidence SQL повторно.**
 **Не менять production.**
 **Не запускать аварийный rollback после появления нужных KB-данных без отдельного плана сохранения.**
