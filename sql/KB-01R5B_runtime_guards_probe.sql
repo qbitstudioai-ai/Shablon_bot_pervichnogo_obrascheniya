@@ -1,4 +1,4 @@
--- KB-01R5B guards probe v0.1
+-- KB-01R5B guards probe v0.2
 -- RUN ONLY from n8n Postgres node using Credential: qbit_test_sluzhebnyy.
 -- REQUIRES: KB-01R5B_PATCH_v0.1 applied.
 -- Synthetic data only. Final KB-01R5B_GUARDS_PASS is intentional and rolls back everything.
@@ -14,7 +14,7 @@ DECLARE
     v_active_search_denied boolean := false;
     v_profile_fp text := pg_catalog.repeat('d',64);
     v_text text := 'KB-01R5B guard fragment';
-    v_hash text := '12621089387f5071525a59cb9db45fae195ad4d67ce1ea6620c77a08d2f06397';
+    v_hash text := 'cb53a80710d8c5d1bbd8e2cf681774c0f75c802a93c1dd05359433ac0090f199';
     r_event1 record;
     r_upload1 record;
     r_claim1 record;
@@ -28,7 +28,6 @@ BEGIN
       INTO v_vec1024
       FROM pg_catalog.generate_series(1,1024) AS g(i);
 
-    -- First synthetic upload/job/version creates the profile used by guard tests.
     SELECT * INTO r_event1
     FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_sluzhebnoe_sobytie(
         pg_catalog.jsonb_build_object(
@@ -106,7 +105,6 @@ BEGIN
         RAISE EXCEPTION 'KB-01R5B_GUARDS_FAIL step=version1 result=% code=%',r_version1.rezultat,r_version1.kod_oshibki;
     END IF;
 
-    -- Wrong fragment hash must be rejected.
     BEGIN
         PERFORM *
         FROM qbit_bot_pervichnogo_obrascheniya.sohranit_fragmenty_znaniy(
@@ -131,7 +129,6 @@ BEGIN
     END;
     IF NOT v_bad_hash_seen THEN RAISE EXCEPTION 'KB-01R5B_GUARDS_FAIL step=bad_hash_not_rejected'; END IF;
 
-    -- Wrong vector dimension must be rejected.
     BEGIN
         PERFORM *
         FROM qbit_bot_pervichnogo_obrascheniya.sohranit_fragmenty_znaniy(
@@ -156,7 +153,6 @@ BEGIN
     END;
     IF NOT v_bad_dim_seen THEN RAISE EXCEPTION 'KB-01R5B_GUARDS_FAIL step=bad_dimension_not_rejected'; END IF;
 
-    -- Token count above profile max must be rejected.
     BEGIN
         PERFORM *
         FROM qbit_bot_pervichnogo_obrascheniya.sohranit_fragmenty_znaniy(
@@ -181,7 +177,6 @@ BEGIN
     END;
     IF NOT v_bad_tokens_seen THEN RAISE EXCEPTION 'KB-01R5B_GUARDS_FAIL step=bad_tokens_not_rejected'; END IF;
 
-    -- Second upload/job reuses the same profile fingerprint with different model.
     SELECT * INTO r_event2
     FROM qbit_bot_pervichnogo_obrascheniya.zaregistrirovat_sluzhebnoe_sobytie(
         pg_catalog.jsonb_build_object(
@@ -260,7 +255,6 @@ BEGIN
         RAISE EXCEPTION 'KB-01R5B_GUARDS_FAIL step=profile_fingerprint result=% code=%',r_profile_conflict.rezultat,r_profile_conflict.kod_oshibki;
     END IF;
 
-    -- Actual service credential must not be allowed to call client active RAG API.
     BEGIN
         PERFORM * FROM qbit_bot_pervichnogo_obrascheniya.poisk_aktivnyh_znaniy(
             pg_catalog.jsonb_build_object(
