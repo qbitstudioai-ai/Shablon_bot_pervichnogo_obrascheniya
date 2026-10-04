@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-10-03.
+Обновлено: 2026-10-04.
 
 ## Режим
 
@@ -16,72 +16,71 @@
 
 Проверено до упаковки: 189 нод, 153 connection keys, 215 edges, `active=false`, duplicate names 0, dangling connections 0; credentials/instance ID/реальный ID служебной группы удалены. SHA-256 восстановленного compact JSON: `ca563ebb985be8d3b3f08d6525634b7d623abef7840a617bfbbaf9bdb36ef2f7`.
 
-Старый canonical workflow v0.2 удалён из текущего дерева; история остаётся в Git. Старый сгенерированный `Шаблон_мультиканальный_KB-01_v0.3.json` **не импортировать**.
+Старый experimental `Шаблон_мультиканальный_KB-01_v0.3.json` **не импортировать**.
 
-## Experimental KB checkpoint
+## KB-01R1…R3
 
-03.10.2026 в test schema были экспериментально созданы:
-- `znaniya_dokumenty`;
-- `znaniya_versii`;
-- `znaniya_fragmenty`;
-- `kb01_postavit_dokument(jsonb)`;
-- `kb01_zabrat_sleduyushchuyu_versiyu(jsonb)`.
+KB-01R1 выполнила mapping experimental KB к нормативному DB-04/DB-05. KB-01R2 live read-only инвентаризация подтвердила нулевые row counts и выбрала путь **recreate**. KB-01R3 подготовила canonical test-only recreate `KB-01R3 v0.2`, verifier и guarded rollback.
 
-B1/B2 ранее runtime VERIFIED служебной ролью, но контракт признан несовместимым с нормативным DB-04/DB-05. B3 не продолжался. Production не менялась.
+## KB-01R4 — applied + structurally verified
 
-## KB-01R1 — mapping завершён
+04.10.2026 Павел запустил `sql/DB-04_05_knowledge_recreate_test.sql` в test Supabase.
 
-`docs/KB-01R1_INVENTORY_MAPPING.md` зафиксировал, что experimental модель смешивает загрузку, durable job, версию и часть index profile; нормативные контрольные вопросы, проверки и DB-05 publish/search/revoke отсутствуют. Продолжать B3 поверх B1/B2 нельзя.
+Фактический результат:
+- `status=applied`;
+- `migration=KB-01R3_v0.2`;
+- schema `qbit_bot_pervichnogo_obrascheniya`.
 
-## KB-01R2 — выбран recreate
+Experimental B1/B2 и три experimental KB-таблицы больше не являются live test state. На их месте создан нормативный DB-04/DB-05.
 
-Live read-only `KB-01R2_READ_ONLY_v0.1` подтвердил:
-- все три experimental KB-таблицы содержат 0 строк;
-- active/leased/error/fragmented counts = 0;
-- существуют ровно три experimental таблицы и две B1/B2 функции;
-- дополнительных KB-объектов не обнаружено;
-- у `qbit_test_sluzhebnyy` нет прямого DML/SELECT к этим таблицам.
+Первый verifier с `SET ROLE qbit_test_sluzhebnyy` не смог переключить роль (`42501`). Эта ошибка была только в verifier и не откатывала уже committed recreate. Для проверки без изменения membership создан `sql/DB-04_05_knowledge_verifier_v0.4_no_role_switch.sql`.
 
-Решение: **recreate**, а не migration-on-place. Подробности: `docs/KB-01R2_DECISION.md`.
+Фактический успешный verifier `KB-01R4_VERIFIER_v0.4_NO_ROLE_SWITCH` подтвердил:
+- `status=verified`;
+- experimental objects absent;
+- normative tables present and empty;
+- owners OK;
+- SECURITY DEFINER/search_path OK;
+- PUBLIC EXECUTE denied;
+- direct runtime table DML denied;
+- EXECUTE matrix OK;
+- `vector(1024)` + HNSW OK;
+- integrity triggers OK;
+- role switch не использовался.
 
-## KB-01R3 — реализация подготовлена
+Evidence: `docs/evidence/KB-01/KB-01R4_APPLIED_VERIFIED_2026-10-04.md`.
 
-Подготовлены и сохранены в `main`, но **не применены на Supabase**:
+## Что ещё не проверено
 
-- `sql/DB-04_05_knowledge_recreate_test.sql` — canonical recreate **KB-01R3 v0.2**;
-- `sql/DB-04_05_knowledge_verifier.sql` — read-only verifier **KB-01R3_VERIFIER v0.2**;
-- `sql/DB-04_05_knowledge_rollback_test.sql` — guarded rollback к состоянию «KB отсутствует» пока новые таблицы пустые;
-- `docs/KB-01R3_RECREATE_ROLLBACK.md` — порядок применения и отката.
+Structural verifier **не** проверял выполнение функций через реальные n8n Postgres Credentials. Также не подтверждён PRE-02E OpenAI embedding `dimensions=1024`.
 
-Recreate v0.2:
-- перед DROP повторно сверяет пустоту experimental tables, точный набор объектов и fingerprints B1/B2;
-- не использует `CASCADE`;
-- в одной транзакции удаляет только подтверждённый experimental KB и создаёт нормативные восемь DB-04 таблиц и DB-05 API;
-- реализует durable queue/lease/fencing, immutable index profile, fragments `vector(1024)`, reference checks, draft search, active-only bot search, atomic publish и admin revoke;
-- не выдаёт runtime-ролям прямой доступ к KB-таблицам;
-- ограничивает изменения sequence только новой KB identity-sequence;
-- при ошибке до COMMIT транзакционно возвращает исходное состояние.
+Пока отдельно не проверены:
+- service ingestion и duplicate semantics;
+- queue claim/lease/fencing/retry;
+- version/profile/fragments/reference checks;
+- draft isolation/search;
+- stale/parallel publish и atomic active switch;
+- bot active-only search;
+- admin revoke.
 
-Отдельный verifier проверяет владельцев, отсутствие experimental объектов, HNSW/vector(1024), права и компиляционный вход всех прикладных функций под реальными runtime-ролями в READ ONLY транзакции.
-
-**Важно:** GitHub-файлы созданы; на сервере experimental KB пока остаётся как была. DB-04/DB-05 ещё не applied и не verified.
+Реальная `.md` база компании не загружалась. Client RAG не включался. Production не менялась.
 
 ## Текущая одна задача
 
-**KB-01R4 — применить `KB-01R3 v0.2` только в test Supabase и сразу выполнить `KB-01R3_VERIFIER v0.2`.**
+**KB-01R5A — runtime-проверить ingestion и knowledge queue под реальным Credential `qbit_test_sluzhebnyy`, используя только синтетические test-данные и завершая тест откатом/очисткой согласно подготовленному сценарию.**
 
-Это отдельный server-step. До него:
-- не запускать recreate SQL самостоятельно;
-- не удалять experimental объекты вручную;
-- не импортировать старый KB workflow;
-- не включать client RAG;
-- production не менять.
+Цель KB-01R5A: доказать реальное выполнение `zaregistrirovat_zagruzku_znaniy`, duplicate/conflict semantics, `zabrat_zadanie_znaniy`, lease/fencing и корректное завершение/retry без перехода к embeddings/publish.
 
-После `applied + verified` отдельной задачей понадобятся runtime-тесты DB-04/DB-05 и подтверждение PRE-02E embedding 1024; факт structural verifier сам по себе их не заменяет.
+Следующие подэтапы после R5A, не начинать автоматически:
+- **KB-01R5B** — version/profile/fragments/reference checks + draft search;
+- **KB-01R5C** — publish concurrency/active-only search/revoke;
+- **PRE-02E** — фактический OpenAI embedding `dimensions=1024` в каноническом workflow.
 
 ## Ограничения
 
 - Production не изменялась.
-- GitHub push и применение SQL на сервер — разные факты.
-- Реальные документы компаний, переписки, пароли, токены и дампы БД в репозиторий не сохраняются.
-- Experimental evidence SQL из `docs/evidence/KB-01/` не запускать повторно.
+- Старый B3 не продолжать.
+- Старый KB workflow не импортировать.
+- Client RAG не включать до нужных runtime-тестов.
+- Experimental evidence SQL повторно не запускать.
+- `sql/DB-04_05_knowledge_rollback_test.sql` теперь является только аварийным rollback; после появления реальных/нужных KB-данных его нельзя запускать без отдельного плана.
