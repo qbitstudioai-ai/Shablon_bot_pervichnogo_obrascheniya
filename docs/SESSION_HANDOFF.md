@@ -1,105 +1,96 @@
 # SESSION HANDOFF
 
-Обновлено: 2026-10-04.
+Обновлено: 2026-10-05.
 
 ## Исходная точка
 
 Рабочая ветка: `main`.
 
-Исходный HEAD перед KB-01A: `9e02ad48d5de5438b3690b717ea331ef395f5227`.
+KB-01A завершён и runtime-проверен. Перед следующей задачей проверить актуальный `main` HEAD и прочитать:
+1. `README.md`;
+2. `docs/PROJECT_STATE.md`;
+3. этот файл;
+4. `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`;
+5. для KB-01B — нужные части `docs/specs/KNOWLEDGE_INGESTION.md`, `docs/specs/MARKDOWN_FORMAT.md`, `docs/specs/DB_CONTRACT.md`.
 
-В начале следующей сессии:
-1. проверить актуальный `main` HEAD;
-2. прочитать `README.md`;
-3. прочитать `docs/PROJECT_STATE.md`;
-4. прочитать этот файл;
-5. прочитать активный `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`;
-6. для runtime KB-01A читать только нужные части `docs/specs/KNOWLEDGE_INGESTION.md`, `docs/specs/MARKDOWN_FORMAT.md` и `docs/specs/DB_CONTRACT.md`.
+## Канонический workflow
 
-## Что выяснено про workflow
+Фактическая основа: export Павла `(7)`.
 
-Git checkpoint 03.10.2026 основан на export `(6)`. Павел передал `Шаблон — служебный Telegram и перехват диалогов — версия 0.2 (7).json`.
+Текущий runtime-verified checkpoint:
 
-У `(7)` проверена топология: 189 nodes / 153 connection keys / 215 edges / inactive / duplicate names 0 / dangling 0. Поскольку Git manifest называл исходником именно `(6)`, `(7)` принят как более свежая фактическая основа. Raw SHA-256 `(7)`: `2ebd7d7b44e42fc941bb70bdc8e01ce44f9e5a1472beb653e7e4331e77da1fb3`. На нём подготовлен v0.4 KB-01A; точный checkpoint сохранён в Git в `workflows/checkpoints/2026-10-04_v0.4_KB-01A/`.
+`workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`
 
-Полный import-ready JSON подготовлен локально в этой сессии:
+Restore:
 
-`Шаблон — мультиканальный бот и служебный Telegram — версия 0.4 KB-01A.json`
+`python tools/restore_workflow_checkpoint.py`
 
-SHA-256 pretty JSON: `4bc5efda58a36634f7931618e22c4ebdacba8d6510357a2d53ad689664c5f959`.
+Ожидаемый SHA-256:
 
-Подготовленный compact checkpoint SHA-256: `e9a196e03281704c6b08ae7512e7f3790317a22c5040e7a93a74e2e44b6fa26a`.
+`6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`
 
-**Важно:** checkpoint v0.4 KB-01A уже сохранён в Git. `python tools/restore_workflow_checkpoint.py` восстанавливает полный import-ready JSON и проверяет SHA-256. Не пересобирать workflow с нуля.
+Restore создаёт:
+
+`workflows/Шаблон — мультиканальный бот и служебный Telegram — версия 0.4 KB-01A.json`
+
+Не пересобирать workflow с нуля.
+
+Канонический JSON очищен:
+- `active=false`;
+- Credential refs отсутствуют;
+- runtime whitelist пустой;
+- реальные Telegram ID не сохранены;
+- service group ID отсутствует.
+
+## KB-01A — доказанный runtime
+
+05.10.2026:
+- workflow импортирован в n8n;
+- существующие service Telegram/Postgres Credentials назначены в UI;
+- runtime whitelist настроен в UI;
+- ordinary service text продолжил проходить ingress;
+- private `.md` дошёл до DB-04 registration;
+- DB вернула `uspeshno`, non-null `zagruzka_id`, non-null `zadanie_id`, `status_zagruzki=poluchena`;
+- первый Telegram report выявил Markdown entity error из-за `_` в filename после успешной DB registration;
+- formatter исправлен HTML escaping, Telegram node переведён на `parse_mode=HTML`;
+- второй safe `.md` с `_` в filename дал успешную DB registration и успешный Telegram report.
+
+Evidence:
+`docs/evidence/KB-01/KB-01A_RUNTIME_VERIFIED_2026-10-05.md`.
+
+Парсинг/chunking/embedding/check/publish не входят в KB-01A.
 
 ## DB-04 / DB-05
 
-Не ориентироваться на старые `[ ]` в `WORKPLAN_TEMPLATE.md`.
+Нормативные DB-04/DB-05 уже существуют в test и runtime-проверены для bot/service. Не ориентироваться на старые `[ ]` в `WORKPLAN_TEMPLATE.md`.
 
-Нормативные DB-04/DB-05 уже созданы в test и runtime-проверены по KB-01R4/R5 для bot/service: ingestion queue, version/profile/fragments/checks, draft search, publish concurrency/active switch и active-only bot search.
+`KB-01R5D` dash_admin revoke отложен до dashboard stage.
 
-`KB-01R5D` dash_admin revoke остаётся отложен до dashboard stage.
+## Следующая задача — KB-01B
 
-## Текущая задача — KB-01A
+Одна сессия = одна маленькая задача.
 
-Статус: **реализация JSON готова и статически проверена; runtime реальным документом ещё не выполнен**.
+Цель KB-01B:
+- claim durable knowledge job через lease/fencing;
+- безопасный YAML/Markdown parser;
+- validate required metadata и heading structure;
+- canonical content hash + processing/profile fingerprints;
+- `podgotovit_versiyu_znaniy`;
+- active duplicate stop.
 
-Существующий единый service Telegram webhook сохранён. После `zaregistrirovat_sluzhebnoe_sobytie` добавлена ветка:
+Критерий закрытия: один safe `.md` из уже зарегистрированной очереди проходит claim/parse/validation до подготовленного draft version либо корректно получает documented rejection; lease/fencing и duplicate path не нарушаются.
 
-`KB-01A Проверить источник документа`
-→ whitelist/private/.md/declared size
-→ `KB-01A Скачать Markdown`
-→ actual binary/size
-→ `Служебный_KB_Зарегистрировать загрузку`
-→ `zaregistrirovat_zagruzku_znaniy(jsonb, bytea)`
-→ Telegram-ответ о постановке в очередь.
-
-Нормативный DB API является final gate: actual bytes <= 5 MiB, `.md`, UTF-8, SHA-256, durable service event, duplicate/conflict; при успехе создаёт `zagruzki_znaniy` + `zadaniya_znaniy`.
-
-Парсер/chunking/embedding/check/publish ещё не подключены — это следующие ID активного плана.
-
-## Статическая проверка
-
-- 196 nodes;
-- 161 connection keys;
-- 225 edges;
-- `active=false`;
-- duplicate names 0;
-- dangling connections 0;
-- Credential objects / Credential ID отсутствуют;
-- top-level `id`, `versionId`, `meta.instanceId` отсутствуют;
-- real service group ID отсутствует;
-- obvious secrets/tokens не найдены;
-- новые/изменённые Code nodes проходят `node --check`.
-
-Файл **не импортировался** в n8n, server runtime **не менялся**.
-
-## Что сделать в следующей сессии
-
-Продолжить тот же ID `KB-01A`, не начинать KB-01B.
-
-1. Восстановить канонический v0.4 через `python tools/restore_workflow_checkpoint.py`, убедиться, что SHA совпадает, затем импортировать JSON **неактивным**.
-2. В UI n8n назначить существующие Credentials:
-   - служебный Telegram — всем новым KB Telegram nodes;
-   - `qbit_test_sluzhebnyy` — `Служебный_KB_Зарегистрировать загрузку`;
-   - остальные Credential связи восстановить по существующему workflow, не угадывая роли Postgres.
-3. В `Настройки служебного бота` заполнить:
-   - `kb.razreshennye_otpraviteli_telegram_id` — Telegram user ID Павла;
-   - `kb.razreshennye_lichnye_chat_id` — private chat ID Павла.
-4. Не включать production и не переключать рабочий трафик.
-5. Отправить один безопасный test `.md` без реальных данных компании.
-6. Сохранить execution evidence: service event, ответ KB-01A, `rezultat=uspeshno`, `zagruzka_id`, `zadanie_id`, статус knowledge job.
-7. Проверить, что `/start`, operator callback/ручные сообщения не ушли в KB.
-8. Только после этих проверок поставить `KB-01A [x]`.
+Не начинать KB-02A до runtime KB-01B.
 
 ## PRE-02E
 
-Не запускать отдельный smoke. OpenAI document embedding `text-embedding-3-large`, `dimensions=1024` будет добавлен и runtime-проверен в каноническом workflow на `KB-03A`. Существующая query-embedding ветка с этим профилем сохранена.
+Отдельный smoke не запускать. OpenAI document embedding `text-embedding-3-large`, `dimensions=1024` будет добавлен и runtime-проверен на `KB-03A`.
 
 ## Запреты
 
-- Не импортировать старый experimental KB workflow.
-- Не продолжать старый B3.
 - Не менять production.
+- Не переключать рабочий трафик.
+- Не импортировать experimental KB workflow.
+- Не продолжать старый B3.
 - Не запускать experimental evidence SQL.
-- Не считать статический JSON runtime-проверкой.
+- Не публиковать реальные документы, Telegram ID, Credential refs, переписку или секреты.

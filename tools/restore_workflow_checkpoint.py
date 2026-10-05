@@ -10,6 +10,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 CHECKPOINTS = {
+    "2026-10-05_v0.4_KB-01A_runtime_verified": {
+        "parts": 5,
+        "prefix": "workflow_v0.4_KB-01A.json.gz.b64.part",
+        "sha256": "6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5",
+        "output": "Шаблон — мультиканальный бот и служебный Telegram — версия 0.4 KB-01A.json",
+    },
     "2026-10-04_v0.4_KB-01A": {
         "parts": 10,
         "prefix": "workflow_v0.4_KB-01A.json.gz.b64.part",
@@ -28,8 +34,8 @@ parser = argparse.ArgumentParser(description="Restore a saved n8n workflow check
 parser.add_argument(
     "--checkpoint",
     choices=CHECKPOINTS,
-    default="2026-10-04_v0.4_KB-01A",
-    help="Checkpoint to restore (default: latest KB-01A)",
+    default="2026-10-05_v0.4_KB-01A_runtime_verified",
+    help="Checkpoint to restore (default: latest runtime-verified KB-01A)",
 )
 args = parser.parse_args()
 
