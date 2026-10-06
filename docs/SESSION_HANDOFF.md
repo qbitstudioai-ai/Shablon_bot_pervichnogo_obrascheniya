@@ -1,23 +1,23 @@
 # SESSION HANDOFF
 
-Обновлено: 2026-10-05.
+Обновлено: 2026-10-06.
 
 ## Исходная точка
 
 Рабочая ветка: `main`.
 
-KB-01A завершён и runtime-проверен. Перед следующей задачей проверить актуальный `main` HEAD и прочитать:
+KB-01A и KB-01B1 завершены и runtime-проверены. Перед следующей задачей проверить актуальный `main` HEAD и прочитать:
 1. `README.md`;
 2. `docs/PROJECT_STATE.md`;
 3. этот файл;
 4. `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`;
-5. для KB-01B — нужные части `docs/specs/KNOWLEDGE_INGESTION.md`, `docs/specs/MARKDOWN_FORMAT.md`, `docs/specs/DB_CONTRACT.md`.
+5. для KB-01B2 — нужные части `docs/specs/KNOWLEDGE_INGESTION.md`, `docs/specs/MARKDOWN_FORMAT.md`, `docs/specs/DB_CONTRACT.md` и processing profile.
 
 ## Канонический workflow
 
 Фактическая основа: export Павла `(7)`.
 
-Текущий runtime-verified checkpoint:
+Текущий сохранённый runtime-verified checkpoint Git:
 
 `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`
 
@@ -29,36 +29,42 @@ Restore:
 
 `6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`
 
-Restore создаёт:
+Для KB-01B1 подготовлен и реально запущен полный workflow v0.5 KB-01B1 поверх точного v0.4. Import SHA-256:
 
-`workflows/Шаблон — мультиканальный бот и служебный Telegram — версия 0.4 KB-01A.json`
+`12430374e26711a32067d096884c4672dda061861e3f27030c38711829ed56f9`
 
-Не пересобирать workflow с нуля.
-
-Канонический JSON очищен:
-- `active=false`;
-- Credential refs отсутствуют;
-- runtime whitelist пустой;
-- реальные Telegram ID не сохранены;
-- service group ID отсутствует.
+v0.5 runtime-проверен, но отдельный checkpoint v0.5 ещё не сохранён в Git. Не утверждать обратное.
 
 ## KB-01A — доказанный runtime
 
-05.10.2026:
-- workflow импортирован в n8n;
-- существующие service Telegram/Postgres Credentials назначены в UI;
-- runtime whitelist настроен в UI;
-- ordinary service text продолжил проходить ingress;
-- private `.md` дошёл до DB-04 registration;
-- DB вернула `uspeshno`, non-null `zagruzka_id`, non-null `zadanie_id`, `status_zagruzki=poluchena`;
-- первый Telegram report выявил Markdown entity error из-за `_` в filename после успешной DB registration;
-- formatter исправлен HTML escaping, Telegram node переведён на `parse_mode=HTML`;
-- второй safe `.md` с `_` в filename дал успешную DB registration и успешный Telegram report.
+05.10.2026 private `.md` прошёл durable service event → Telegram download → actual bytes check → `zaregistrirovat_zagruzku_znaniy`; получены non-null upload/job и успешный Telegram report после HTML escaping fix.
 
 Evidence:
 `docs/evidence/KB-01/KB-01A_RUNTIME_VERIFIED_2026-10-05.md`.
 
-Парсинг/chunking/embedding/check/publish не входят в KB-01A.
+## KB-01B1 — доказанный runtime
+
+06.10.2026 существующее knowledge job успешно claim-нуто через normative lease/fencing API:
+- `zadanie_id=0032a78e-b3fa-4cc8-8175-fcc52b53dd64`;
+- `zagruzka_id=2d94322c-0347-48ce-8c66-e136e79d54d4`;
+- worker `qbit_test_kb_worker_v1`;
+- fence `1`;
+- статус при claim `v_rabote`.
+
+Parser `kb01b1_safe_frontmatter_markdown_v1`:
+- `valid=true`, `kod=provereno`;
+- `identifikator_dokumenta=qbit_klientskaya_baza_znaniy`;
+- 57 headings;
+- 8 reference questions;
+- warnings 0;
+- `hash_soderzhaniya=73436107b06ed1465094f23f785dadbb973adc787e049c04966195ae629e2290`.
+
+Те же фактические bytes повторно прогнаны через тот же parser вне n8n и дали тот же hash/counts. Предварительный ориентир `be8f4f8d...` был ошибочным и исключён.
+
+После проверки `zavershit_zadanie_znaniy` вернула `uspeshno`, job освобождён обратно в `povtor` тем же worker/fence.
+
+Evidence:
+`docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
 
 ## DB-04 / DB-05
 
@@ -66,21 +72,17 @@ Evidence:
 
 `KB-01R5D` dash_admin revoke отложен до dashboard stage.
 
-## Следующая задача — KB-01B
+## Следующая задача — KB-01B2
 
-Одна сессия = одна маленькая задача.
+Цель:
+- доказать фактически доступный tokenizer/profile в self-hosted n8n;
+- зафиксировать processing/index profile;
+- вычислить `otpechatok_profilya` и `otpechatok_obrabotki`;
+- под тем же live lease/fencing вызвать `podgotovit_versiyu_znaniy`;
+- проверить active duplicate stop либо создание новой draft version `chernovik`;
+- terminal/retry paths должны менять только текущий fenced job.
 
-Цель KB-01B:
-- claim durable knowledge job через lease/fencing;
-- безопасный YAML/Markdown parser;
-- validate required metadata и heading structure;
-- canonical content hash + processing/profile fingerprints;
-- `podgotovit_versiyu_znaniy`;
-- active duplicate stop.
-
-Критерий закрытия: один safe `.md` из уже зарегистрированной очереди проходит claim/parse/validation до подготовленного draft version либо корректно получает documented rejection; lease/fencing и duplicate path не нарушаются.
-
-Не начинать KB-02A до runtime KB-01B.
+Не выполнять chunking, document embeddings, reference search или publish в KB-01B2.
 
 ## PRE-02E
 
