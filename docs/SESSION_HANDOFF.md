@@ -6,20 +6,20 @@
 
 Рабочая ветка: `main`.
 
-KB-01A и KB-01B1 завершены и runtime-проверены. Перед следующей задачей проверить актуальный `main` HEAD и прочитать:
+KB-01A, KB-01B1 и KB-01B2 завершены и runtime-проверены. Перед следующей задачей проверить актуальный `main` HEAD и прочитать:
 1. `README.md`;
 2. `docs/PROJECT_STATE.md`;
 3. этот файл;
 4. `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`;
-5. для KB-01B2 — нужные части `docs/specs/KNOWLEDGE_INGESTION.md`, `docs/specs/MARKDOWN_FORMAT.md`, `docs/specs/DB_CONTRACT.md` и processing profile.
+5. для KB-02A — `docs/specs/KNOWLEDGE_INGESTION.md`, `docs/specs/MARKDOWN_FORMAT.md`, нужные части `docs/specs/DB_CONTRACT.md` и processing profile.
 
 ## Канонический workflow
 
 Фактическая основа: export Павла `(7)`.
 
-Текущий сохранённый runtime-verified checkpoint Git:
+Текущий runtime-verified checkpoint:
 
-`workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`
+`workflows/checkpoints/2026-10-06_v0.7.1_KB-01B2_runtime_verified/`
 
 Restore:
 
@@ -27,66 +27,66 @@ Restore:
 
 Ожидаемый SHA-256:
 
-`6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`
+`e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`
 
-Для KB-01B1 подготовлен и реально запущен полный workflow v0.5 KB-01B1 поверх точного v0.4. Import SHA-256:
+Restore создаёт:
 
-`12430374e26711a32067d096884c4672dda061861e3f27030c38711829ed56f9`
+`workflows/Шаблон — мультиканальный бот и служебный Telegram — версия 0.7.1 KB-01B2.json`
 
-v0.5 runtime-проверен, но отдельный checkpoint v0.5 ещё не сохранён в Git. Не утверждать обратное.
+Не пересобирать workflow с нуля. Checkpoint очищен: `active=false`, Credential refs 0, runtime whitelist и реальные Telegram ID не сохранены.
 
-## KB-01A — доказанный runtime
+## Доказанный runtime
 
-05.10.2026 private `.md` прошёл durable service event → Telegram download → actual bytes check → `zaregistrirovat_zagruzku_znaniy`; получены non-null upload/job и успешный Telegram report после HTML escaping fix.
+### KB-01A
+Private `.md` прошёл durable service ingress, download, actual bytes validation и DB registration. Telegram report подтверждён после HTML escaping fix.
 
-Evidence:
-`docs/evidence/KB-01/KB-01A_RUNTIME_VERIFIED_2026-10-05.md`.
+Evidence: `docs/evidence/KB-01/KB-01A_RUNTIME_VERIFIED_2026-10-05.md`.
 
-## KB-01B1 — доказанный runtime
+### KB-01B1
+Knowledge job успешно claim-нут через lease/fencing; safe YAML/Markdown parser подтвердил metadata/структуру и deterministic `hash_soderzhaniya`; job возвращён в `povtor`.
 
-06.10.2026 существующее knowledge job успешно claim-нуто через normative lease/fencing API:
-- `zadanie_id=0032a78e-b3fa-4cc8-8175-fcc52b53dd64`;
-- `zagruzka_id=2d94322c-0347-48ce-8c66-e136e79d54d4`;
-- worker `qbit_test_kb_worker_v1`;
-- fence `1`;
-- статус при claim `v_rabote`.
+Evidence: `docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
 
-Parser `kb01b1_safe_frontmatter_markdown_v1`:
-- `valid=true`, `kod=provereno`;
-- `identifikator_dokumenta=qbit_klientskaya_baza_znaniy`;
-- 57 headings;
-- 8 reference questions;
-- warnings 0;
-- `hash_soderzhaniya=73436107b06ed1465094f23f785dadbb973adc787e049c04966195ae629e2290`.
+### KB-01B2
+На test-контуре:
+- job claim-нут worker `qbit_test_kb_worker_v1`, fence `2`;
+- parser valid, 6 headings, 3 reference questions;
+- profile fingerprint `917b776877263b60b809fa0376cce8ae62937d2d44cdb0badc2e07bea2ceec3c`;
+- processing fingerprint `b56cd0f39885a576c0c7d04cdb78deceadb01e944713e9aa21b0483910b8abdb`;
+- profile: `text-embedding-3-large`, dimension 1024, cosine, `cl100k_base`, structural chunking 600/800/100;
+- `podgotovit_versiyu_znaniy` → `uspeshno`, version 1, `status_versii=chernovik`;
+- publish не выполнялся;
+- job освобождён в `povtor`.
 
-Те же фактические bytes повторно прогнаны через тот же parser вне n8n и дали тот же hash/counts. Предварительный ориентир `be8f4f8d...` был ошибочным и исключён.
+Evidence: `docs/evidence/KB-01/KB-01B2_RUNTIME_VERIFIED_2026-10-06.md`.
 
-После проверки `zavershit_zadanie_znaniy` вернула `uspeshno`, job освобождён обратно в `povtor` тем же worker/fence.
-
-Evidence:
-`docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
+`cl100k_base` пока является зафиксированным tokenizer/encoding contract. Точный token count на финальном тексте fragments должен быть runtime-проверен в KB-02A до любого сохранения fragments. Отдельный npm `tiktoken` не является обязательным архитектурным требованием.
 
 ## DB-04 / DB-05
 
-Нормативные DB-04/DB-05 уже существуют в test и runtime-проверены для bot/service. Не ориентироваться на старые `[ ]` в `WORKPLAN_TEMPLATE.md`.
+Нормативные DB-04/DB-05 уже существуют в test и runtime-проверены для bot/service. `KB-01R5D` dash_admin revoke отложен до dashboard stage.
 
-`KB-01R5D` dash_admin revoke отложен до dashboard stage.
+## Следующая задача — KB-02A
 
-## Следующая задача — KB-01B2
+Цель: реализовать детерминированный структурно-смысловой chunker, а не механический token splitter.
 
-Цель:
-- доказать фактически доступный tokenizer/profile в self-hosted n8n;
-- зафиксировать processing/index profile;
-- вычислить `otpechatok_profilya` и `otpechatok_obrabotki`;
-- под тем же live lease/fencing вызвать `podgotovit_versiyu_znaniy`;
-- проверить active duplicate stop либо создание новой draft version `chernovik`;
-- terminal/retry paths должны менять только текущий fenced job.
+Обязательные свойства:
+- Markdown hierarchy H1→H6 сохраняется как heading path;
+- смысловые границы первичны, token budget вторичен;
+- FAQ вопрос+ответ остаются вместе, пока помещаются;
+- таблицы делятся по строкам с повтором заголовка/единиц;
+- длинный смысловой блок делится по абзацам, затем предложениям;
+- overlap не переносится через другую тему;
+- target/max/overlap = 600/800/100 tokens;
+- точный runtime token count `cl100k_base` доказан до сохранения fragments;
+- reference questions исключены из retrieval text;
+- embeddings ещё не выполнять.
 
-Не выполнять chunking, document embeddings, reference search или publish в KB-01B2.
+Не начинать KB-02B или KB-03A до runtime KB-02A.
 
 ## PRE-02E
 
-Отдельный smoke не запускать. OpenAI document embedding `text-embedding-3-large`, `dimensions=1024` будет добавлен и runtime-проверен на `KB-03A`.
+Отдельный smoke не запускать. OpenAI document embedding `text-embedding-3-large`, `dimensions=1024` будет добавлен и runtime-проверен в KB-03A.
 
 ## Запреты
 
