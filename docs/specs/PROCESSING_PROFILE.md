@@ -2,34 +2,46 @@
 
 Обновлено: 2026-10-06.
 
-Статус: профиль knowledge ingestion частично runtime-проверен. Нормативные DB-04/DB-05 уже созданы и проверены на test-контуре. Структурный chunking и точный `cl100k_base` token count проверены в KB-02A1/KB-02A2. Document embeddings OpenAI и retrieval-калибровка ещё впереди.
+Статус: processing profile knowledge ingestion runtime-проверен до document embeddings включительно. Нормативные DB-04/DB-05 созданы и проверены на test-контуре. Структурный chunking, exact `cl100k_base` и document embeddings OpenAI подтверждены runtime. Draft retrieval/reference checks ещё впереди.
 
 ## Внешний AI-провайдер
 
 28 сентября 2026 года Павел выбрал **OpenAI** как целевого внешнего провайдера для LLM и embeddings. Рабочий n8n находится в Амстердаме; Supabase/pgvector остаётся на российском сервере.
 
-Для test и production используются разные OpenAI API keys. Секреты не сохраняются в GitHub и не вставляются в workflow.
+Для test и production используются разные OpenAI API keys. Секреты не сохраняются в GitHub и не вставляются в workflow. Credentials подключаются в n8n UI.
 
-LLM не получает права выбирать schema, Credential, адресата или выполнять исходящее действие самостоятельно. Внешние вызовы получают только минимально необходимый обезличенный пакет.
+LLM не получает права выбирать schema, Credential, адресата или выполнять исходящее действие самостоятельно. Внешние вызовы получают только минимально необходимый пакет.
 
-## Embeddings
+## Embeddings — document runtime verified
 
-Целевой document/query embedding profile:
+Зафиксированный document/query embedding profile:
 - provider: OpenAI;
 - model: `text-embedding-3-large`;
 - dimensions: `1024`;
 - similarity metric: cosine;
-- encoding format для API: `float`.
+- encoding format API: `float`.
 
-Один и тот же model/dimension profile используется для document fragments и query embeddings. Векторы разных профилей не смешиваются в одном активном индексе.
+Один и тот же model/dimension profile используется для document fragments и query/reference embeddings. Векторы разных профилей не смешиваются в одном активном индексе.
 
-DB-04/DB-05 уже фиксируют `vector(1024)` и соответствующий immutable processing/index profile. Фактический OpenAI document-embedding runtime и строгая проверка длины vector выполняются в **KB-03A** до сохранения fragments.
+KB-03A runtime 06.10.2026 подтвердил document embedding path:
+- input = exact `tekst_fragmenta` из KB-02B, без второго splitter/переписывания;
+- один OpenAI batch request на набор fragments;
+- успешный safe-run: 6 fragments, usage 910 input tokens;
+- 6 embeddings;
+- каждый vector length = 1024;
+- все значения finite;
+- mapping по OpenAI `index` подтверждён;
+- normative DB save → `sohraneno_fragmentov=6`, `vsego_fragmentov=6`.
+
+Первая попытка на большой safe-базе дошла до 53 fragments / 12568 input tokens, но была безопасно остановлена на `Credentials not found`; fragments не сохранялись и publish не выполнялся. После привязки TEST Credential новый JSON не потребовался.
+
+Reference-question embeddings и retrieval quality проверяются в KB-03B.
 
 ## Подключение n8n
 
 Фактическая версия n8n: **2.41.0**.
 
-Knowledge ingestion до KB-02A2 не требует generative LLM или внешних npm tokenizer-пакетов. Credentials OpenAI будут подключаться через n8n UI; Credential IDs/API keys в Git-export не сохраняются.
+Knowledge ingestion/chunking не требует generative LLM или внешних npm tokenizer-пакетов. OpenAI Credentials подключаются через n8n UI; Credential IDs/API keys в Git-export не сохраняются.
 
 ## Markdown, YAML и parser
 
@@ -99,7 +111,7 @@ Target 600 — ориентир, **не минимум**. Нельзя ухуд�
 - общий evidence token budget должен быть зафиксирован по результатам retrieval-калибровки;
 - отдельный LLM reranker в v1 не добавлять без доказанной пользы на контрольном наборе.
 
-Structural blocks и все 53 candidates никогда не передаются клиентскому LLM целиком.
+Structural blocks и весь candidate set никогда не передаются клиентскому LLM целиком.
 
 Similarity threshold не назначается по памяти. Для первой калибровки проверяется диапазон 0.45–0.85 с шагом 0.05; финальное значение фиксируется только после контрольного набора.
 
@@ -122,7 +134,7 @@ Similarity threshold не назначается по памяти. Для пе�
 
 `Telegram voice → локальный STT → транскрипция → PII-очистка → OpenAI`
 
-Конкретный STT runtime остаётся отдельной задачей и не является частью KB-02.
+Конкретный STT runtime остаётся отдельной задачей и не является частью KB-03.
 
 ## Контрольный набор
 
@@ -132,10 +144,8 @@ Similarity threshold не назначается по памяти. Для пе�
 
 ## Что осталось по knowledge profile
 
-1. **KB-02B** — окончательные fragment records + отдельные reference questions, без embeddings/DB save.
-2. **KB-03A** — runtime OpenAI `text-embedding-3-large/1024`, проверка vectors и сохранение fragments.
-3. **KB-03B** — reference question embeddings, draft-only retrieval checks и калибровка качества.
-4. **KB-03C** — atomic publish и end-to-end regression active-only search.
-5. До завершения retrieval-калибровки зафиксировать similarity threshold и общий evidence token budget.
+1. **KB-03B** — сохранить/reference question embeddings, draft-only retrieval checks и калибровка качества.
+2. **KB-03C** — atomic publish и end-to-end regression active-only search.
+3. До завершения retrieval-калибровки зафиксировать similarity threshold и общий evidence token budget.
 
 Production не менять без отдельного явного разрешения.
