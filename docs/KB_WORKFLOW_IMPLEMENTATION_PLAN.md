@@ -103,6 +103,10 @@ Evidence: `docs/evidence/KB-02/KB-02A1_RUNTIME_VERIFIED_2026-10-06.md`.
 10. количество final fragments должно быть объяснимым и не использоваться как prompt целиком;
 11. embeddings и DB fragment save пока не выполнять.
 
+Runtime-попытка v0.9 06.10.2026 дошла через tokenizer gate до candidate packing, но завершилась безопасным retry с `TextEncoder is not defined` внутри LangChain Code sandbox. Это была ошибка вспомогательного SHA-256 UTF-8 преобразования, а не отказ встроенного `cl100k_base` tokenizer. Job вернулся в `povtor`; LLM/embeddings/DB fragment save не выполнялись.
+
+Подготовлен v0.9.1: `TextEncoder` удалён только из A2 LangChain Code node и заменён детерминированным UTF-8 encoder без внешних модулей. SHA-256 реализации проверен локально на ASCII, кириллице и emoji против эталона. Полный workflow SHA-256: `5c3667fe84462be019d49c5560cc9f3c07e6cc10b666b665e9583f5c2f89a81c`. Статика: 220 nodes, 178 connection keys, 248 edges, duplicate names 0, dangling connections 0, `active=false`, Credential refs 0. v0.9.1 ещё не runtime-verified и не Git-checkpoint.
+
 После KB-02A2 переходить к KB-02B.
 
 Production не менять.
