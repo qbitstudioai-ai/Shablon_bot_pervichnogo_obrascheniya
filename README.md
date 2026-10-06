@@ -18,11 +18,11 @@ DB-01, DB-02, DB-03/DB-03E и canonical schema `qbit_bot_pervichnogo_obrascheniy
 
 `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`
 
-`python tools/restore_workflow_checkpoint.py` восстанавливает этот checkpoint с SHA-256:
+`python tools/restore_workflow_checkpoint.py` восстанавливает этот старый checkpoint с SHA-256:
 
 `6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`
 
-Фактически текущий runtime-проверенный import-ready workflow — **v0.7.1 KB-01B2**, SHA-256 `e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`. Отдельный Git-checkpoint v0.7.1 ещё не сохранён. Credential refs, runtime whitelist и реальные Telegram ID в Git не сохраняются.
+Фактически текущий runtime-проверенный import-ready workflow — **v0.9.1 KB-02A2**, SHA-256 `5c3667fe84462be019d49c5560cc9f3c07e6cc10b666b665e9583f5c2f89a81c`. Отдельный Git-checkpoint v0.9.1 ещё не сохранён. Credential refs, runtime whitelist и реальные Telegram ID в Git не сохраняются.
 
 Старый experimental `Шаблон_мультиканальный_KB-01_v0.3.json` не импортировать.
 
@@ -30,13 +30,13 @@ DB-01, DB-02, DB-03/DB-03E и canonical schema `qbit_bot_pervichnogo_obrascheniy
 
 Активный план: [KB-WF](docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md).
 
-**KB-01A, KB-01B1 и KB-01B2 закрыты и runtime-проверены.**
+**KB-01A, KB-01B1, KB-01B2, KB-02A1 и KB-02A2 закрыты и runtime-проверены.**
 
-KB-01B2 создал реальный test draft version `chernovik` через normative `podgotovit_versiyu_znaniy`, зафиксировав profile/fingerprints. Публикации и embeddings ещё нет.
+KB-02A2 доказал exact `cl100k_base` и структурно-смысловую упаковку: на большой safe Markdown-базе 130 structural blocks → 53 final candidates, диапазон 87–551 токен, среднее 237.1, превышений hard max 800 нет. LLM, embeddings и DB fragment save на этом этапе не выполнялись.
 
-Следующий ID: **KB-02A** — собственный детерминированный структурно-смысловой chunker. Смысловые/структурные границы первичны; token budget `600/800/100` используется только как ограничение размера. Точный runtime `cl100k_base` count должен быть доказан до сохранения fragments.
+Текущий ID: **KB-02B** — превратить A2 candidates в окончательные fragment records (`nomer_fragmenta`, путь, точный текст, exact token count, hash и runtime trace) и отдельно подготовить 3–10 reference questions из проверенного YAML. Вопросы не входят в retrieval text/embeddings. Embeddings и `sohranit_fragmenty_znaniy` начинаются только в KB-03A.
 
-PRE-02E отдельно не тестируется: OpenAI document embeddings `text-embedding-3-large`, `dimensions=1024` будут встроены и runtime-проверены в KB-03A.
+PRE-02E отдельно не тестируется: OpenAI document embeddings `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float` будут встроены и runtime-проверены в KB-03A.
 
 ## С чего начинает новая сессия
 
@@ -61,7 +61,7 @@ PRE-02E отдельно не тестируется: OpenAI document embeddings
 | Операторский Telegram | [OPERATOR_HANDOFF](docs/specs/OPERATOR_HANDOFF.md) |
 | Загрузка знаний | [KNOWLEDGE_INGESTION](docs/specs/KNOWLEDGE_INGESTION.md), [MARKDOWN_FORMAT](docs/specs/MARKDOWN_FORMAT.md) |
 | Активная реализация knowledge workflow | [KB-WF](docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md) |
-| Runtime evidence KB-01 | [evidence](docs/evidence/KB-01/) |
+| Runtime evidence KB-01/KB-02 | [evidence](docs/evidence/) |
 | Передача между сессиями | [SESSION_HANDOFF](docs/SESSION_HANDOFF.md) |
 
 Реальные документы компаний, переписки, секреты, Credential refs и дампы БД в публичный репозиторий не загружаются.
