@@ -14,15 +14,15 @@ DB-01, DB-02, DB-03/DB-03E и canonical schema `qbit_bot_pervichnogo_obrascheniy
 
 Фактическая основа: export Павла `(7)`.
 
-Текущий runtime-verified checkpoint:
+Последний сохранённый в Git runtime-verified checkpoint пока:
 
-`workflows/checkpoints/2026-10-06_v0.7.1_KB-01B2_runtime_verified/`
+`workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`
 
-`python tools/restore_workflow_checkpoint.py` восстанавливает полный import-ready JSON с SHA-256:
+`python tools/restore_workflow_checkpoint.py` восстанавливает этот checkpoint с SHA-256:
 
-`e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`
+`6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`
 
-Checkpoint сохраняется `active=false`, без Credential refs, runtime whitelist и реальных Telegram ID.
+Фактически текущий runtime-проверенный import-ready workflow — **v0.7.1 KB-01B2**, SHA-256 `e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`. Отдельный Git-checkpoint v0.7.1 ещё не сохранён. Credential refs, runtime whitelist и реальные Telegram ID в Git не сохраняются.
 
 Старый experimental `Шаблон_мультиканальный_KB-01_v0.3.json` не импортировать.
 
