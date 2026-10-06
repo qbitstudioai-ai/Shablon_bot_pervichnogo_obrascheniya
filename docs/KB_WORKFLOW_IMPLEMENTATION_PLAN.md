@@ -15,9 +15,10 @@
 |---|---|---|
 | [x] KB-01A | DB-03D1, DB-04 | Service Telegram принимает разрешённый private `.md`, проверяет actual bytes и долговечно регистрирует knowledge upload/job. Runtime подтверждён. |
 | [x] KB-01B1 | KB-01A runtime | Manual worker claim + lease/fencing + safe YAML/Markdown parser + metadata/heading validation + deterministic `hash_soderzhaniya`; job после проверки возвращается в `povtor`. Runtime подтверждён. |
-| [x] KB-01B2 | KB-01B1 runtime | Зафиксирован processing/index profile и deterministic fingerprints, `podgotovit_versiyu_znaniy` под live lease/fencing создала version 1 `chernovik`; job безопасно возвращён в `povtor`. `cl100k_base` — contract; точный runtime count переносится в KB-02A до fragment save. |
-| [~] KB-02A | KB-01B2 | Детерминированная очистка и **структурно-смысловой chunking** сохраняют heading path, FAQ, tables и facts. Смысловые границы первичны; token budget 600/800/100 вторичен. Точный runtime count `cl100k_base` доказан до сохранения fragments. Reference questions исключены из retrieval text. |
-| [ ] KB-02B | KB-02A | 3–10 reference questions извлечены отдельно; окончательные fragments имеют metadata/hash/token count; ошибки безопасно завершают или повторяют только текущий fenced job. |
+| [x] KB-01B2 | KB-01B1 runtime | Зафиксирован processing/index profile и deterministic fingerprints, `podgotovit_versiyu_znaniy` под live lease/fencing создала version 1 `chernovik`; job безопасно возвращён в `povtor`. `cl100k_base` — contract; точный runtime count переносится в KB-02A2 до финальных candidate fragments. |
+| [~] KB-02A1 | KB-01B2 | Детерминированная очистка и структурный разбор создают упорядоченные смысловые блоки с heading path; YAML/reference questions исключены из retrieval text; FAQ, таблицы, списки, code и обычные абзацы сохраняются без переписывания фактов. DB fragments не записываются. |
+| [ ] KB-02A2 | KB-02A1 runtime | Для структурных блоков доказан точный runtime `cl100k_base` count и выполнена детерминированная упаковка в final candidate fragments: target 600, hard max 800, overlap до 100 только внутри одной темы/длинного блока; ни одного fragment >800. DB fragments ещё не записываются. |
+| [ ] KB-02B | KB-02A2 | 3–10 reference questions извлечены отдельно; окончательные fragments имеют metadata/hash/token count; ошибки безопасно завершают или повторяют только текущий fenced job. |
 | [ ] KB-03A | KB-02B | Document embeddings OpenAI `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`; каждый vector length строго проверяется; fragments/vectors сохраняются через normative DB API. |
 | [ ] KB-03B | KB-03A | Reference questions векторизуются тем же профилем; draft search работает только по своей версии; checks сохраняются; `gotova` только после полного pass. |
 | [ ] KB-03C | KB-03B | Atomic publish переключает active version и архивирует прежнюю; stale publish конфликтует; после первой публикации end-to-end regression проверяет active duplicate stop. |
@@ -38,7 +39,7 @@ Evidence: `docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
 - не делать механический token splitter основным chunker;
 - не требовать отдельный npm `tiktoken` в Code node;
 - фиксировать `cl100k_base` как tokenizer/encoding contract выбранной embedding-модели;
-- реальный структурно-смысловой chunker и точный runtime count реализовать в KB-02A до fragment save.
+- структурно-смысловые границы реализовывать отдельно от token budget.
 
 Runtime 06.10.2026:
 - реальный job claim-нут, parser valid;
@@ -53,35 +54,43 @@ Active duplicate end-to-end до первой публикации провер�
 
 Evidence: `docs/evidence/KB-01/KB-01B2_RUNTIME_VERIFIED_2026-10-06.md`.
 
-## KB-02A — текущая задача
+## KB-02A — декомпозиция текущего этапа
 
-Цель: реализовать собственный детерминированный **структурно-смысловой chunker с token budget**.
+Изначальная KB-02A включает две независимые проверки: качество структурно-смыслового разбиения и точный runtime tokenizer count. Чтобы не смешивать ошибки структуры с техническим способом токенизации, этап разделён на KB-02A1 и KB-02A2. Конечный профиль и правило `600/800/100` не меняются.
+
+### KB-02A1 — текущая задача
+
+Цель: детерминированно превратить уже проверенный Markdown body в упорядоченные **структурно-смысловые блоки**, не переписывая исходные факты моделью.
+
+Обязательные свойства:
+1. YAML/front matter и `kontrolnye_voprosy` не входят в retrieval text;
+2. сохраняется heading path H1→H6 и исходная последовательность;
+3. обычные абзацы, списки, fenced code и Markdown tables распознаются как явные типы блоков;
+4. FAQ вопрос+ответ остаются в одном смысловом разделе до будущей token-упаковки;
+5. таблица сохраняет header/separator/rows и не режется посередине строки;
+6. очистка допускает только документированные операции: BOM/line endings уже нормализованы parser'ом, HTML comments и script/style вне fenced code могут быть удалены с отчётом;
+7. содержание не суммаризируется и не исправляется LLM;
+8. DB fragments, embeddings, reference search и publish не выполняются;
+9. job после dry-run безопасно возвращается в `povtor` тем же worker/fence.
+
+Критерий закрытия KB-02A1: один существующий B2 draft в реальном n8n выдаёт стабильный ordered набор блоков с корректными heading paths; reference questions отсутствуют в retrieval text; dry-run повторяем; job возвращён в `povtor`.
+
+### KB-02A2 — после runtime KB-02A1
+
+Цель: применить к блокам точный token budget выбранного профиля.
 
 Порядок:
-1. использовать уже проверенный Markdown parser/структуру, не переписывать исходные факты моделью;
-2. отделить YAML и reference questions от retrieval text;
-3. сохранить heading path H1→H6 и исходную последовательность;
-4. сформировать смысловые блоки по разделам, абзацам, спискам, FAQ и таблицам;
-5. небольшие блоки можно объединять только внутри одной темы;
-6. слишком длинный блок делить сначала по абзацам, затем по предложениям;
-7. FAQ question+answer не разрывать, пока помещается;
-8. таблицы делить по группам строк, повторяя header/units/context;
-9. overlap до 100 tokens использовать только между соседними частями одного смыслового блока, не через границу другой темы;
-10. target 600, hard max 800 tokens;
-11. доказать точный runtime count `cl100k_base` для финального текста каждого candidate fragment до сохранения;
-12. KB-02A пока не вызывает embeddings и не публикует.
+1. доказать воспроизводимый runtime count `cl100k_base` для окончательного текста;
+2. небольшие блоки объединять только внутри одной темы;
+3. длинный блок делить сначала по абзацам, затем предложениям;
+4. FAQ question+answer не разрывать, пока помещается;
+5. таблицы делить по группам строк с повтором header/context;
+6. overlap до 100 tokens только между соседними частями одного смыслового блока, не через другую тему;
+7. target 600, hard max 800 tokens;
+8. финальный текст каждого candidate fragment включает нужный title/heading path/context и имеет точный token count;
+9. ни одного candidate fragment >800 tokens;
+10. embeddings и DB fragment save пока не выполнять.
 
-### Критерий закрытия KB-02A
-
-Один уже созданный B2 draft должен в реальном n8n дать детерминированный набор candidate fragments с:
-- стабильным порядком;
-- корректным heading path;
-- сохранёнными FAQ/tables/facts;
-- отсутствием reference questions в retrieval text;
-- точным token count каждого финального текста;
-- ни одного fragment >800 tokens;
-- объяснимым overlap только внутри одной темы.
-
-До этого fragments в DB не считать runtime-ready.
+После KB-02A2 переходить к KB-02B.
 
 Production не менять.
