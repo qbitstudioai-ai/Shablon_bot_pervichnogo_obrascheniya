@@ -41,7 +41,17 @@ SHA-256:
 
 `5c3667fe84462be019d49c5560cc9f3c07e6cc10b666b665e9583f5c2f89a81c`
 
-Статика: 220 nodes, 178 connection keys, 248 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0. Отдельный Git-checkpoint v0.9.1 ещё не сохранён; не утверждать обратное.
+Отдельный Git-checkpoint v0.9.1 ещё не сохранён; не утверждать обратное.
+
+Для KB-02B подготовлен локальный import-ready **v0.10 KB-02B**, ещё не runtime-проверенный:
+
+`Шаблон — мультиканальный бот и служебный Telegram — версия 0.10 KB-02B.json`
+
+SHA-256:
+
+`f19b8f7189f71fe92a67e1331628da6df9dbf10df26483ae8575bf41d77048b7`
+
+Статика v0.10: 223 nodes, 180 connection keys, 251 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0. JavaScript всех Code/LangChain Code nodes проходит syntax check при async wrapper. v0.10 не является runtime-verified и не является Git-checkpoint.
 
 ## Доказанный runtime
 
@@ -90,7 +100,7 @@ Evidence: `docs/evidence/KB-02/KB-02A2_RUNTIME_VERIFIED_2026-10-06.md`.
 
 Обязательные правила:
 - parsing/cleaning/chunking/token counting — без generative LLM;
-- structural blocks и final candidates — индексные данные, не prompt целиком;
+- structural blocks/final candidates/final fragment records — индексные данные, не prompt целиком;
 - клиентский путь: query embedding → vector search → фильтрация/дедупликация → небольшой evidence-пакет → финальная LLM;
 - candidate top-k = 12, финальный evidence максимум 8 fragments и обычно меньше;
 - не добавлять LLM reranker в v1 без доказанной необходимости;
@@ -102,20 +112,50 @@ Evidence: `docs/evidence/KB-02/KB-02A2_RUNTIME_VERIFIED_2026-10-06.md`.
 
 Цель: превратить A2 candidates в окончательные records, готовые к будущему embedding/save, и отдельно подготовить reference questions.
 
-Обязательные свойства:
-- стабильный `nomer_fragmenta` по исходному порядку;
-- `put_razdela`;
-- точный `tekst_fragmenta` формата `qbit_kb_fragment_text_v1`;
-- exact `kolichestvo_tokenov`;
-- `hash_fragmenta` по точному тексту;
-- trace к source blocks сохраняется как runtime metadata до DB save;
-- reference questions берутся только из проверенного YAML metadata и остаются отдельным набором;
-- reference questions не входят в fragment text/embedding;
-- при 3–10 questions набор готов для будущей автоматической проверки, но KB-02B ничего не публикует;
-- повторный dry-run должен дать тот же порядок, hashes и questions;
-- generative LLM не использовать;
-- embeddings и `sohranit_fragmenty_znaniy` не вызывать до KB-03A;
-- job после dry-run вернуть в `povtor` тем же worker/fence.
+### Что добавлено в v0.10
+
+- `KB-02B Подготовить финальные записи` повторно валидирует exact fragment text/hash/order и A2 fingerprint;
+- final record: `nomer_fragmenta`, `put_razdela`, `tekst_fragmenta`, `kolichestvo_tokenov`, `hash_fragmenta`, runtime trace к source blocks;
+- reference questions берутся только из canonical YAML metadata и преобразуются в отдельный DB-compatible массив: `nomer`, `vopros`, `ozhidaemyy_razdel`, optional `ozhidaemyy_fakt`, `istochnik=yaml`;
+- questions не добавляются в fragment text и не входят в retrieval embeddings;
+- 3–10 questions → `kontrolnye_gotovy_dlya_avtoproverki=true`; 0–2 не портят fragment records, но автоматическая проверка считается неготовой;
+- считаются deterministic `hash_nabora_fragmentov`, `hash_nabora_kontrolnyh_voprosov`, `hash_gotovogo_nabora`;
+- DB batch limit 100 отражается только в отчёте; current 53 fragments поместятся в один будущий DB batch после embeddings;
+- `KB-02B Сжать dry-run результат` удаляет полные arrays перед дальнейшими Postgres нодами и оставляет только report + 4 fragment samples + question summary;
+- `Служебный_KB_Вернуть после ошибки B` безопасно возвращает current fenced job в `povtor` при validation error;
+- LLM/OpenAI embeddings/`sohranit_fragmenty_znaniy`/`sohranit_kontrolnye_voprosy`/publish не вызываются.
+
+### Runtime-проверка v0.10
+
+Импортировать v0.10 как отдельный inactive workflow. Назначить service Postgres Credential `Служебный. Qbit_bot_pervichnogo_obrascheniya` только worker-ветке и вручную запустить `KB-02B Ручной запуск worker`.
+
+На ручном пути Credentials нужны нодам:
+1. `Служебный_KB_Забрать задание`;
+2. `Служебный_KB_Вернуть после ошибки проверки`;
+3. `Служебный_KB_Вернуть после ошибки профиля`;
+4. `Служебный_KB_Вернуть после ошибки структуры`;
+5. `Служебный_KB_Вернуть после ошибки A2`;
+6. `Служебный_KB_Вернуть после ошибки B`;
+7. `Служебный_KB_Подготовить версию`;
+8. `Служебный_KB_Вернуть после B2`.
+
+Для доказательства успешного пути прислать outputs:
+1. `KB-02B Сжать dry-run результат`;
+2. `Служебный_KB_Подготовить версию`;
+3. `Служебный_KB_Вернуть после B2`.
+
+Не присылать полный output `KB-02B Подготовить финальные записи`: он содержит все fragments/questions и специально сжимается следующей нодой.
+
+Если сработал error path, прислать только `Служебный_KB_Вернуть после ошибки B`; job должен вернуться в `povtor`.
+
+### Критерий KB-02B
+
+- fragment records готовы и порядок стабилен;
+- hash каждого fragment соответствует точному тексту;
+- reference questions отдельны и не входят в retrieval text;
+- для текущей большой базы ожидаются 8 questions и готовность к будущей автоматической проверке;
+- LLM/embeddings/DB save/publish = 0;
+- job после dry-run возвращён в `povtor`.
 
 ## Следующая задача после KB-02B
 
