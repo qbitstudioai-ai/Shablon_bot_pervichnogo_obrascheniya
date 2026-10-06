@@ -30,6 +30,21 @@ SHA-256 восстановленного JSON:
 
 Статика v0.9.1: 220 nodes, 178 connection keys, 248 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0. Отдельный Git-checkpoint v0.9.1 ещё не сохранён; не утверждать обратное.
 
+Для активного KB-02B подготовлен локальный **v0.10 KB-02B**, ещё не runtime-проверенный:
+- файл `workflow_v0.10_KB-02B.json` / import-friendly копия `Шаблон — мультиканальный бот и служебный Telegram — версия 0.10 KB-02B.json`;
+- SHA-256 `f19b8f7189f71fe92a67e1331628da6df9dbf10df26483ae8575bf41d77048b7`;
+- 223 nodes;
+- 180 connection keys;
+- 251 edges;
+- `active=false`;
+- Credential refs 0;
+- duplicate names 0;
+- dangling connections 0;
+- JavaScript всех Code/LangChain Code nodes проходит syntax check при async wrapper;
+- новые B-ноды: `KB-02B Подготовить финальные записи`, `KB-02B Записи готовы?`, `Служебный_KB_Вернуть после ошибки B`; прежняя A2 compression-нода переименована в `KB-02B Сжать dry-run результат`.
+
+v0.10 не считать runtime-verified или Git-checkpoint до фактического запуска. Полные fragment/question arrays существуют только внутри dry-run до B compression; дальше по workflow передаются только отчёт и контрольные samples/summary, чтобы не раздувать execution payload.
+
 ## DB-04 / DB-05
 
 Нормативные DB-04/DB-05 созданы и runtime-проверены в test по KB-01R4/R5 для bot/service контура: ingestion queue, lease/fencing, version/profile/fragments/reference checks, `vector(1024)`, draft-only service search, atomic publish и active-only bot search.
@@ -37,6 +52,8 @@ SHA-256 восстановленного JSON:
 `KB-01R5D` для отдельного `dash_admin` остаётся отложен до dashboard stage.
 
 Важно: `fragmenty_znaniy` требуют уже готовый vector(1024), поэтому KB-02A1/KB-02A2/KB-02B не записывают fragments в БД. Нормативный `sohranit_fragmenty_znaniy` вызывается только после embeddings в KB-03A.
+
+DB-контракт будущего save требует у каждого fragment: `nomer_fragmenta`, `put_razdela`, `tekst_fragmenta`, `kolichestvo_tokenov`, `hash_fragmenta`, `vektor`; DB повторно проверяет SHA-256 точного текста и hard max профиля. KB-02B формирует все поля кроме vector и сохраняет source-block trace только как runtime metadata до будущего save.
 
 ## Ограничение нагрузки на LLM
 
@@ -51,11 +68,13 @@ SHA-256 восстановленного JSON:
 
 Runtime KB-02A2 показал 53 final candidates из 130 structural blocks. Средний candidate 237.1 tokens, максимум 551; разные темы не объединяются ради искусственного достижения target 600.
 
+Ручная ветка подготовленного v0.10 не содержит Language Model или Embeddings nodes: используются Manual Trigger, Code/IF, service Postgres и встроенный локальный Token Splitter только для exact count A2.
+
 ## PRE-02E / tokenizer
 
 Отдельного PRE-02E smoke нет. OpenAI `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float` и строгая проверка длины document vector закрываются внутри `KB-03A`.
 
-Tokenizer runtime для chunking теперь доказан в KB-02A2: встроенный n8n `TokenTextSplitter` использует локальный `cl100k_base`; A2 подтверждает exact count и не использует приблизительный character count.
+Tokenizer runtime для chunking доказан в KB-02A2: встроенный n8n `TokenTextSplitter` использует локальный `cl100k_base`; A2 подтверждает exact count и не использует приблизительный character count.
 
 ## Активный план
 
@@ -107,18 +126,32 @@ Evidence: `docs/evidence/KB-02/KB-02A1_RUNTIME_VERIFIED_2026-10-06.md`.
 
 Evidence: `docs/evidence/KB-02/KB-02A2_RUNTIME_VERIFIED_2026-10-06.md`.
 
-## Следующая маленькая задача — KB-02B
+## KB-02B — IN PROGRESS
 
-Подготовить окончательные fragment records и отдельные reference questions без embeddings и без записи fragments в DB.
+Цель: превратить A2 candidates в окончательные records, готовые к будущему embedding/save, и отдельно подготовить reference questions.
 
-Критерий:
-- каждый fragment имеет стабильные `nomer_fragmenta`, `put_razdela`, точный `tekst_fragmenta`, exact `kolichestvo_tokenov`, `hash_fragmenta` и trace к source blocks;
-- reference questions остаются отдельным массивом и не входят в retrieval embeddings;
-- 3–10 questions сохранены для будущей автоматической проверки;
-- повторный прогон даёт тот же порядок/hashes;
-- generative LLM не вызывается;
-- embeddings/DB fragment save/publish не выполняются;
-- job после dry-run возвращается в `povtor`.
+Подготовленный v0.10:
+- повторно проверяет `hash_fragmenta` по точному `tekst_fragmenta` без внешних модулей;
+- проверяет последовательность `nomer_fragmenta`, path/text, exact token count из A2 и hard max профиля;
+- повторно сверяет полный `hash_kandidatov` A2, чтобы между packing и B не изменился порядок/набор;
+- final record содержит `nomer_fragmenta`, `put_razdela`, `tekst_fragmenta`, `kolichestvo_tokenov`, `hash_fragmenta` и runtime `trace` (`istochniki_blokov`, overlap source blocks/types/token count);
+- YAML reference questions преобразуются отдельно в DB-compatible форму `nomer/vopros/ozhidaemyy_razdel/ozhidaemyy_fakt/istochnik=yaml`;
+- 3–10 questions дают `kontrolnye_gotovy_dlya_avtoproverki=true`; меньше 3 не уничтожают fragment records, но автоматическая проверка/публикация считается неготовой;
+- считаются deterministic hashes fragment set, question set и общего ready set;
+- embeddings, `sohranit_fragmenty_znaniy`, `sohranit_kontrolnye_voprosy` и publish не вызываются;
+- при B validation error job возвращается в `povtor` отдельной service Postgres нодой.
+
+### Критерий закрытия KB-02B
+
+На реальном n8n dry-run должен подтвердить:
+- fragment records готовы и порядок стабилен;
+- hash каждого fragment соответствует точному тексту;
+- reference questions отдельны и не входят в retrieval text;
+- для текущей большой базы ожидаются 8 questions и готовность к будущей автоматической проверке;
+- LLM/embeddings/DB save/publish = 0;
+- job безопасно возвращён в `povtor`.
+
+После KB-02B следующая маленькая задача — `KB-03A`.
 
 ## Постоянные ограничения
 
