@@ -4,96 +4,85 @@
 
 Этот план — активный план реализации knowledge workflow. Нормативные DB-04/DB-05 уже созданы и runtime-проверены на test-контуре через KB-01R4/R5.
 
-Каноническая основа workflow: фактический export Павла `(7)`. Текущий runtime-verified checkpoint KB-01A:
-`workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`.
+Каноническая основа workflow: фактический export Павла `(7)`. Текущий runtime-verified checkpoint:
+`workflows/checkpoints/2026-10-06_v0.7.1_KB-01B2_runtime_verified/`.
 
 ## Разбиение KB-01 / KB-02 / KB-03
 
 | Статус / ID | Зависимости | Один результат и критерий |
 |---|---|---|
-| [x] KB-01A | DB-03D1, DB-04 | Единый service Telegram webhook после durable registration принимает только private `.md` от разрешённого user/chat, ограничивает размер, скачивает файл, проверяет actual bytes и регистрирует через `zaregistrirovat_zagruzku_znaniy(jsonb, bytea)`. Runtime 05.10.2026: `uspeshno`, non-null `zagruzka_id`/`zadanie_id`, `status_zagruzki=poluchena`, успешный Telegram-ответ для filename с `_`. |
-| [x] KB-01B1 | KB-01A runtime | Изолированный Manual Trigger claim-ит одно durable knowledge job через `zabrat_zadanie_znaniy` с lease/fencing, безопасно разбирает YAML/Markdown без исполнения тегов/кода, проверяет обязательные metadata и heading structure и рассчитывает canonical `hash_soderzhaniya`. Runtime 06.10.2026: реальный зарегистрированный `.md` успешно claim-нут, parser valid, 57 headings, 8 reference questions, deterministic hash `73436107...`, job освобождён обратно в `povtor` тем же worker/fence. |
-| [ ] KB-01B2 | KB-01B1 runtime | Зафиксировать фактически доступный processing/index profile и tokenizer, вычислить `otpechatok_obrabotki` + `otpechatok_profilya` и вызвать `podgotovit_versiyu_znaniy` под тем же live lease/fencing. Active version с тем же processing fingerprint останавливается как дубль; новый вариант получает draft `chernovik`. Ошибки/повторы изменяют только текущий fenced job. |
-| [ ] KB-02A | KB-01B2 | Детерминированная очистка и chunking сохраняют heading path, FAQ, tables и facts; профиль 600/800/100 считается tokenizer выбранной embedding-модели; reference questions исключены из retrieval text. |
-| [ ] KB-02B | KB-02A | 3–10 reference questions извлечены отдельно, окончательные fragments имеют metadata/hash/token count; ошибки безопасно завершают или повторяют только текущий fenced job. |
-| [ ] KB-03A | KB-02B | Document embeddings OpenAI `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`; каждый vector length строго проверяется; fragments/vectors сохраняются через normative DB API. Это runtime бывшего PRE-02E. |
-| [ ] KB-03B | KB-03A | Reference questions векторизуются тем же профилем; `poisk_chernovika_znaniy` работает только по своей версии; результаты сохраняются через `sohranit_proverki_znaniy`; `gotova` только после полного pass. |
-| [ ] KB-03C | KB-03B | `opublikovat_versiyu_znaniy` атомарно переключает active version и архивирует прежнюю; stale publish конфликтует; Telegram report идёт после publish; knowledge job корректно завершается. |
+| [x] KB-01A | DB-03D1, DB-04 | Service Telegram принимает разрешённый private `.md`, проверяет actual bytes и долговечно регистрирует knowledge upload/job. Runtime подтверждён. |
+| [x] KB-01B1 | KB-01A runtime | Manual worker claim + lease/fencing + safe YAML/Markdown parser + metadata/heading validation + deterministic `hash_soderzhaniya`; job после проверки возвращается в `povtor`. Runtime подтверждён. |
+| [x] KB-01B2 | KB-01B1 runtime | Зафиксирован processing/index profile и deterministic fingerprints, `podgotovit_versiyu_znaniy` под live lease/fencing создала version 1 `chernovik`; job безопасно возвращён в `povtor`. `cl100k_base` — contract; точный runtime count переносится в KB-02A до fragment save. |
+| [~] KB-02A | KB-01B2 | Детерминированная очистка и **структурно-смысловой chunking** сохраняют heading path, FAQ, tables и facts. Смысловые границы первичны; token budget 600/800/100 вторичен. Точный runtime count `cl100k_base` доказан до сохранения fragments. Reference questions исключены из retrieval text. |
+| [ ] KB-02B | KB-02A | 3–10 reference questions извлечены отдельно; окончательные fragments имеют metadata/hash/token count; ошибки безопасно завершают или повторяют только текущий fenced job. |
+| [ ] KB-03A | KB-02B | Document embeddings OpenAI `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`; каждый vector length строго проверяется; fragments/vectors сохраняются через normative DB API. |
+| [ ] KB-03B | KB-03A | Reference questions векторизуются тем же профилем; draft search работает только по своей версии; checks сохраняются; `gotova` только после полного pass. |
+| [ ] KB-03C | KB-03B | Atomic publish переключает active version и архивирует прежнюю; stale publish конфликтует; после первой публикации end-to-end regression проверяет active duplicate stop. |
 
 ## KB-01A — завершено
 
-Реализовано и runtime-проверено:
-- единый существующий service webhook;
-- DB-03D1 durable event до KB routing;
-- private chat + whitelist + `.md` + declared size;
-- Telegram file download;
-- actual bytes/size check;
-- service Postgres call к `zaregistrirovat_zagruzku_znaniy`;
-- `uspeshno` → durable upload + durable knowledge job;
-- финальный Telegram report.
-
-Во время первого runtime обнаружено, что filename с `_` ломал Telegram entity parser. Исправлено:
-- HTML-escaping dynamic values;
-- `parse_mode=HTML`.
-Повторный safe `.md` с `_` в имени успешно подтвердил исправление.
-
-Evidence:
-`docs/evidence/KB-01/KB-01A_RUNTIME_VERIFIED_2026-10-05.md`.
-
-## Канонический checkpoint перед KB-01B1
-
-- 196 nodes;
-- 161 connection keys;
-- 225 edges;
-- `active=false`;
-- Credential objects отсутствуют;
-- whitelist пустой;
-- реальные Telegram ID и service group ID отсутствуют;
-- restore SHA-256: `6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`.
+Evidence: `docs/evidence/KB-01/KB-01A_RUNTIME_VERIFIED_2026-10-05.md`.
 
 ## KB-01B1 — завершено / runtime verified
 
-Причина отдельного шага: `podgotovit_versiyu_znaniy` требует уже зафиксированный tokenizer/profile, а runtime-доступность tokenizer в self-hosted n8n ещё не доказана. Поэтому immutable profile/draft нельзя создавать на догадке.
+Runtime 06.10.2026 подтвердил claim реального job, safe parser, 57 headings, 8 reference questions, deterministic content hash и освобождение job обратно в `povtor` тем же worker/fence.
 
-Реализованный scope KB-01B1:
-1. отдельный Manual Trigger, не подключённый к рабочим webhook;
-2. claim одного `ozhidaet/povtor` job через нормативный `zabrat_zadanie_znaniy`;
-3. live lease + worker + `nomer_vladeniya` используются во всех последующих DB-действиях;
-4. исходные bytes сверяются с `hash_istochnika`;
-5. UTF-8 и front matter разбираются без внешних модулей и без исполнения YAML tags/custom types;
-6. принимаются только документированные YAML-поля; duplicate/unknown/unsafe keys отклоняются;
-7. проверяются `identifikator_dokumenta`, `nazvanie`, `tip_dokumenta`, optional date/version/questions;
-8. Markdown проверяется на один H1, совпадение H1 с `nazvanie` и последовательные уровни H2–H6 вне fenced code;
-9. рассчитывается canonical semantic payload и SHA-256 `hash_soderzhaniya` с metadata + structure/content;
-10. после B1-проверки job освобождается через `zavershit_zadanie_znaniy(... status='povtor')`.
+Evidence: `docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
+
+## KB-01B2 — завершено / runtime verified
+
+Архитектурное решение:
+- не делать механический token splitter основным chunker;
+- не требовать отдельный npm `tiktoken` в Code node;
+- фиксировать `cl100k_base` как tokenizer/encoding contract выбранной embedding-модели;
+- реальный структурно-смысловой chunker и точный runtime count реализовать в KB-02A до fragment save.
 
 Runtime 06.10.2026:
-- `zadanie_id=0032a78e-b3fa-4cc8-8175-fcc52b53dd64`;
-- `zagruzka_id=2d94322c-0347-48ce-8c66-e136e79d54d4`;
-- worker `qbit_test_kb_worker_v1`, fence `1`;
-- parser `kb01b1_safe_frontmatter_markdown_v1` → `valid=true`, `kod=provereno`;
-- 57 структурных заголовков;
-- 8 контрольных вопросов;
-- warnings 0;
-- `hash_soderzhaniya=73436107b06ed1465094f23f785dadbb973adc787e049c04966195ae629e2290`;
-- `zavershit_zadanie_znaniy` вернула `uspeshno`, итоговый `status_zadaniya=povtor`.
+- реальный job claim-нут, parser valid;
+- profile: `text-embedding-3-large`, 1024, cosine, parser `kb01b1_safe_frontmatter_markdown_v1`, clean `kb02a_clean_v1`, chunking `kb02a_structural_chunk_600_800_100_v1`, tokenizer `cl100k_base`, target/max/overlap `600/800/100`;
+- `otpechatok_profilya=917b776877263b60b809fa0376cce8ae62937d2d44cdb0badc2e07bea2ceec3c`;
+- для проверенного документа `otpechatok_obrabotki=b56cd0f39885a576c0c7d04cdb78deceadb01e944713e9aa21b0483910b8abdb`;
+- `podgotovit_versiyu_znaniy` → `uspeshno`, non-null document/version/profile IDs, version 1, `status_versii=chernovik`;
+- publish не выполнялся;
+- job освобождён обратно в `povtor`.
 
-Фактические bytes из runtime output повторно прогнаны через тот же Code-node parser вне n8n: повторно получены 57 headings, 8 questions и тот же content hash. Предварительный ориентир `be8f4f8d...` был ошибочным и больше не используется.
+Active duplicate end-to-end до первой публикации проверить невозможно без искусственной публикации. DB guard уже доказан на DB-04/DB-05 уровне; workflow regression выполняется в KB-03C после первой безопасной публикации.
 
-Evidence:
-`docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
+Evidence: `docs/evidence/KB-01/KB-01B2_RUNTIME_VERIFIED_2026-10-06.md`.
 
-Полный v0.5 был import-ready и runtime-проверен, но его новый Git checkpoint ещё отдельно не сохранён. Не считать локальный JSON автоматически каноническим Git-артефактом до отдельного сохранения.
+Checkpoint:
+`workflows/checkpoints/2026-10-06_v0.7.1_KB-01B2_runtime_verified/`, restore SHA-256 `e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`.
 
-## Следующая задача — KB-01B2
+## KB-02A — текущая задача
 
-Цель:
-- доказать фактически доступный tokenizer/profile в self-hosted n8n;
-- вычислить `otpechatok_profilya` и `otpechatok_obrabotki`;
-- под тем же live lease/fencing вызвать `podgotovit_versiyu_znaniy`;
-- проверить active duplicate stop и создание `chernovik` для нового варианта;
-- terminal/retry paths должны менять только текущий fenced job.
+Цель: реализовать собственный детерминированный **структурно-смысловой chunker с token budget**.
 
-Не выполнять chunking, embeddings, reference search или publish в KB-01B2.
+Порядок:
+1. использовать уже проверенный Markdown AST/структуру, не переписывать исходные факты моделью;
+2. отделить YAML и reference questions от retrieval text;
+3. сохранить heading path H1→H6 и исходную последовательность;
+4. сформировать смысловые блоки по разделам, абзацам, спискам, FAQ и таблицам;
+5. небольшие блоки можно объединять только внутри одной темы;
+6. слишком длинный блок делить сначала по абзацам, затем по предложениям;
+7. FAQ question+answer не разрывать, пока помещается;
+8. таблицы делить по группам строк, повторяя header/units/context;
+9. overlap до 100 tokens использовать только между соседними частями одного смыслового блока, не через границу другой темы;
+10. target 600, hard max 800 tokens;
+11. доказать точный runtime count `cl100k_base` для финального текста каждого candidate fragment до сохранения;
+12. KB-02A пока не вызывает embeddings и не публикует.
+
+### Критерий закрытия KB-02A
+
+Один уже созданный B2 draft должен в реальном n8n дать детерминированный набор candidate fragments с:
+- стабильным порядком;
+- корректным heading path;
+- сохранёнными FAQ/tables/facts;
+- отсутствием reference questions в retrieval text;
+- точным token count каждого финального текста;
+- ни одного fragment >800 tokens;
+- объяснимым overlap только внутри одной темы.
+
+До этого fragments в DB не считать runtime-ready.
 
 Production не менять.
