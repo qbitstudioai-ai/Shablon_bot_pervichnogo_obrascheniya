@@ -17,23 +17,23 @@ KB-01A, KB-01B1 и KB-01B2 завершены и runtime-проверены. П�
 
 Фактическая основа: export Павла `(7)`.
 
-Текущий runtime-verified checkpoint:
+Последний сохранённый в Git runtime-verified checkpoint пока:
 
-`workflows/checkpoints/2026-10-06_v0.7.1_KB-01B2_runtime_verified/`
+`workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`
 
 Restore:
 
 `python tools/restore_workflow_checkpoint.py`
 
-Ожидаемый SHA-256:
+Ожидаемый SHA-256 этого Git-checkpoint:
+
+`6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`
+
+Фактически текущий runtime-проверенный import-ready workflow — v0.7.1 KB-01B2 с SHA-256:
 
 `e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`
 
-Restore создаёт:
-
-`workflows/Шаблон — мультиканальный бот и служебный Telegram — версия 0.7.1 KB-01B2.json`
-
-Не пересобирать workflow с нуля. Checkpoint очищен: `active=false`, Credential refs 0, runtime whitelist и реальные Telegram ID не сохранены.
+Он является прямым продолжением v0.5/v0.7, но отдельный Git-checkpoint v0.7.1 ещё не сохранён. Не пересобирать workflow с нуля и не утверждать, что v0.7.1 уже восстановим из Git.
 
 ## Доказанный runtime
 
