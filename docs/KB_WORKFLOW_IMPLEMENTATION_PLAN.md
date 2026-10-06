@@ -9,6 +9,8 @@
 
 Фактически текущий runtime-проверенный import-ready workflow — **v0.9.1 KB-02A2**, SHA-256 `5c3667fe84462be019d49c5560cc9f3c07e6cc10b666b665e9583f5c2f89a81c`. Отдельный Git-checkpoint v0.9.1 ещё не сохранён.
 
+Для текущего KB-02B подготовлен локальный, ещё не runtime-проверенный **v0.10 KB-02B**, SHA-256 `f19b8f7189f71fe92a67e1331628da6df9dbf10df26483ae8575bf41d77048b7`. Статика: 223 nodes, 180 connection keys, 251 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0.
+
 ## Разбиение KB-01 / KB-02 / KB-03
 
 | Статус / ID | Зависимости | Один результат и критерий |
@@ -102,11 +104,28 @@ Evidence: `docs/evidence/KB-02/KB-02A2_RUNTIME_VERIFIED_2026-10-06.md`.
 1. каждый fragment получает стабильный `nomer_fragmenta`, `put_razdela`, точный `tekst_fragmenta`, `kolichestvo_tokenov`, `hash_fragmenta` и прослеживаемость к source blocks;
 2. `hash_fragmenta` считается по точному тексту, который позже будет отправлен на embeddings;
 3. reference questions берутся только из проверенного YAML metadata и остаются отдельным набором; они не входят в fragment embeddings;
-4. 3–10 questions обязательны для автоматической первой публикации, но KB-02B публикацию не выполняет;
+4. 3–10 questions обязательны для автоматической первой публикации, но отсутствие 3 вопросов не должно уничтожать уже валидные fragment records; workflow должен явно отметить, что автоматическая проверка не готова;
 5. candidate order и hashes должны быть детерминированны при повторном прогоне;
 6. generative LLM не использовать;
-7. embeddings и `sohranit_fragmenty_znaniy` не выполнять до KB-03A;
+7. embeddings, `sohranit_fragmenty_znaniy` и `sohranit_kontrolnye_voprosy` не выполнять до следующих этапов;
 8. job после dry-run безопасно вернуть в `povtor`.
+
+Подготовленный v0.10 дополнительно:
+- независимо пересчитывает SHA-256 каждого exact `tekst_fragmenta` и сверяет A2 `hash_kandidatov`;
+- формирует DB-compatible fragment records без поля vector и отдельный DB-compatible question array;
+- сохраняет runtime trace source blocks, но не пытается записать его в текущую DB-таблицу fragments;
+- считает deterministic hashes fragment set / question set / общего ready set;
+- после проверки сжимает execution payload: полные arrays удаляются, остаются report + 4 samples + question summary;
+- ручной путь не содержит generative LLM или embeddings nodes.
+
+Критерий runtime v0.10:
+- `kb02b_zapisi_gotovy=true`;
+- для текущей большой базы `fragmentov=53`, `kontrolnyh_voprosov=8`, `kontrolnye_gotovy_dlya_avtoproverki=true`;
+- `hash_a2_kandidatov=e87704afce40351fec6432860689e1af6dc3666823733cf22c327d97a7fa45a4` при обработке той же большой загрузки;
+- `prevyshenie_max=0`;
+- LLM/embeddings/DB save/publish = 0;
+- `podgotovit_versiyu_znaniy` может вернуть ожидаемый идемпотентный `dublikat`;
+- job возвращён в `povtor`.
 
 После KB-02B переходить к KB-03A.
 
