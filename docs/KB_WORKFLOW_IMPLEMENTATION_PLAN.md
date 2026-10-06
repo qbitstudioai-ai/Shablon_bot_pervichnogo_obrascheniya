@@ -9,7 +9,7 @@
 Последний сохранённый в Git восстановимый runtime-checkpoint пока остаётся KB-01A:
 `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`.
 
-Фактически текущий runtime-проверенный import-ready workflow — **v0.10 KB-02B**, SHA-256 `f19b8f7189f71fe92a67e1331628da6df9dbf10df26483ae8575bf41d77048b7`. Отдельный Git-checkpoint v0.10 ещё не сохранён.
+Фактически текущий runtime-проверенный import-ready workflow — **v0.11 KB-03A**, SHA-256 `54f5d276cbd2092fee4e0fcf8d768a73b5b5b81077c064645b3803966bc36a8b`. Отдельный Git-checkpoint v0.11 ещё не сохранён.
 
 ## Этапы
 
@@ -21,8 +21,8 @@
 | [x] KB-02A1 | KB-01B2 | Детерминированный структурный разбор формирует ordered semantic blocks с heading path; YAML/reference questions исключены из retrieval text. |
 | [x] KB-02A2 | KB-02A1 | Exact `cl100k_base` + structural packing: target 600, hard max 800, overlap до 100 только внутри реально разрезанного блока; DB save ещё нет. |
 | [x] KB-02B | KB-02A2 | Final fragment records + отдельные 3–10 YAML reference questions; exact text/hash/token count/order/trace проверены; LLM/embeddings/DB save/publish = 0. |
-| [~] KB-03A | KB-02B | Document embeddings OpenAI `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`; строгая проверка каждого vector; затем нормативный `sohranit_fragmenty_znaniy`. |
-| [ ] KB-03B | KB-03A | Reference questions векторизуются тем же профилем; draft search только по своей версии; checks сохраняются; `gotova` только после полного pass. |
+| [x] KB-03A | KB-02B | OpenAI `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`; vectors строго проверены; fragments/vectors сохранены через нормативный `sohranit_fragmenty_znaniy`. |
+| [~] KB-03B | KB-03A | Сохранить reference questions, векторизовать их тем же профилем; draft search только по своей версии; checks сохранить; `gotova` только после полного pass. |
 | [ ] KB-03C | KB-03B | Atomic publish переключает active version и архивирует прежнюю; stale publish конфликтует; затем end-to-end regression. |
 
 ## Guard по нагрузке на LLM
@@ -38,6 +38,8 @@
 
 Runtime A2 показал, что target 600 — не минимальный размер: разные темы нельзя объединять только ради приближения к 600. На большой safe-базе 130 structural blocks → 53 candidates, 87..551 tokens, average 237.1, >800 = 0.
 
+KB-03A использует один OpenAI embedding batch для полного набора fragments, а не отдельный запрос на каждый fragment. Это индексная операция, не generative LLM.
+
 ## Доказанный runtime
 
 ### KB-01A
@@ -50,7 +52,7 @@ Evidence: `docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
 Evidence: `docs/evidence/KB-01/KB-01B2_RUNTIME_VERIFIED_2026-10-06.md`.
 
 ### KB-02A1
-На большой safe Markdown-базе: 57 headings, 130 ordered blocks, 90 paragraph + 40 list, warnings 0, stable `hash_struktury=fdb26ff9a95b0cfeee5c4f2909859d148c268bfcec2bd308b16e9cf0f6910d85`, DB fragments 0, job → `povtor`.
+На большой safe Markdown-базе: 57 headings, 130 ordered blocks, warnings 0, stable structure hash, DB fragments 0, job → `povtor`.
 
 Evidence: `docs/evidence/KB-02/KB-02A1_RUNTIME_VERIFIED_2026-10-06.md`.
 
@@ -60,38 +62,49 @@ Evidence: `docs/evidence/KB-02/KB-02A1_RUNTIME_VERIFIED_2026-10-06.md`.
 Evidence: `docs/evidence/KB-02/KB-02A2_RUNTIME_VERIFIED_2026-10-06.md`.
 
 ### KB-02B
-Live runtime v0.10 выполнен на safe документе `qbit_podgotovka_k_pervichnomu_razboru`:
-- 6 final fragment records;
-- token range 102..211, average 151.7, >800 = 0;
-- `hash_a2_kandidatov=1808f182d52a56bf1f4dc4f3066ac70f3e0c2c9b8555fb2c436e9a42bfe5cbab`;
-- `hash_nabora_fragmentov=d367f0824cee817d498778f95815b4175a3e47cebd2facebdcacaffc1703a0d2`;
-- 3 YAML reference questions, готовы к будущей автопроверке;
-- `hash_nabora_kontrolnyh_voprosov=d34d9e8222fa5608d2c4612a2decf5d158b7cbf3dc8fbba8499774639082e70a`;
-- `hash_gotovogo_nabora=ad69f88ebbd5c99147cf3c750fcacaa37e4d12ff58366bd53f5573e04b150455`;
-- LLM/embeddings/DB fragment save/question save/publish = 0;
-- `podgotovit_versiyu_znaniy` → ожидаемый `dublikat`, version остаётся `chernovik`;
-- job fence 4 возвращён в `povtor`.
-
-Детерминизм B-кода дополнительно проверен двумя локальными запусками на идентичном входе: полный JSON совпал побайтово. Это не второй live-claim и в evidence так и записано.
+Live runtime v0.10 на safe документе подтвердил 6 final fragment records, exact text/hash/token count/order/trace и 3 отдельные YAML reference questions. LLM/embeddings/DB save/publish = 0; job → `povtor`.
 
 Evidence: `docs/evidence/KB-02/KB-02B_RUNTIME_VERIFIED_2026-10-06.md`.
 
-## KB-03A — текущая задача
+### KB-03A
+Первая попытка на большой safe-базе дошла до 53 fragments / 12568 input tokens, но была безопасно остановлена из-за `Credentials not found`; DB save/publish не выполнялись, job → `povtor`.
 
-Цель: впервые выполнить document embeddings и сохранить final fragments через нормативный DB API.
+После привязки TEST OpenAI Credential успешный live-run на safe документе подтвердил:
+- 6 final fragments;
+- один OpenAI embedding batch;
+- `text-embedding-3-large`;
+- `dimensions=1024`;
+- `encoding_format=float`;
+- usage 910 input tokens;
+- 6 vectors, каждый length 1024;
+- все vector values finite;
+- mapping по API index подтверждён;
+- exact `tekst_fragmenta` использован как embedding input;
+- generative LLM calls = 0;
+- `sohranit_fragmenty_znaniy` → `uspeshno`;
+- `sohraneno_fragmentov=6`, `vsego_fragmentov=6`;
+- version остаётся `chernovik`;
+- reference questions ещё не embedded/saved;
+- publish = false;
+- job fence 5 → `povtor`.
+
+Evidence: `docs/evidence/KB-03/KB-03A_RUNTIME_VERIFIED_2026-10-06.md`.
+
+## KB-03B — текущая задача
+
+Цель: сохранить canonical YAML reference questions, получить embeddings вопросов тем же profile и выполнить draft-only retrieval checks по version 1.
 
 Обязательные свойства:
-1. использовать только OpenAI `text-embedding-3-large`;
-2. запрос: `dimensions=1024`, `encoding_format=float`;
-3. embedding получает **точный `tekst_fragmenta` из KB-02B**, без дополнительного splitter/переписывания;
-4. каждый ответ OpenAI должен содержать vector length ровно 1024 и только конечные числа;
-5. порядок vectors должен однозначно соответствовать `nomer_fragmenta`; нельзя подставить vector/metadata первого item всем остальным;
-6. формировать payload нормативного `sohranit_fragmenty_znaniy`: `nomer_fragmenta`, `put_razdela`, `tekst_fragmenta`, `kolichestvo_tokenov`, `hash_fragmenta`, `vektor`;
-7. DB повторно проверяет SHA-256 текста, token max и vector dimension;
-8. пакет функции: 1..100 fragments; текущие 6/53 укладываются в один batch;
-9. при частичной/внешней ошибке не публиковать версию и не терять fenced job;
-10. после успешного save проверить `sohraneno_fragmentov` / `vsego_fragmentov` и только затем безопасно освободить job для KB-03B;
-11. reference questions в KB-03A ещё не векторизовать и проверки не запускать;
-12. production не менять.
+1. questions берутся только из проверенного YAML набора KB-02B;
+2. сохранить их через нормативный `sohranit_kontrolnye_voprosy` до checks;
+3. embedding каждого `vopros` — OpenAI `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`;
+4. каждый question vector length ровно 1024 и все значения finite;
+5. draft search выполняется только через `poisk_chernovika_znaniy` и только по своей `versiya_id`/profile;
+6. для каждого question проверить ожидаемый `ozhidaemyy_razdel`; если задан `ozhidaemyy_fakt`, он должен быть подтверждён найденным evidence без LLM-самооценки;
+7. сохранить результаты через `sohranit_proverki_znaniy`;
+8. версия может перейти в `gotova` только при полном pass всех canonical questions;
+9. при любом fail версия остаётся draft/not-ready, publish не выполняется;
+10. retrieval limits и similarity threshold не назначать по памяти: использовать документированный калибровочный диапазон и сохранять фактические результаты;
+11. production не менять.
 
-После KB-03A переходить к KB-03B.
+После KB-03B переходить к KB-03C.
