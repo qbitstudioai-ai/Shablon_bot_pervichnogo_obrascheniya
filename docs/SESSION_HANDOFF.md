@@ -6,12 +6,16 @@
 
 Рабочая ветка: `main`.
 
-KB-01A, KB-01B1 и KB-01B2 завершены и runtime-проверены. Перед следующей задачей проверить актуальный `main` HEAD и прочитать:
+KB-01A, KB-01B1 и KB-01B2 завершены и runtime-проверены. Текущая маленькая задача — **KB-02A1**.
+
+Перед продолжением проверить актуальный `main` HEAD и прочитать:
 1. `README.md`;
 2. `docs/PROJECT_STATE.md`;
 3. этот файл;
 4. `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`;
-5. для KB-02A — `docs/specs/KNOWLEDGE_INGESTION.md`, `docs/specs/MARKDOWN_FORMAT.md`, нужные части `docs/specs/DB_CONTRACT.md` и processing profile.
+5. `docs/specs/KNOWLEDGE_INGESTION.md`;
+6. `docs/specs/MARKDOWN_FORMAT.md`;
+7. нужные части `docs/specs/DB_CONTRACT.md` и `docs/specs/PROCESSING_PROFILE.md`.
 
 ## Канонический workflow
 
@@ -33,7 +37,17 @@ Restore:
 
 `e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`
 
-Он является прямым продолжением v0.5/v0.7, но отдельный Git-checkpoint v0.7.1 ещё не сохранён. Не пересобирать workflow с нуля и не утверждать, что v0.7.1 уже восстановим из Git.
+Отдельный Git-checkpoint v0.7.1 ещё не сохранён. Не утверждать обратное.
+
+Для KB-02A1 подготовлен локальный import-ready **v0.8 KB-02A1**, ещё не runtime-проверенный:
+
+`Шаблон — мультиканальный бот и служебный Telegram — версия 0.8 KB-02A1.json`
+
+SHA-256:
+
+`cc173a8421fe0b75a9687ceb821d7f0fdd7f9ddedf3cf4f1944b782f89ef4b60`
+
+Статика: 215 nodes, 174 connection keys, 243 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0. Изменённые Code nodes прошли `node --check`.
 
 ## Доказанный runtime
 
@@ -60,33 +74,49 @@ Evidence: `docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
 
 Evidence: `docs/evidence/KB-01/KB-01B2_RUNTIME_VERIFIED_2026-10-06.md`.
 
-`cl100k_base` пока является зафиксированным tokenizer/encoding contract. Точный token count на финальном тексте fragments должен быть runtime-проверен в KB-02A до любого сохранения fragments. Отдельный npm `tiktoken` не является обязательным архитектурным требованием.
+## KB-02A разбит на две маленькие задачи
 
-## DB-04 / DB-05
+Причина: структурно-смысловой алгоритм и точный runtime tokenizer count — разные источники ошибок, их нельзя безопасно отлаживать одновременно.
 
-Нормативные DB-04/DB-05 уже существуют в test и runtime-проверены для bot/service. `KB-01R5D` dash_admin revoke отложен до dashboard stage.
+- **KB-02A1** — structural semantic blocks, без token packing;
+- **KB-02A2** — точный `cl100k_base` count и final candidate packing 600/800/100.
 
-## Следующая задача — KB-02A
+## KB-02A1 — IN PROGRESS
 
-Цель: реализовать детерминированный структурно-смысловой chunker, а не механический token splitter.
+В v0.8 добавлено:
+- B1 parser сохраняет нормализованный Markdown body только для внутренней A1-ветки; YAML туда не входит;
+- `KB-02A1 Сформировать смысловые блоки` детерминированно строит ordered blocks;
+- heading hierarchy превращается в полный `put_razdela`;
+- типы: `paragraph`, `list`, `table`, `code`;
+- heading с `?` маркирует FAQ-раздел; question+answer остаются в одном heading path;
+- Markdown table остаётся цельным блоком A1, строки не режутся;
+- fenced code остаётся цельным блоком, `#` и `|` внутри него не считаются heading/table;
+- HTML comments и script/style удаляются только вне fenced code и отражаются в cleaning report;
+- A1 выдаёт `hash_struktury`, counts/types/paths и полный список блоков;
+- A1 удаляет временный raw body перед дальнейшими DB-нодами;
+- при structural error job возвращается в `povtor` через отдельную service Postgres-ноду;
+- ни `sohranit_fragmenty_znaniy`, ни OpenAI embeddings A1 не вызывает.
 
-Обязательные свойства:
-- Markdown hierarchy H1→H6 сохраняется как heading path;
-- смысловые границы первичны, token budget вторичен;
-- FAQ вопрос+ответ остаются вместе, пока помещаются;
-- таблицы делятся по строкам с повтором заголовка/единиц;
-- длинный смысловой блок делится по абзацам, затем предложениям;
-- overlap не переносится через другую тему;
-- target/max/overlap = 600/800/100 tokens;
-- точный runtime token count `cl100k_base` доказан до сохранения fragments;
-- reference questions исключены из retrieval text;
-- embeddings ещё не выполнять.
+Локальные проверки:
+- safe short Markdown: 6 headings → 10 ordered blocks, 6 paths, structure hash `439716cc8d1c7d2590829c707506193b7e0e06a44fa02a770a7fe84935658577`;
+- fixture FAQ/table/code прошёл: FAQ paths корректны, table единый, code не распознаётся как heading/table;
+- cleaning fixture: HTML comment/script удалены вне code и сохранены внутри code;
+- большая safe Markdown-база формирует 130 ordered blocks без structural error.
 
-Не начинать KB-02B или KB-03A до runtime KB-02A.
+### Что нужно от runtime
 
-## PRE-02E
+Импортировать v0.8 как отдельный inactive workflow, назначить service Postgres Credentials только worker-ветке и запустить `KB-02A1 Ручной запуск worker` вручную.
 
-Отдельный smoke не запускать. OpenAI document embedding `text-embedding-3-large`, `dimensions=1024` будет добавлен и runtime-проверен в KB-03A.
+Для доказательства прислать:
+1. Output `KB-02A1 Сформировать смысловые блоки`;
+2. Output `Служебный_KB_Подготовить версию`;
+3. Output `Служебный_KB_Вернуть после B2` либо structural error return, если сработал error path.
+
+Ожидаемо для уже подготовленной той же загрузки `podgotovit_versiyu_znaniy` может вернуть `dublikat` со статусом существующего `chernovik`; это нормальная идемпотентность. Job после dry-run должен вернуться в `povtor`.
+
+## Следующая задача после runtime A1
+
+`KB-02A2` — доказать точный runtime `cl100k_base` count и выполнить final candidate packing: target 600, hard max 800, overlap до 100 только внутри одного смыслового блока/темы. До A2 не сохранять fragments и не выполнять embeddings.
 
 ## Запреты
 
