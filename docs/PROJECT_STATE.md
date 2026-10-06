@@ -24,17 +24,31 @@ SHA-256 восстановленного JSON:
 
 `6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`
 
-При этом фактически runtime-проверенный текущий import-ready workflow — **v0.7.1 KB-01B2**. Его локальный SHA-256:
+Фактически runtime-проверенный текущий import-ready workflow — **v0.7.1 KB-01B2**. Его локальный SHA-256:
 
 `e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`
 
 Статически для v0.7.1: 212 nodes, 172 connection keys, 240 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0. Отдельный Git-checkpoint v0.7.1 ещё не сохранён; не утверждать обратное.
+
+Для текущего KB-02A1 подготовлен **локальный, ещё не runtime-проверенный** workflow v0.8 KB-02A1:
+- SHA-256 `cc173a8421fe0b75a9687ceb821d7f0fdd7f9ddedf3cf4f1944b782f89ef4b60`;
+- 215 nodes;
+- 174 connection keys;
+- 243 edges;
+- `active=false`;
+- Credential refs 0;
+- duplicate names 0;
+- dangling connections 0.
+
+Не считать v0.8 runtime-verified или Git-checkpoint до фактического запуска и отдельного сохранения.
 
 ## DB-04 / DB-05
 
 Нормативные DB-04/DB-05 созданы и runtime-проверены в test по KB-01R4/R5 для bot/service контура: ingestion queue, lease/fencing, version/profile/fragments/reference checks, `vector(1024)`, draft-only service search, atomic publish и active-only bot search.
 
 `KB-01R5D` для отдельного `dash_admin` остаётся отложен до dashboard stage.
+
+Важно для текущего этапа: `fragmenty_znaniy` требуют уже готовый vector(1024), поэтому KB-02A1/KB-02A2 не записывают fragments в БД. Нормативный `sohranit_fragmenty_znaniy` вызывается только после embeddings в KB-03A.
 
 ## PRE-02E
 
@@ -44,8 +58,8 @@ SHA-256 восстановленного JSON:
 
 Активный план: `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`.
 
-Последовательность:
-`KB-01A` → `KB-01B1` → `KB-01B2` → `KB-02A` → `KB-02B` → `KB-03A` → `KB-03B` → `KB-03C`.
+Последовательность текущего пути:
+`KB-01A` → `KB-01B1` → `KB-01B2` → `KB-02A1` → `KB-02A2` → `KB-02B` → `KB-03A` → `KB-03B` → `KB-03C`.
 
 ## KB-01A — CLOSED / runtime verified
 
@@ -71,19 +85,35 @@ Evidence: `docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
 7. publish не выполнялся;
 8. job тем же worker/fence освобождён обратно в `povtor`.
 
-Важно: `cl100k_base` в B2 — зафиксированный tokenizer/encoding contract. Точный runtime token count на финальном тексте fragments и сам структурно-смысловой chunking обязательно проверяются в KB-02A до сохранения fragments. Отдельный npm `tiktoken` в Code node не является обязательным условием B2.
-
-Active duplicate end-to-end не мог быть проверен до первой публикации. DB guard уже runtime-проверен на DB-04/DB-05 уровне; повтор после первой публикации добавить в regression KB-03C.
+`cl100k_base` в B2 — tokenizer/encoding contract. Точный runtime token count переносится в KB-02A2 после доказанного структурного этапа A1.
 
 Evidence: `docs/evidence/KB-01/KB-01B2_RUNTIME_VERIFIED_2026-10-06.md`.
 
-## Следующая маленькая задача
+## KB-02A1 — IN PROGRESS
 
-`KB-02A` — структурно-смысловой chunking.
+Цель: получить детерминированные структурно-смысловые блоки до token packing.
 
-Критерий: детерминированно очистить и разделить Markdown по структуре/смысловым блокам с сохранением heading path, FAQ, таблиц и фактов; применять token budget `600/800/100` только как ограничение размера; доказать точный runtime token count `cl100k_base` на финальном тексте до сохранения fragments. Контрольные вопросы не входят в retrieval text.
+Подготовлено локально в v0.8:
+- проверенный B1 parser дополнительно передаёт нормализованный Markdown body только во внутреннюю A1-ветку;
+- A1 удаляет документированные HTML comments и script/style только вне fenced code, сохраняя отчёт;
+- heading hierarchy H1→H6 превращается в `put_razdela`;
+- различаются `paragraph`, `list`, `table`, `code`;
+- FAQ-раздел определяется по вопросительному heading и остаётся единым разделом для будущей token-упаковки;
+- YAML и `kontrolnye_voprosy` не входят в body/retrieval blocks;
+- full block texts пока не отправляются в DB;
+- при ошибке job возвращается в `povtor` тем же worker/fence.
 
-Не начинать KB-02B/embeddings до runtime-проверки KB-02A.
+Локальные проверки:
+- `QBit_podgotovka_k_pervichnomu_razboru.md`: parser valid, исходный content hash сохранился, 6 headings → 10 ordered blocks, 6 heading paths, 9 paragraphs + 1 list, structure hash `439716cc8d1c7d2590829c707506193b7e0e06a44fa02a770a7fe84935658577`;
+- отдельный fixture подтвердил FAQ paths, Markdown table как единый block и fenced code без ложного heading/table распознавания;
+- cleaning fixture подтвердил удаление HTML comment/script вне code и сохранение тех же конструкций внутри fenced code;
+- локальная большая Markdown-база проходит A1 и формирует ordered structure без ошибки.
+
+### Критерий закрытия KB-02A1
+
+Один существующий B2 draft должен в реальном n8n дать стабильный ordered набор блоков с корректными heading paths; YAML/reference questions отсутствуют в retrieval text; DB fragment save/embeddings отсутствуют; job возвращён в `povtor`.
+
+После runtime KB-02A1 следующая маленькая задача — `KB-02A2`: точный `cl100k_base` count и final candidate packing `600/800/100`.
 
 ## Постоянные ограничения
 
