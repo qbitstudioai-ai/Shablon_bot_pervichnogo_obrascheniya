@@ -12,7 +12,7 @@
 | Статус / ID | Зависимости | Один результат и критерий |
 |---|---|---|
 | [x] KB-01A | DB-03D1, DB-04 | Единый service Telegram webhook после durable registration принимает только private `.md` от разрешённого user/chat, ограничивает размер, скачивает файл, проверяет actual bytes и регистрирует через `zaregistrirovat_zagruzku_znaniy(jsonb, bytea)`. Runtime 05.10.2026: `uspeshno`, non-null `zagruzka_id`/`zadanie_id`, `status_zagruzki=poluchena`, успешный Telegram-ответ для filename с `_`. |
-| [~] KB-01B1 | KB-01A runtime | Изолированный Manual Trigger claim-ит одно durable knowledge job через `zabrat_zadanie_znaniy` с lease/fencing, безопасно разбирает YAML/Markdown без исполнения тегов/кода, проверяет обязательные metadata и heading structure и рассчитывает canonical `hash_soderzhaniya`. На этапе проверки parser job всегда освобождается обратно в `povtor`, чтобы ошибка интеграции n8n/bytea не уничтожила тестовую очередь. Критерий: реальный зарегистрированный `.md` даёт проверяемый parse-report/hash либо документированное отклонение, lease/fencing не теряются. |
+| [x] KB-01B1 | KB-01A runtime | Изолированный Manual Trigger claim-ит одно durable knowledge job через `zabrat_zadanie_znaniy` с lease/fencing, безопасно разбирает YAML/Markdown без исполнения тегов/кода, проверяет обязательные metadata и heading structure и рассчитывает canonical `hash_soderzhaniya`. Runtime 06.10.2026: реальный зарегистрированный `.md` успешно claim-нут, parser valid, 57 headings, 8 reference questions, deterministic hash `73436107...`, job освобождён обратно в `povtor` тем же worker/fence. |
 | [ ] KB-01B2 | KB-01B1 runtime | Зафиксировать фактически доступный processing/index profile и tokenizer, вычислить `otpechatok_obrabotki` + `otpechatok_profilya` и вызвать `podgotovit_versiyu_znaniy` под тем же live lease/fencing. Active version с тем же processing fingerprint останавливается как дубль; новый вариант получает draft `chernovik`. Ошибки/повторы изменяют только текущий fenced job. |
 | [ ] KB-02A | KB-01B2 | Детерминированная очистка и chunking сохраняют heading path, FAQ, tables и facts; профиль 600/800/100 считается tokenizer выбранной embedding-модели; reference questions исключены из retrieval text. |
 | [ ] KB-02B | KB-02A | 3–10 reference questions извлечены отдельно, окончательные fragments имеют metadata/hash/token count; ошибки безопасно завершают или повторяют только текущий fenced job. |
@@ -51,11 +51,11 @@ Evidence:
 - реальные Telegram ID и service group ID отсутствуют;
 - restore SHA-256: `6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`.
 
-## KB-01B1 — текущая задача
+## KB-01B1 — завершено / runtime verified
 
 Причина отдельного шага: `podgotovit_versiyu_znaniy` требует уже зафиксированный tokenizer/profile, а runtime-доступность tokenizer в self-hosted n8n ещё не доказана. Поэтому immutable profile/draft нельзя создавать на догадке.
 
-Scope KB-01B1:
+Реализованный scope KB-01B1:
 1. отдельный Manual Trigger, не подключённый к рабочим webhook;
 2. claim одного `ozhidaet/povtor` job через нормативный `zabrat_zadanie_znaniy`;
 3. live lease + worker + `nomer_vladeniya` используются во всех последующих DB-действиях;
@@ -65,35 +65,35 @@ Scope KB-01B1:
 7. проверяются `identifikator_dokumenta`, `nazvanie`, `tip_dokumenta`, optional date/version/questions;
 8. Markdown проверяется на один H1, совпадение H1 с `nazvanie` и последовательные уровни H2–H6 вне fenced code;
 9. рассчитывается canonical semantic payload и SHA-256 `hash_soderzhaniya` с metadata + structure/content;
-10. после B1-проверки job освобождается через `zavershit_zadanie_znaniy(... status='povtor')` — как при valid, так и при parser rejection; terminal `oshibka` включается только после runtime-доказательства parser.
+10. после B1-проверки job освобождается через `zavershit_zadanie_znaniy(... status='povtor')`.
 
-Подготовлен локальный полный import-ready v0.5 KB-01B1 поверх точного runtime-verified v0.4. До реального n8n-прогона он не считается каноническим checkpoint Git.
+Runtime 06.10.2026:
+- `zadanie_id=0032a78e-b3fa-4cc8-8175-fcc52b53dd64`;
+- `zagruzka_id=2d94322c-0347-48ce-8c66-e136e79d54d4`;
+- worker `qbit_test_kb_worker_v1`, fence `1`;
+- parser `kb01b1_safe_frontmatter_markdown_v1` → `valid=true`, `kod=provereno`;
+- 57 структурных заголовков;
+- 8 контрольных вопросов;
+- warnings 0;
+- `hash_soderzhaniya=73436107b06ed1465094f23f785dadbb973adc787e049c04966195ae629e2290`;
+- `zavershit_zadanie_znaniy` вернула `uspeshno`, итоговый `status_zadaniya=povtor`.
 
-Статически подготовленный v0.5:
-- 205 nodes;
-- 167 connection keys;
-- 233 edges;
-- `active=false`;
-- duplicate names 0;
-- dangling connections 0;
-- Credential refs 0;
-- новые Code nodes проходят `node --check`;
-- реальные Telegram ID / service group ID / obvious secrets отсутствуют;
-- SHA-256 import JSON: `12430374e26711a32067d096884c4672dda061861e3f27030c38711829ed56f9`.
+Фактические bytes из runtime output повторно прогнаны через тот же Code-node parser вне n8n: повторно получены 57 headings, 8 questions и тот же content hash. Предварительный ориентир `be8f4f8d...` был ошибочным и больше не используется.
 
-Локальные parser-проверки на двух ранее подготовленных safe `.md` прошли; также проверены reject-paths для duplicate YAML key, отсутствующего YAML, несовпадающего H1, пропуска heading level и unsafe YAML tag. Это ещё не заменяет n8n runtime.
+Evidence:
+`docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
 
-### Критерий закрытия KB-01B1
+Полный v0.5 был import-ready и runtime-проверен, но его новый Git checkpoint ещё отдельно не сохранён. Не считать локальный JSON автоматически каноническим Git-артефактом до отдельного сохранения.
 
-Один уже зарегистрированный safe `.md` должен в реальном n8n:
-- успешно claim-нуться служебной ролью;
-- вернуть live `zadanie_id`, `zagruzka_id`, worker/lease/fence;
-- быть разобран и провалидирован ожидаемым образом;
-- дать deterministic `hash_soderzhaniya` и metadata report;
-- освободить lease и перейти в `povtor`, не потеряв задачу.
+## Следующая задача — KB-01B2
 
-После этого сохранить runtime-verified checkpoint и evidence, поставить KB-01B1 `[x]` и переходить к KB-01B2.
+Цель:
+- доказать фактически доступный tokenizer/profile в self-hosted n8n;
+- вычислить `otpechatok_profilya` и `otpechatok_obrabotki`;
+- под тем же live lease/fencing вызвать `podgotovit_versiyu_znaniy`;
+- проверить active duplicate stop и создание `chernovik` для нового варианта;
+- terminal/retry paths должны менять только текущий fenced job.
 
-Не выполнять chunking, embeddings, reference search или publish в KB-01B1/KB-01B2.
+Не выполнять chunking, embeddings, reference search или publish в KB-01B2.
 
 Production не менять.
