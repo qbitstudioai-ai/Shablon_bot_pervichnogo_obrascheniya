@@ -1,131 +1,141 @@
 # Профиль обработки PRE-02
 
-Статус: в работе. Провайдер OpenAI зафиксирован; PRE-02E candidate profile выбран и smoke workflow подготовлен, но runtime-проверка в амстердамском n8n ещё не выполнена. PRE-02C/PRE-02D также не закрыты.
+Обновлено: 2026-10-06.
+
+Статус: профиль knowledge ingestion частично runtime-проверен. Нормативные DB-04/DB-05 уже созданы и проверены на test-контуре. Структурный chunking и точный `cl100k_base` token count проверены в KB-02A1/KB-02A2. Document embeddings OpenAI и retrieval-калибровка ещё впереди.
 
 ## Внешний AI-провайдер
 
-28 сентября 2026 года Павел отказался от OpenRouter как целевого профиля и перенёс рабочий n8n на сервер в Амстердаме. Новый целевой провайдер для **LLM и embeddings — OpenAI**.
-
-В PRE-02E выбран **кандидат**: `gpt-6-luna` для guard/planner, `gpt-6-sol` для grounded клиентского ответа и `text-embedding-3-large` с `dimensions=1024` для document/query embeddings. Выбор сделан по актуальной официальной документации OpenAI и ограничению pgvector HNSW для обычного `vector` до 2000 dimensions. Профиль ещё не считается runtime-проверенным: до фактического smoke-test в n8n model IDs и dimension не фиксируются в DB-04/DB-05.
-
-Supabase/pgvector остаётся на российском сервере. DB-04/DB-05 ещё не создавались, поэтому переход с Qwen/OpenRouter на OpenAI сейчас **не требует изменения существующего DB-03**. Размерность будущих vector-полей фиксируется только после PRE-02E.
+28 сентября 2026 года Павел выбрал **OpenAI** как целевого внешнего провайдера для LLM и embeddings. Рабочий n8n находится в Амстердаме; Supabase/pgvector остаётся на российском сервере.
 
 Для test и production используются разные OpenAI API keys. Секреты не сохраняются в GitHub и не вставляются в workflow.
 
-## LLM
-
-Целевой провайдер: **OpenAI**. PRE-02E candidate: `gpt-6-luna` для частых guard/planner вызовов и `gpt-6-sol` для grounded клиентского ответа. LLM вызываются через Responses API со Structured Outputs; для новых запросов `store=false`. CORE по-прежнему требует структурированный и проверяемый результат; LLM не получает права выбирать schema, Credential, адресата или выполнять исходящее действие самостоятельно. Runtime-доступность моделей ещё должна быть подтверждена smoke-test.
+LLM не получает права выбирать schema, Credential, адресата или выполнять исходящее действие самостоятельно. Внешние вызовы получают только минимально необходимый обезличенный пакет.
 
 ## Embeddings
 
-Целевой провайдер: **OpenAI**.
+Целевой document/query embedding profile:
+- provider: OpenAI;
+- model: `text-embedding-3-large`;
+- dimensions: `1024`;
+- similarity metric: cosine;
+- encoding format для API: `float`.
 
-Обязательные правила сохраняются:
-- один embedding model/dimension profile используется и для document chunks, и для query embeddings;
-- embedding нужен при индексации знаний и при каждом semantic-поиске;
-- similarity = cosine;
-- векторы и similarity search хранятся/выполняются только в российском Supabase/pgvector;
-- смешивать разные embedding-профили в одном активном индексе нельзя.
+Один и тот же model/dimension profile используется для document fragments и query embeddings. Векторы разных профилей не смешиваются в одном активном индексе.
 
-PRE-02E candidate: `text-embedding-3-large`, `dimensions=1024`, одинаково для document chunks и query embeddings. Default 3072 не подходит обычному pgvector `vector` HNSW лимиту 2000 dimensions; 1024 официально поддерживается параметром OpenAI `dimensions`. Это значение становится DB-профилем только после успешного runtime smoke-test.
+DB-04/DB-05 уже фиксируют `vector(1024)` и соответствующий immutable processing/index profile. Фактический OpenAI document-embedding runtime и строгая проверка длины vector выполняются в **KB-03A** до сохранения fragments.
 
 ## Подключение n8n
 
-Рабочий n8n находится в Амстердаме; фактическая версия подтверждена Павлом: **2.41.0**. Для PRE-02E подготовлен переносимый HTTP Request adapter через штатный credential type `openAiApi`: Responses API для LLM и `/v1/embeddings` для embeddings. API keys/Credential IDs в JSON не сохраняются. Файл smoke-test: `workflows/PRE-02E_openai_profile_smoke_n8n_2.41.0.json`; runtime ещё не выполнен.
+Фактическая версия n8n: **2.41.0**.
 
-## Голос и локальный STT
+Knowledge ingestion до KB-02A2 не требует generative LLM или внешних npm tokenizer-пакетов. Credentials OpenAI будут подключаться через n8n UI; Credential IDs/API keys в Git-export не сохраняются.
 
-Текст и голос являются поддерживаемыми входами клиентского Telegram v1. Голос не отправляется напрямую в OpenAI или другой внешний transcription API, потому что исходное аудио может содержать PII.
+## Markdown, YAML и parser
 
-До внешнего AI используется локальный STT-адаптер на российском сервере:
+Текущая runtime-реализация не зависит от внешних Markdown/YAML npm-пакетов:
+- safe front matter/YAML subset и Markdown structure обрабатываются self-contained deterministic Code node;
+- parser version: `kb01b1_safe_frontmatter_markdown_v1`;
+- cleaning version: `kb02a_clean_v1`;
+- structural chunking profile: `kb02a_structural_chunk_600_800_100_v1`.
 
-`Telegram voice → локальный STT → транскрипция → PII-очистка → OpenAI`.
+YAML/reference questions отделяются от retrieval text. Содержание документа не переписывается LLM.
 
-Конкретный движок STT, модель, требования к CPU/GPU и производительность ещё не зафиксированы и должны быть проверены отдельным runtime-тестом. В draft workflow используется настраиваемый HTTP-контракт локального STT; пример URL не означает, что сервис уже развёрнут.
+## Tokenizer — runtime verified
 
-Начальные ограничения draft: до 20 MiB и до 300 секунд на одно голосовое. Они являются стартовыми защитными лимитами и могут быть уменьшены после измерений.
+Encoding contract: **`cl100k_base`**.
 
-Если локальный STT не отвечает либо не возвращает текст, CORE не отправляет сырое аудио наружу и предлагает подключить менеджера.
+KB-02A2 runtime 06.10.2026 подтвердил exact token count через встроенный tokenizer n8n:
+- runtime source: `n8n_builtin_TokenTextSplitter_local_encoding`;
+- `exact_token_count=true`;
+- canary `hello world` → 2 tokens;
+- tokenizer object реально доступен;
+- character estimate не используется как подтверждённый count.
 
-Фото/видео не относятся к AI-профилю v1: они не отправляются в vision/LLM/embedding и предназначены только для оператора после подтверждения клиентом необходимости человека.
+Отдельно устанавливать `js-tiktoken`, `@dqbd/tiktoken`, `tiktoken` или `@huggingface/transformers` для текущего knowledge chunking не требуется.
 
-## Markdown, YAML и tokenizer
+Штатный Token Splitter не является основным смысловым chunker. Он используется как tokenizer/runtime primitive; границы смысловых фрагментов определяет детерминированный проектный алгоритм.
 
-Профиль библиотек для будущей реализации:
+## Chunking — runtime verified
 
-- Markdown parser: `markdown-it 15.0.2`;
-- YAML parser: `yaml 2.9.1`;
-- tokenizer runtime: `@huggingface/transformers 4.3.0`;
-- tokenizer модели: **уточнить после выбора OpenAI embedding model в PRE-02E**.
+Стартовый immutable profile:
+- target: 600 tokens;
+- hard max: 800 tokens;
+- overlap limit: 100 tokens только внутри одной темы/разрезаемого длинного блока.
 
-Пакеты пока не установлены на сервер. Их доступность в self-hosted n8n Code node и воспроизводимый подсчёт токенов проверяются до закрытия PRE-02.
+Порядок:
+1. safe Markdown parse;
+2. heading path и structural blocks;
+3. группировка только внутри одной темы;
+4. точный token count окончательного текста candidate fragment;
+5. длинный блок при необходимости делится по документированным смысловым правилам;
+6. другой topic не объединяется только ради достижения target;
+7. hard max 800 имеет приоритет без потери содержания.
 
-## Chunking и RAG
+KB-02A2 на большой safe базе дал:
+- 130 structural blocks;
+- 53 topic groups;
+- 53 final candidates;
+- tokens min/max/average: 87 / 551 / 237.1;
+- candidates <=80: 0;
+- candidates >800: 0;
+- split source blocks: 0;
+- overlap фактически 0, потому что ни один source block не потребовал разрезания;
+- deterministic `hash_kandidatov=e87704afce40351fec6432860689e1af6dc3666823733cf22c327d97a7fa45a4`.
 
-Стартовые параметры сохраняются:
+Target 600 — ориентир, **не минимум**. Нельзя ухудшать семантические границы ради заполнения fragment до 600.
 
-- цель фрагмента: 600 токенов;
-- максимум: 800 токенов;
-- overlap: 100 токенов только внутри одной темы/раздела;
-- для одного атомарного поискового запроса: candidate top-k = 12;
-- после фильтра активной версии, дедупликации и проверки релевантности: максимум 8 evidence-фрагментов в LLM;
-- сложный вопрос может иметь несколько атомарных subquery, но общий evidence-пакет ограничен и дедуплицируется.
+## RAG и нагрузка на клиентскую LLM
 
-Порог similarity **не назначается по памяти**. Для первой калибровки прогоняется диапазон 0.45–0.85 с шагом 0.05. Финальное значение фиксируется только после контрольного набора и становится частью версии профиля индекса.
+Рост базы не должен линейно увеличивать prompt.
+
+Обязательный путь:
+
+`query embedding → vector search → фильтрация/дедупликация → ограниченный evidence package → финальная LLM`
+
+Стартовые retrieval limits:
+- candidate top-k = 12 на один атомарный поисковый запрос;
+- в финальный evidence package — максимум 8 fragments и только столько, сколько действительно нужно;
+- общий evidence token budget должен быть зафиксирован по результатам retrieval-калибровки;
+- отдельный LLM reranker в v1 не добавлять без доказанной пользы на контрольном наборе.
+
+Structural blocks и все 53 candidates никогда не передаются клиентскому LLM целиком.
+
+Similarity threshold не назначается по памяти. Для первой калибровки проверяется диапазон 0.45–0.85 с шагом 0.05; финальное значение фиксируется только после контрольного набора.
 
 ## Ограничения вызовов
 
-Стартовые ограничения для тестов:
-
+Стартовые ограничения для будущего клиентского runtime:
 - guard/classifier: максимум 500 output tokens;
 - planner/структурированный разбор: максимум 1000 output tokens;
-- клиентский grounded-ответ: максимум 1200 output tokens;
+- grounded клиентский ответ: максимум 1200 output tokens;
 - короткая память qBit: 5 последних обезличенных сообщений + резюме + подтверждённые важные факты;
-- не выполнять embedding для сообщений, где CORE уже определил, что поиск знаний не нужен;
-- внешние вызовы получают только минимально необходимый обезличенный пакет.
+- не выполнять query embedding, если CORE уже определил, что knowledge search не нужен.
 
-Точные timeouts/retries и общий бюджет затрат относятся также к PRE-03 и измеряются на реальном сервере.
+Точные timeouts/retries и бюджет затрат измеряются на фактическом runtime.
+
+## Голос и локальный STT
+
+Текст и голос являются поддерживаемыми входами клиентского Telegram v1. Исходное голосовое не отправляется напрямую во внешний transcription API, если может содержать PII.
+
+Целевой путь:
+
+`Telegram voice → локальный STT → транскрипция → PII-очистка → OpenAI`
+
+Конкретный STT runtime остаётся отдельной задачей и не является частью KB-02.
 
 ## Контрольный набор
 
-До закрытия PRE-02 готовится минимум 60 обезличенных сценариев:
+До финальной retrieval-калибровки нужен обезличенный набор сценариев, включая прямые факты, перефразирование/опечатки, составные вопросы, похожие товары/услуги, отсутствие ответа, prompt injection и PII.
 
-| Группа | Минимум | Проверка |
-|---|---:|---|
-| Прямые факты из знаний | 15 | нужный раздел и подтверждённый факт |
-| Перефразирование/опечатки/разговорная речь | 10 | устойчивость semantic search |
-| Составные вопросы и сравнения | 10 | planner сохраняет все подпункты |
-| Похожий, но другой товар/услуга | 5 | документы не смешиваются |
-| Ответа в базе нет | 8 | нет случайного evidence и выдумывания |
-| Off-topic / prompt injection | 6 | guard не отправляет запрос в обычный RAG |
-| PII | 3 | исходные значения не уходят во внешний API |
-| Долговечная память | 3 | важный факт сохраняется вне окна 5 сообщений |
+Для retrieval измеряются как минимум попадание ожидаемого раздела в top-12 и ложные срабатывания на вопросах без ответа. Для финального ответа обязательны отсутствие неподтверждённых технических фактов и PII leak.
 
-Для retrieval измеряются как минимум попадание ожидаемого раздела в top-12 и ложные срабатывания на вопросах без ответа. Для финального ответа обязательны: валидная структура, отсутствие неподтверждённых технических фактов и отсутствие PII leak.
+## Что осталось по knowledge profile
 
-## Декомпозиция PRE-02 и текущая проверка
+1. **KB-02B** — окончательные fragment records + отдельные reference questions, без embeddings/DB save.
+2. **KB-03A** — runtime OpenAI `text-embedding-3-large/1024`, проверка vectors и сохранение fragments.
+3. **KB-03B** — reference question embeddings, draft-only retrieval checks и калибровка качества.
+4. **KB-03C** — atomic publish и end-to-end regression active-only search.
+5. До завершения retrieval-калибровки зафиксировать similarity threshold и общий evidence token budget.
 
-OpenRouter-путь PRE-02A/PRE-02B остановлен после смены провайдера и сохраняется только как история проверки. Актуальный путь продолжает новая задача PRE-02E:
-
-- **PRE-02E** — candidate profile уже выбран и smoke workflow подготовлен: Luna/Sol + `text-embedding-3-large/1024`; остаётся фактический запуск в амстердамском n8n 2.41.0 и проверка Credential/API/model access;
-- **PRE-02C** — после выбора OpenAI embedding-профиля уточнить tokenizer/chunking runtime;
-- **PRE-02D** — после PRE-02E/PRE-02C прогнать контрольный набор и откалибровать similarity threshold.
-
-### История остановленного OpenRouter-пути
-
-25 сентября 2026 года перед началом PRE-02A были сверены официальные источники OpenRouter:
-
-- `deepseek/deepseek-v4.1-flash` существует как закреплённый model ID и поддерживает structured outputs: https://openrouter.ai/deepseek/deepseek-v4.1-flash;
-- `qwen/qwen3-embedding-8b` доступен как embedding model: https://openrouter.ai/qwen/qwen3-embedding-8b;
-- `POST /api/v1/embeddings` документирует опциональный целочисленный параметр `dimensions`: https://openrouter.ai/docs/api/api-reference/embeddings/create-embeddings.
-
-Эти сведения сохранены только как история остановленного пути. 28 сентября 2026 года Павел выбрал OpenAI для LLM и embeddings и перенёс весь рабочий n8n в Амстердам; OpenRouter больше не является целевым runtime-профилем.
-
-## Что осталось до закрытия PRE-02
-
-1. PRE-02E: импортировать подготовленный smoke workflow, подключить test OpenAI Credential и получить `pre02e_status=runtime_verified`; только после этого считать Luna/Sol + `text-embedding-3-large/1024` фактически подтверждённым профилем.
-2. PRE-02C: согласовать tokenizer/chunking с выбранным OpenAI embedding-профилем.
-3. PRE-02D: прогнать контрольный набор и выбрать similarity threshold.
-4. Только после этого начинать DB-04/DB-05 и фиксировать vector dimension в SQL.
-
-Исполняемый клиентский workflow не считается проверенным только из-за смены AI-провайдера.
+Production не менять без отдельного явного разрешения.
