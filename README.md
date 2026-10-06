@@ -6,29 +6,23 @@
 
 Реализация test-контура разрешена. Production, рабочий трафик и рабочие данные не меняются без отдельного явного разрешения Павла.
 
-DB-01, DB-02, DB-03/DB-03E и canonical schema `qbit_bot_pervichnogo_obrascheniya` завершены ранее. Нормативные DB-04/DB-05 после KB-01R4/R5 существуют в test и runtime-проверены для текущего bot/service контура. Старые `[ ] DB-04/DB-05` в `WORKPLAN_TEMPLATE.md` — отставшая сводная отметка.
+DB-01, DB-02, DB-03/DB-03E и canonical schema `qbit_bot_pervichnogo_obrascheniya` завершены ранее. Нормативные DB-04/DB-05 после KB-01R4/R5 существуют в test и runtime-проверены для текущего bot/service контура.
 
-Текущая работа — канонический knowledge workflow поверх полного фактического workflow, без отдельного skeleton.
+Текущая работа — канонический knowledge workflow поверх полного фактического workflow.
 
 ## Канонический workflow
 
-Фактическая основа: export Павла `(7)`, более свежий, чем checkpoint 03.10.2026 из `(6)`.
+Фактическая основа: export Павла `(7)`.
 
-KB-01A реализован в полном workflow:
+Текущий runtime-verified checkpoint:
 
-`Шаблон — мультиканальный бот и служебный Telegram — версия 0.4 KB-01A.json`
-
-После runtime-проверки исправлен финальный Telegram-ответ: динамические значения HTML-экранируются, Telegram node использует `parse_mode=HTML`.
-
-Текущий канонический checkpoint:
-
-`workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`
+`workflows/checkpoints/2026-10-06_v0.7.1_KB-01B2_runtime_verified/`
 
 `python tools/restore_workflow_checkpoint.py` восстанавливает полный import-ready JSON с SHA-256:
 
-`6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`
+`e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`
 
-Предыдущие checkpoints 03.10 и 04.10 сохранены для истории. Runtime whitelist и Credential refs в Git не сохраняются.
+Checkpoint сохраняется `active=false`, без Credential refs, runtime whitelist и реальных Telegram ID.
 
 Старый experimental `Шаблон_мультиканальный_KB-01_v0.3.json` не импортировать.
 
@@ -36,11 +30,13 @@ KB-01A реализован в полном workflow:
 
 Активный план: [KB-WF](docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md).
 
-**KB-01A закрыт и runtime-проверен 05.10.2026.** Подтверждено: private `.md` от разрешённого user/chat, durable service event, фактическое скачивание, DB registration `uspeshno`, non-null `zagruzka_id`/`zadanie_id`, `status_zagruzki=poluchena` и успешное Telegram-подтверждение для имени файла с `_`.
+**KB-01A, KB-01B1 и KB-01B2 закрыты и runtime-проверены.**
 
-Следующий ID: **KB-01B** — claim durable knowledge job с lease/fencing, безопасный parse YAML/Markdown, проверка metadata/структуры, canonical hash/processing fingerprint и `podgotovit_versiyu_znaniy`.
+KB-01B2 создал реальный test draft version `chernovik` через normative `podgotovit_versiyu_znaniy`, зафиксировав profile/fingerprints. Публикации и embeddings ещё нет.
 
-PRE-02E отдельно не тестируется: OpenAI document embeddings `text-embedding-3-large`, `dimensions=1024` будут встроены и runtime-проверены внутри канонического workflow на `KB-03A`.
+Следующий ID: **KB-02A** — собственный детерминированный структурно-смысловой chunker. Смысловые/структурные границы первичны; token budget `600/800/100` используется только как ограничение размера. Точный runtime `cl100k_base` count должен быть доказан до сохранения fragments.
+
+PRE-02E отдельно не тестируется: OpenAI document embeddings `text-embedding-3-large`, `dimensions=1024` будут встроены и runtime-проверены в KB-03A.
 
 ## С чего начинает новая сессия
 
@@ -65,8 +61,7 @@ PRE-02E отдельно не тестируется: OpenAI document embeddings
 | Операторский Telegram | [OPERATOR_HANDOFF](docs/specs/OPERATOR_HANDOFF.md) |
 | Загрузка знаний | [KNOWLEDGE_INGESTION](docs/specs/KNOWLEDGE_INGESTION.md), [MARKDOWN_FORMAT](docs/specs/MARKDOWN_FORMAT.md) |
 | Активная реализация knowledge workflow | [KB-WF](docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md) |
-| Runtime evidence KB-01A | [KB-01A evidence](docs/evidence/KB-01/KB-01A_RUNTIME_VERIFIED_2026-10-05.md) |
-| Завершённая сверка DB-04/DB-05 | [KB-01R](docs/KB-01_RECONCILIATION_PLAN.md), [evidence](docs/evidence/KB-01/) |
+| Runtime evidence KB-01 | [evidence](docs/evidence/KB-01/) |
 | Передача между сессиями | [SESSION_HANDOFF](docs/SESSION_HANDOFF.md) |
 
 Реальные документы компаний, переписки, секреты, Credential refs и дампы БД в публичный репозиторий не загружаются.
