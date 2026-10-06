@@ -30,6 +30,16 @@ SHA-256 восстановленного JSON:
 
 Статически для v0.8: 215 nodes, 174 connection keys, 243 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0. Отдельный Git-checkpoint v0.8 ещё не сохранён; не утверждать обратное.
 
+Для активного KB-02A2 подготовлен исправленный **v0.9.1 KB-02A2**, ещё не runtime-проверенный:
+- SHA-256 `5c3667fe84462be019d49c5560cc9f3c07e6cc10b666b665e9583f5c2f89a81c`;
+- 220 nodes;
+- 178 connection keys;
+- 248 edges;
+- `active=false`;
+- Credential refs 0;
+- duplicate names 0;
+- dangling connections 0.
+
 ## DB-04 / DB-05
 
 Нормативные DB-04/DB-05 созданы и runtime-проверены в test по KB-01R4/R5 для bot/service контура: ingestion queue, lease/fencing, version/profile/fragments/reference checks, `vector(1024)`, draft-only service search, atomic publish и active-only bot search.
@@ -100,12 +110,16 @@ Evidence: `docs/evidence/KB-01/KB-01B2_RUNTIME_VERIFIED_2026-10-06.md`.
 
 Evidence: `docs/evidence/KB-02/KB-02A1_RUNTIME_VERIFIED_2026-10-06.md`.
 
-## Следующая маленькая задача
+## KB-02A2 — IN PROGRESS
 
-`KB-02A2` — точный runtime `cl100k_base` count и final candidate packing.
+Runtime-попытка v0.9 06.10.2026 на коротком safe Markdown дошла до A2 packing, но завершилась контролируемой ошибкой `TextEncoder is not defined` в LangChain Code node. Код ошибки — `kb02a2_upakovka_oshibka`, а не tokenizer-gate error; это подтверждает, что начальная проверка встроенного `cl100k_base` tokenizer уже была пройдена. Job тем же worker/fence успешно возвращён в `povtor`; `llm_vyzovov=0`, `embeddings_vyzovov=0`, `db_fragmenty_sohraneny=false`.
 
-Критерий:
-- exact token count на окончательном тексте каждого candidate fragment;
+Причина: в обычных n8n Code nodes `TextEncoder` доступен, а в LangChain Code sandbox текущего пути — нет. Ошибка была только во вспомогательном SHA-256 UTF-8 преобразовании после tokenization, а не в самом tokenizer.
+
+Подготовлен v0.9.1: A2 больше не использует `TextEncoder`; добавлен собственный deterministic UTF-8 encoder без внешних модулей. Его SHA-256 проверен локально на ASCII, кириллице и emoji против стандартного SHA-256. Изменённый A2 JavaScript проходит `node --check`.
+
+Критерий закрытия A2 остаётся прежним:
+- exact `cl100k_base` count на окончательном тексте каждого candidate fragment;
 - target 600 / hard max 800 / overlap до 100 только внутри одной темы;
 - FAQ/table rules сохранены;
 - ни одного fragment >800;
