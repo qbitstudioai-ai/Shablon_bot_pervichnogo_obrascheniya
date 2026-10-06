@@ -4,8 +4,10 @@
 
 Этот план — активный план реализации knowledge workflow. Нормативные DB-04/DB-05 уже созданы и runtime-проверены на test-контуре через KB-01R4/R5.
 
-Каноническая основа workflow: фактический export Павла `(7)`. Текущий runtime-verified checkpoint:
-`workflows/checkpoints/2026-10-06_v0.7.1_KB-01B2_runtime_verified/`.
+Каноническая основа workflow: фактический export Павла `(7)`. Последний сохранённый в Git runtime-verified checkpoint пока KB-01A:
+`workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`.
+
+Фактически текущий runtime-проверенный import-ready workflow — v0.7.1 KB-01B2, SHA-256 `e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`. Отдельный Git-checkpoint v0.7.1 ещё не сохранён.
 
 ## Разбиение KB-01 / KB-02 / KB-03
 
@@ -51,15 +53,12 @@ Active duplicate end-to-end до первой публикации провер�
 
 Evidence: `docs/evidence/KB-01/KB-01B2_RUNTIME_VERIFIED_2026-10-06.md`.
 
-Checkpoint:
-`workflows/checkpoints/2026-10-06_v0.7.1_KB-01B2_runtime_verified/`, restore SHA-256 `e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`.
-
 ## KB-02A — текущая задача
 
 Цель: реализовать собственный детерминированный **структурно-смысловой chunker с token budget**.
 
 Порядок:
-1. использовать уже проверенный Markdown AST/структуру, не переписывать исходные факты моделью;
+1. использовать уже проверенный Markdown parser/структуру, не переписывать исходные факты моделью;
 2. отделить YAML и reference questions от retrieval text;
 3. сохранить heading path H1→H6 и исходную последовательность;
 4. сформировать смысловые блоки по разделам, абзацам, спискам, FAQ и таблицам;
