@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-10-05.
+Обновлено: 2026-10-06.
 
 ## Режим
 
@@ -10,15 +10,9 @@
 
 ## Git и канонический workflow
 
-Исходный HEAD перед runtime-закрытием KB-01A: `9903df6afd7de00d3873ad70bffa598498841526` (`feat: save KB-01A workflow checkpoint`).
-
 Фактическая основа workflow — export Павла `(7)`. Raw SHA-256 `(7)`: `2ebd7d7b44e42fc941bb70bdc8e01ce44f9e5a1472beb653e7e4331e77da1fb3`.
 
-После runtime-проверки KB-01A канонический v0.4 дополнен только исправлением Telegram presentation-layer:
-- dynamic filename/error text HTML-escaped (`&`, `<`, `>`);
-- `KB-01A Ответить про загрузку знаний` использует `parse_mode=HTML`.
-
-Текущий checkpoint:
+Текущий сохранённый runtime-verified checkpoint Git остаётся:
 
 `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`
 
@@ -31,6 +25,8 @@ SHA-256 восстановленного import-ready JSON:
 `6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`
 
 Канонический JSON остаётся `active=false`, без Credential refs и с пустыми whitelist-массивами. Реальные Telegram ID в Git не сохраняются.
+
+Для KB-01B1 был подготовлен и реально запущен полный v0.5 KB-01B1 поверх точного runtime-verified v0.4. SHA-256 import JSON: `12430374e26711a32067d096884c4672dda061861e3f27030c38711829ed56f9`. Этот v0.5 runtime-проверен, но отдельный Git checkpoint для него ещё не сохранён; не путать runtime evidence с наличием checkpoint-файла в репозитории.
 
 ## DB-04 / DB-05
 
@@ -55,7 +51,7 @@ SHA-256 восстановленного import-ready JSON:
 Активный план: `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`.
 
 Последовательность:
-`KB-01A` → `KB-01B` → `KB-02A` → `KB-02B` → `KB-03A` → `KB-03B` → `KB-03C`.
+`KB-01A` → `KB-01B1` → `KB-01B2` → `KB-02A` → `KB-02B` → `KB-03A` → `KB-03B` → `KB-03C`.
 
 ## KB-01A — CLOSED / runtime verified
 
@@ -71,19 +67,34 @@ SHA-256 восстановленного import-ready JSON:
 9. после исправления `parse_mode=HTML` Telegram успешно подтвердил постановку файла с `_` в имени в очередь;
 10. обычные служебные текстовые сообщения до и во время проверки продолжили проходить существующий service ingress.
 
-Первый real `.md` выявил только Telegram formatting issue после успешной DB registration; DB результат не откатился. Второй безопасный `.md` подтвердил исправление.
-
 Evidence: `docs/evidence/KB-01/KB-01A_RUNTIME_VERIFIED_2026-10-05.md`.
 
-KB-01A не включает YAML/Markdown parse, canonical hash, chunking, document embeddings, checks или publish.
+## KB-01B1 — CLOSED / runtime verified
+
+06.10.2026 на test-контуре:
+1. isolated Manual Trigger успешно claim-нул существующее durable knowledge job через `zabrat_zadanie_znaniy`;
+2. DB вернула live `zadanie_id=0032a78e-b3fa-4cc8-8175-fcc52b53dd64`, `zagruzka_id=2d94322c-0347-48ce-8c66-e136e79d54d4`, worker `qbit_test_kb_worker_v1`, fence `1`;
+3. bytea фактически читается в n8n в Buffer-совместимом формате;
+4. parser `kb01b1_safe_frontmatter_markdown_v1` вернул `valid=true`, `kod=provereno`;
+5. извлечены документированные metadata, 57 структурных заголовков и 8 контрольных вопросов;
+6. warnings отсутствуют;
+7. canonical `hash_soderzhaniya=73436107b06ed1465094f23f785dadbb973adc787e049c04966195ae629e2290`;
+8. те же фактические bytes повторно прогнаны через тот же parser вне n8n и дали тот же hash, 57 headings и 8 questions;
+9. `zavershit_zadanie_znaniy` с теми же worker/fence вернула `uspeshno`; job освобождён в `status_zadaniya=povtor`.
+
+Предварительный до-runtime ориентир `be8f4f8d...` был ошибочным и больше не используется.
+
+Evidence: `docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
+
+KB-01B1 не создаёт draft version и не выполняет tokenizer/chunking/embeddings/search/publish.
 
 ## Следующая маленькая задача
 
-`KB-01B`.
+`KB-01B2`.
 
-Критерий: knowledge worker забирает durable job через lease/fencing, безопасно разбирает YAML/Markdown, валидирует обязательные metadata и структуру, рассчитывает canonical content hash + processing/profile fingerprints и вызывает `podgotovit_versiyu_znaniy`. Дубль активной версии не должен идти дальше.
+Критерий: доказать фактически доступный processing/index profile и tokenizer в self-hosted n8n, вычислить `otpechatok_profilya` + `otpechatok_obrabotki`, вызвать `podgotovit_versiyu_znaniy` под live lease/fencing, проверить duplicate stop или создание `chernovik` и корректное состояние fenced job.
 
-Не начинать `KB-02A` до runtime-проверки KB-01B.
+Не начинать `KB-02A` до runtime-проверки KB-01B2.
 
 ## Постоянные ограничения
 
