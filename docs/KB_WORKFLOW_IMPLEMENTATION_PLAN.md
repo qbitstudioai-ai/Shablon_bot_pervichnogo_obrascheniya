@@ -7,7 +7,7 @@
 Каноническая основа workflow: фактический export Павла `(7)`. Последний сохранённый в Git runtime-verified checkpoint пока KB-01A:
 `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`.
 
-Фактически текущий runtime-проверенный import-ready workflow — v0.8 KB-02A1, SHA-256 `cc173a8421fe0b75a9687ceb821d7f0fdd7f9ddedf3cf4f1944b782f89ef4b60`. Отдельный Git-checkpoint v0.8 ещё не сохранён.
+Фактически текущий runtime-проверенный import-ready workflow — **v0.9.1 KB-02A2**, SHA-256 `5c3667fe84462be019d49c5560cc9f3c07e6cc10b666b665e9583f5c2f89a81c`. Отдельный Git-checkpoint v0.9.1 ещё не сохранён.
 
 ## Разбиение KB-01 / KB-02 / KB-03
 
@@ -15,10 +15,10 @@
 |---|---|---|
 | [x] KB-01A | DB-03D1, DB-04 | Service Telegram принимает разрешённый private `.md`, проверяет actual bytes и долговечно регистрирует knowledge upload/job. Runtime подтверждён. |
 | [x] KB-01B1 | KB-01A runtime | Manual worker claim + lease/fencing + safe YAML/Markdown parser + metadata/heading validation + deterministic `hash_soderzhaniya`; job после проверки возвращается в `povtor`. Runtime подтверждён. |
-| [x] KB-01B2 | KB-01B1 runtime | Зафиксирован processing/index profile и deterministic fingerprints, `podgotovit_versiyu_znaniy` под live lease/fencing создала version 1 `chernovik`; job безопасно возвращён в `povtor`. `cl100k_base` — contract; точный runtime count переносится в KB-02A2 до финальных candidate fragments. |
-| [x] KB-02A1 | KB-01B2 | Детерминированная очистка и структурный разбор создают упорядоченные смысловые блоки с heading path; YAML/reference questions исключены из retrieval text; DB fragments не записываются. Runtime подтверждён: 130 blocks, 57 headings, 90 paragraph + 40 list, warnings 0, стабильный `hash_struktury=fdb26ff...`, job возвращён в `povtor`. |
-| [~] KB-02A2 | KB-02A1 runtime | Для structural blocks доказать точный runtime `cl100k_base` count и выполнить детерминированную упаковку в final candidate fragments: target 600, hard max 800, overlap до 100 только внутри одной темы/длинного блока; ни одного fragment >800. DB fragments ещё не записываются. |
-| [ ] KB-02B | KB-02A2 | 3–10 reference questions извлечены отдельно; окончательные fragments имеют metadata/hash/token count; ошибки безопасно завершают или повторяют только текущий fenced job. |
+| [x] KB-01B2 | KB-01B1 runtime | Зафиксирован processing/index profile и deterministic fingerprints, `podgotovit_versiyu_znaniy` под live lease/fencing создала version 1 `chernovik`; job безопасно возвращён в `povtor`. |
+| [x] KB-02A1 | KB-01B2 | Детерминированная очистка и структурный разбор создают упорядоченные смысловые блоки с heading path; YAML/reference questions исключены из retrieval text; DB fragments не записываются. Runtime: 130 blocks, 57 headings, warnings 0. |
+| [x] KB-02A2 | KB-02A1 runtime | Runtime доказал exact `cl100k_base` и final candidate packing: 130 blocks → 53 candidates, 87..551 tokens, average 237.1, >800 = 0, LLM/embeddings/DB save = 0; job возвращён в `povtor`. |
+| [~] KB-02B | KB-02A2 runtime | Подготовить окончательные fragment records с metadata/hash/exact token count и отдельные 3–10 reference questions; не смешивать reference questions с retrieval text; ошибки безопасно относятся только к текущему fenced job. Embeddings/DB fragment save ещё не выполнять. |
 | [ ] KB-03A | KB-02B | Document embeddings OpenAI `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`; каждый vector length строго проверяется; fragments/vectors сохраняются через normative DB API. |
 | [ ] KB-03B | KB-03A | Reference questions векторизуются тем же профилем; draft search работает только по своей версии; checks сохраняются; `gotova` только после полного pass. |
 | [ ] KB-03C | KB-03B | Atomic publish переключает active version и архивирует прежнюю; stale publish конфликтует; после первой публикации end-to-end regression проверяет active duplicate stop. |
@@ -34,7 +34,7 @@
 - не добавлять отдельный LLM reranker в v1 без доказанной пользы на контрольном наборе;
 - кроме лимита количества fragments позднее зафиксировать общий evidence token budget, чтобы рост базы не увеличивал prompt линейно.
 
-130 blocks из KB-02A1 — промежуточная структура индексации. Они не являются 130 фрагментами prompt для клиентского ответа.
+Runtime KB-02A2 дополнительно подтвердил, что target 600 — не минимальный размер. Нельзя объединять разные темы только ради приближения к 600. На реальной базе средний candidate = 237.1 tokens, при этом коротких <=80 нет и hard max 800 не нарушен.
 
 ## KB-01A — завершено
 
@@ -50,63 +50,64 @@ Evidence: `docs/evidence/KB-01/KB-01B1_RUNTIME_VERIFIED_2026-10-06.md`.
 
 Архитектурное решение:
 - не делать механический token splitter основным chunker;
-- не требовать отдельный npm `tiktoken` в Code node;
+- не требовать отдельный npm `tiktoken` в обычном Code node;
 - фиксировать `cl100k_base` как tokenizer/encoding contract выбранной embedding-модели;
 - структурно-смысловые границы реализовывать отдельно от token budget.
 
-Runtime 06.10.2026:
-- реальный job claim-нут, parser valid;
-- profile: `text-embedding-3-large`, 1024, cosine, parser `kb01b1_safe_frontmatter_markdown_v1`, clean `kb02a_clean_v1`, chunking `kb02a_structural_chunk_600_800_100_v1`, tokenizer `cl100k_base`, target/max/overlap `600/800/100`;
-- `otpechatok_profilya=917b776877263b60b809fa0376cce8ae62937d2d44cdb0badc2e07bea2ceec3c`;
-- `podgotovit_versiyu_znaniy` → `uspeshno`, version 1, `status_versii=chernovik`;
-- publish не выполнялся;
-- job освобождён обратно в `povtor`.
+Runtime 06.10.2026: profile `text-embedding-3-large`, 1024, cosine, structural chunking 600/800/100 зафиксирован; `podgotovit_versiyu_znaniy` создала version 1 `chernovik`; publish не выполнялся; job возвращён в `povtor`.
 
 Evidence: `docs/evidence/KB-01/KB-01B2_RUNTIME_VERIFIED_2026-10-06.md`.
 
 ## KB-02A1 — завершено / runtime verified
 
-Цель A1 — отделить структурно-смысловой разбор от tokenizer packing.
-
 Runtime 06.10.2026 на большой safe Markdown-базе:
-- live worker/fence: fence `3`;
 - 57 structural headings;
 - 130 ordered blocks;
-- типы: 90 `paragraph`, 40 `list`;
+- 90 `paragraph` + 40 `list`;
 - warnings 0;
 - YAML исключён;
 - reference questions не входят в retrieval text;
-- token counting не выполнялся;
+- `hash_struktury=fdb26ff9a95b0cfeee5c4f2909859d148c268bfcec2bd308b16e9cf0f6910d85`;
 - fragments в DB не сохранялись;
-- `hash_struktury=fdb26ff9a95b0cfeee5c4f2909859d148c268bfcec2bd308b16e9cf0f6910d85` совпал с локальным прогоном v0.8;
 - draft остался `chernovik`;
-- job возвращён в `povtor` тем же worker/fence.
-
-Ручная A1-ветка не вызывает generative LLM/OpenAI nodes: только Manual Trigger, Code/IF и service Postgres.
+- job возвращён в `povtor`.
 
 Evidence: `docs/evidence/KB-02/KB-02A1_RUNTIME_VERIFIED_2026-10-06.md`.
 
-## KB-02A2 — текущая задача
+## KB-02A2 — завершено / runtime verified
 
-Цель: применить к structural blocks точный token budget выбранного профиля и получить final candidate fragments без embeddings и без записи fragments в БД.
+После исправления `TextEncoder` в v0.9.1 runtime на той же большой safe Markdown-базе подтвердил:
+- exact tokenizer: `cl100k_base`;
+- источник: `n8n_builtin_TokenTextSplitter_local_encoding`;
+- canary `hello world` → 2 tokens, `tokenizer_object=true`;
+- 130 structural blocks → 53 topic groups → 53 final candidates;
+- source blocks requiring split: 0;
+- token range: 87..551;
+- average: 237.1 tokens;
+- candidates <=80: 0;
+- candidates >800: 0;
+- overlap фактически не потребовался, потому что ни один смысловой блок не пересёк hard max;
+- `hash_kandidatov=e87704afce40351fec6432860689e1af6dc3666823733cf22c327d97a7fa45a4`;
+- `llm_vyzovov=0`, `embeddings_vyzovov=0`, `db_fragmenty_sohraneny=false`;
+- `podgotovit_versiyu_znaniy` вернула ожидаемый идемпотентный `dublikat`, version 1 осталась `chernovik`;
+- job fence 4 успешно возвращён в `povtor`.
 
-Порядок:
-1. доказать воспроизводимый runtime count `cl100k_base` для окончательного текста;
-2. небольшие блоки объединять только внутри одной темы;
-3. длинный блок делить сначала по абзацам, затем предложениям;
-4. FAQ question+answer не разрывать, пока помещается;
-5. таблицы делить по группам строк с повтором header/context;
-6. overlap до 100 tokens только между соседними частями одного смыслового блока, не через другую тему;
-7. target 600, hard max 800 tokens;
-8. финальный текст каждого candidate fragment включает нужный title/heading path/context и имеет точный token count;
-9. ни одного candidate fragment >800 tokens;
-10. количество final fragments должно быть объяснимым и не использоваться как prompt целиком;
-11. embeddings и DB fragment save пока не выполнять.
+Evidence: `docs/evidence/KB-02/KB-02A2_RUNTIME_VERIFIED_2026-10-06.md`.
 
-Runtime-попытка v0.9 06.10.2026 дошла через tokenizer gate до candidate packing, но завершилась безопасным retry с `TextEncoder is not defined` внутри LangChain Code sandbox. Это была ошибка вспомогательного SHA-256 UTF-8 преобразования, а не отказ встроенного `cl100k_base` tokenizer. Job вернулся в `povtor`; LLM/embeddings/DB fragment save не выполнялись.
+## KB-02B — текущая задача
 
-Подготовлен v0.9.1: `TextEncoder` удалён только из A2 LangChain Code node и заменён детерминированным UTF-8 encoder без внешних модулей. SHA-256 реализации проверен локально на ASCII, кириллице и emoji против эталона. Полный workflow SHA-256: `5c3667fe84462be019d49c5560cc9f3c07e6cc10b666b665e9583f5c2f89a81c`. Статика: 220 nodes, 178 connection keys, 248 edges, duplicate names 0, dangling connections 0, `active=false`, Credential refs 0. v0.9.1 ещё не runtime-verified и не Git-checkpoint.
+Цель: превратить runtime-проверенные A2 candidates в окончательные записи, готовые к будущему embedding/save, и отдельно подготовить reference questions.
 
-После KB-02A2 переходить к KB-02B.
+Обязательные свойства:
+1. каждый fragment получает стабильный `nomer_fragmenta`, `put_razdela`, точный `tekst_fragmenta`, `kolichestvo_tokenov`, `hash_fragmenta` и прослеживаемость к source blocks;
+2. `hash_fragmenta` считается по точному тексту, который позже будет отправлен на embeddings;
+3. reference questions берутся только из проверенного YAML metadata и остаются отдельным набором; они не входят в fragment embeddings;
+4. 3–10 questions обязательны для автоматической первой публикации, но KB-02B публикацию не выполняет;
+5. candidate order и hashes должны быть детерминированны при повторном прогоне;
+6. generative LLM не использовать;
+7. embeddings и `sohranit_fragmenty_znaniy` не выполнять до KB-03A;
+8. job после dry-run безопасно вернуть в `povtor`.
+
+После KB-02B переходить к KB-03A.
 
 Production не менять.
