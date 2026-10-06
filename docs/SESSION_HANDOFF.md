@@ -41,7 +41,15 @@ SHA-256:
 
 `cc173a8421fe0b75a9687ceb821d7f0fdd7f9ddedf3cf4f1944b782f89ef4b60`
 
-Статика: 215 nodes, 174 connection keys, 243 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0. Отдельный Git-checkpoint v0.8 ещё не сохранён; не утверждать обратное.
+Для повторного runtime KB-02A2 подготовлен локальный **v0.9.1 KB-02A2**:
+
+`workflow_v0.9.1_KB-02A2.json`
+
+SHA-256:
+
+`5c3667fe84462be019d49c5560cc9f3c07e6cc10b666b665e9583f5c2f89a81c`
+
+Статика v0.9.1: 220 nodes, 178 connection keys, 248 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0. Изменённый A2 JavaScript проходит `node --check`. v0.9.1 ещё не runtime-verified и не Git-checkpoint.
 
 ## Доказанный runtime
 
@@ -89,28 +97,43 @@ Evidence: `docs/evidence/KB-02/KB-02A1_RUNTIME_VERIFIED_2026-10-06.md`.
 - не добавлять LLM reranker в v1 без доказанной необходимости;
 - до retrieval-калибровки зафиксировать общий evidence token budget, а не только max fragment count.
 
-Проверка графа v0.8: ручная A1-ветка достигает только Manual Trigger, Code/IF и Postgres nodes; LLM/OpenAI nodes по этому пути нет.
-
 ## Текущая задача — KB-02A2
 
 Цель: доказать точный runtime `cl100k_base` count и упаковать A1 structural blocks в final candidate fragments.
 
-Обязательные свойства:
-- смысловая граница первична, token budget вторичен;
-- target 600, hard max 800;
-- overlap до 100 tokens только внутри одной темы/длинного блока;
-- небольшие blocks объединять только внутри одной темы;
-- длинный block делить сначала по абзацам, затем предложениям;
-- FAQ question+answer держать вместе, пока помещается;
-- tables делить по группам строк с повтором header/context;
-- финальный текст включает нужный title/heading path/context;
-- exact token count хранится рядом с каждым candidate;
-- ни одного candidate >800 tokens;
-- никаких generative LLM вызовов;
-- embeddings и DB fragment save пока не выполнять;
-- job после dry-run вернуть в `povtor`.
+### Что уже произошло
 
-Ключевая техническая проблема A2: штатный n8n Token Splitter использует `cl100k_base`, но как AI subnode не выдаёт обычное поле token_count. Нельзя подменять exact count символами или приблизительной оценкой. Нужно выбрать воспроизводимый runtime-механизм точного счёта, не превращая стандартный Token Splitter в основной смысловой chunker.
+Runtime v0.9 на коротком safe Markdown:
+- A1 снова успешно сформировал 10 blocks / 6 headings и контрольный `hash_struktury=439716cc8d1c7d2590829c707506193b7e0e06a44fa02a770a7fe84935658577`;
+- A2 прошёл первоначальный tokenizer gate и дошёл до candidate packing;
+- затем LangChain Code node упала на вспомогательном SHA-256: `TextEncoder is not defined`;
+- ошибка классифицирована как `kb02a2_upakovka_oshibka`, не tokenizer error;
+- service error path успешно вернул job в `povtor` тем же fence `3`;
+- LLM 0, embeddings 0, DB fragments 0.
+
+Причина локализована: `TextEncoder` доступен в обычных Code nodes, но не в используемом LangChain Code sandbox. Сам встроенный `cl100k_base` tokenizer не требует серверной перенастройки для этого исправления.
+
+В v0.9.1 только в A2 LangChain Code node `TextEncoder` заменён собственным deterministic UTF-8 encoder. SHA-256 проверен локально на ASCII, кириллице и emoji против стандартного результата. Внешние модули не добавлены.
+
+### Следующая проверка
+
+Импортировать v0.9.1 как отдельный inactive workflow, назначить те же service Postgres Credentials и запустить `KB-02A2 Ручной запуск worker`.
+
+Для доказательства прислать:
+1. `KB-02A2 Сжать dry-run результат`, если путь успешен;
+2. `Служебный_KB_Подготовить версию`;
+3. `Служебный_KB_Вернуть после B2`.
+
+Если снова сработает error path — прислать `Служебный_KB_Вернуть после ошибки A2`; job должен снова безопасно вернуться в `povtor`.
+
+Критерий A2:
+- exact token count рядом с каждым candidate;
+- target 600, hard max 800, overlap до 100 только внутри темы/длинного блока;
+- ни одного candidate >800;
+- candidate count и размеры объяснимы;
+- никаких generative LLM вызовов;
+- embeddings и DB fragment save не выполнять;
+- job после dry-run вернуть в `povtor`.
 
 ## Запреты
 
