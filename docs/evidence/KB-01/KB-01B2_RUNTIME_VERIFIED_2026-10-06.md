@@ -50,15 +50,14 @@ Deterministic fingerprints:
 - Reference search и publish не выполнялись.
 - End-to-end active-duplicate path не мог быть вызван, потому что у этого документа ещё нет опубликованной активной версии. Сам guard уже существует и runtime-проверялся на DB-04/DB-05 уровне; после первой публикации его нужно включить в regression KB-03C.
 
-## Workflow checkpoint
+## Workflow artifact
 
-Runtime-проверенный import-ready workflow:
-`workflows/checkpoints/2026-10-06_v0.7.1_KB-01B2_runtime_verified/`
+Фактически runtime-проверенный import-ready workflow — v0.7.1 KB-01B2.
 
-SHA-256 восстановленного JSON:
+SHA-256 локального JSON:
 `e5a94534c45ab77ec318b4ecf258eefcad702feeb1048fe659b35f0d2a9136f4`.
 
-Статическая проверка checkpoint source:
+Статическая проверка source:
 - 212 nodes;
 - 172 connection keys;
 - 240 edges;
@@ -67,5 +66,7 @@ SHA-256 восстановленного JSON:
 - `active=false`;
 - Credential refs: 0;
 - top-level `id`, `versionId`, `meta` отсутствуют.
+
+Отдельный Git-checkpoint v0.7.1 на момент этого evidence ещё не сохранён. Последний восстановимый checkpoint Git остаётся KB-01A; это не отменяет runtime evidence KB-01B2.
 
 Production не менялся.
