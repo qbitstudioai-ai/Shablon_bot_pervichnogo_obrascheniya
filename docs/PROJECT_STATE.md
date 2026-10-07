@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-10-06.
+Обновлено: 2026-10-07.
 
 ## Режим
 
@@ -34,6 +34,13 @@ SHA-256 старого восстановленного checkpoint:
 
 KB-03A впервые сохранил реальные fragments/vectors через нормативный `sohranit_fragmenty_znaniy`. DB повторно проверяет exact fragment SHA-256, token max профиля и vector dimension.
 
+При подготовке KB-03B найден DB-контрактный разрыв: `sohranit_kontrolnye_voprosy(jsonb)` возвращает только количество сохранённых вопросов, а `sohranit_proverki_znaniy(jsonb)` требует реальный `vopros_id`. Прямой `SELECT` таблицы `kontrolnye_voprosy` служебной роли запрещён. Поэтому KB-03B разделена на `KB-03B0` и `KB-03B1`.
+
+Подготовлен TEST-only SQL:
+`sql/KB-03B0_question_ids_bridge_test.sql`.
+
+Он добавляет узкую SECURITY DEFINER-функцию `poluchit_kontrolnye_voprosy_znaniy(jsonb)`, которая выдаёт ID/metadata вопросов только для своей live fenced job/version. SQL **ещё не считается применённым на сервере**, пока Павел не пришлёт `kb03b0_status=verified`.
+
 ## Ограничение нагрузки на LLM
 
 Постоянный guard:
@@ -46,6 +53,8 @@ KB-03A впервые сохранил реальные fragments/vectors чер
 - до retrieval-калибровки зафиксировать общий evidence token budget.
 
 На большой safe-базе A2 получил 53 candidates из 130 structural blocks, average 237.1 tokens, max 551. KB-03A использует один embedding batch на набор fragments, а не generative LLM.
+
+KB-03B1 также не будет использовать generative LLM: 3–10 reference questions отправляются одним embeddings batch, а проверочный поиск выполняется PostgreSQL/pgvector.
 
 ## OpenAI embedding profile — runtime verified
 
@@ -66,10 +75,11 @@ Document embeddings runtime подтверждён в KB-03A:
 
 ## Активный план
 
-Активный план: `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`.
+Родительский план: `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`.
+Подплан текущей задачи: `docs/KB-03B_IMPLEMENTATION_PLAN.md`.
 
 Последовательность:
-`KB-01A` → `KB-01B1` → `KB-01B2` → `KB-02A1` → `KB-02A2` → `KB-02B` → `KB-03A` → `KB-03B` → `KB-03C`.
+`KB-01A` → `KB-01B1` → `KB-01B2` → `KB-02A1` → `KB-02A2` → `KB-02B` → `KB-03A` → `KB-03B0` → `KB-03B1` → `KB-03C`.
 
 ## Закрытые runtime-этапы
 
@@ -100,20 +110,20 @@ Document embeddings runtime подтверждён в KB-03A:
 
 Поле `kb03a_otchet.db_fragmenty_sohraneny=false` относится к pre-save snapshot. Фактический post-save результат — DB response + `db_save_ok=true`.
 
-## Следующая маленькая задача — KB-03B
+## Текущая маленькая задача — KB-03B0
 
-Сохранить canonical YAML reference questions, векторизовать вопросы тем же OpenAI profile, выполнить draft-only search по своей version/profile и сохранить checks.
+Применить и проверить `sql/KB-03B0_question_ids_bridge_test.sql` в TEST.
 
 Критерий:
-- questions сохраняются отдельно и не входят в fragment embeddings;
-- question vectors = `text-embedding-3-large/1024/float`, finite;
-- draft search только по своей `versiya_id`;
-- ожидаемые разделы/факты проверяются детерминированно по найденному evidence, без LLM-самооценки;
-- results сохраняются через нормативный `sohranit_proverki_znaniy`;
-- только полный pass переводит version в `gotova`;
-- fail оставляет draft/not-ready;
-- publish не выполняется;
-- production не менять.
+- функция `poluchit_kontrolnye_voprosy_znaniy(jsonb)` существует и принадлежит `qbit_test_owner`;
+- SECURITY DEFINER + fixed search_path;
+- EXECUTE только у `qbit_test_sluzhebnyy`, не у bot/PUBLIC;
+- прямой SELECT `kontrolnye_voprosy` служебной роли остаётся запрещён;
+- smoke даёт контролируемый `otkaz / nekorrektnyy_vhod`;
+- финальный `kb03b0_result.kb03b0_status = verified`;
+- production untouched.
+
+После runtime-verified KB-03B0 без новой паузы готовить `KB-03B1` workflow: save questions → получить ID через bridge → one-batch OpenAI question embeddings → draft-only top-12 search → фактическая калибровка 0.45..0.85 → deterministic expected path/fact checks → `sohranit_proverki_znaniy`.
 
 ## Постоянные ограничения
 
