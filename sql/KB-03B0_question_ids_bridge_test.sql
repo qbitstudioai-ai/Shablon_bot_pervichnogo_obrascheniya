@@ -1,4 +1,4 @@
--- KB-03B0 v0.2 — bridge для ID контрольных вопросов, TEST only
+-- KB-03B0 v0.3 — bridge для ID контрольных вопросов, TEST only
 -- Project: Shablon_bot_pervichnogo_obrascheniya
 -- Purpose: после sohranit_kontrolnye_voprosy дать служебному worker узкое
 --          чтение ID/metadata вопросов только своей live fenced job/version.
@@ -298,17 +298,20 @@ BEGIN
 END
 $verify$;
 
--- Безопасный smoke: функция вызывается из trusted session с намеренно
--- неполным input. EXECUTE runtime-роли отдельно уже проверен выше через
--- has_function_privilege(); прямой SELECT service-роли отдельно запрещён.
--- Не используем SET ROLE qbit_test_sluzhebnyy: trusted postgres не обязан
--- быть членом runtime-роли и не должен получать это членство ради smoke-test.
+-- Безопасный smoke: выполняем от владельца функции qbit_test_owner.
+-- Preflight выше уже доказал, что trusted postgres может SET ROLE owner.
+-- Runtime EXECUTE служебной роли отдельно проверен has_function_privilege(),
+-- а прямой SELECT service-роли отдельно запрещён has_table_privilege().
+SET LOCAL ROLE qbit_test_owner;
+
 SELECT
     rezultat AS smoke_result,
     kod_oshibki AS smoke_kod
 FROM qbit_bot_pervichnogo_obrascheniya.poluchit_kontrolnye_voprosy_znaniy(
     jsonb_build_object('operaciya_id', 'kb03b0:smoke')
 );
+
+RESET ROLE;
 
 COMMIT;
 
