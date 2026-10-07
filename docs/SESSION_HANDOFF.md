@@ -6,13 +6,9 @@
 
 Рабочая ветка: `main`.
 
-KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B и KB-03A завершены и runtime-проверены.
+Runtime verified: KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0.
 
-KB-03B при подготовке разделена на две постоянные подзадачи:
-- **KB-03B0** — TEST DB bridge для получения `vopros_id` сохранённых reference questions под live lease/fencing;
-- **KB-03B1** — workflow question embeddings → draft-only search → deterministic checks → save checks.
-
-Текущая маленькая задача — **KB-03B0**.
+Текущая маленькая задача — **KB-03B1**.
 
 Перед продолжением проверить актуальный `main` HEAD и прочитать:
 1. `README.md`;
@@ -20,112 +16,90 @@ KB-03B при подготовке разделена на две постоян
 3. этот файл;
 4. `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`;
 5. `docs/KB-03B_IMPLEMENTATION_PLAN.md`;
-6. `sql/KB-03B0_question_ids_bridge_test.sql`;
-7. `docs/specs/KNOWLEDGE_INGESTION.md`;
-8. `docs/specs/DB_CONTRACT.md` — reference-question/search/check contract;
-9. `docs/specs/PROCESSING_PROFILE.md` — OpenAI embedding/retrieval profile.
+6. `docs/evidence/KB-03/KB-03B0_RUNTIME_VERIFIED_2026-10-07.md`;
+7. `sql/KB-03B0_question_ids_bridge_test.sql`;
+8. DB reference-question/search/check contract.
 
 ## Канонический workflow
 
-Фактическая основа: export Павла `(7)`.
-
-Последний сохранённый в Git восстановимый runtime-verified checkpoint пока:
+Последний Git-восстановимый runtime checkpoint пока KB-01A:
 `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`.
 
-Restore:
-`python tools/restore_workflow_checkpoint.py`
-
-SHA-256 старого checkpoint:
+Restore SHA-256:
 `6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`.
 
 Фактически текущий runtime-проверенный import-ready workflow — **v0.11 KB-03A**:
-`Шаблон — мультиканальный бот и служебный Telegram — версия 0.11 KB-03A.json`
+SHA-256 `54f5d276cbd2092fee4e0fcf8d768a73b5b5b81077c064645b3803966bc36a8b`.
 
-SHA-256:
-`54f5d276cbd2092fee4e0fcf8d768a73b5b5b81077c064645b3803966bc36a8b`.
+Для KB-03B1 подготовлен локальный **v0.12 KB-03B1**:
+SHA-256 `d562404cdc51788783eaf22b745310b69bcf3b2d07bcb8b5495fffdeffd6597c`.
 
-OpenAI Credential подключается только в n8n UI. Credential/API key не должен попадать в export/Git. Отдельный Git-checkpoint v0.11 ещё не сохранён.
+Статика v0.12: 254 nodes, 206 connection keys, 288 edges, `active=false`, Credential refs 0, duplicate names 0, dangling connections 0, Code syntax check pass. v0.12 ещё не runtime-verified и не Git-checkpoint.
 
-## Доказанный runtime до текущей задачи
+## KB-03A доказанный runtime
 
-### KB-03A
-Успешный live-run на safe документе:
-- fence `5`;
-- 6 exact fragments;
-- one OpenAI batch;
-- `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`;
-- usage 910 input tokens;
-- vectors 6, dimension min/max 1024/1024;
-- all values finite;
-- exact fragment input + mapping by API index confirmed;
-- generative LLM 0;
-- `sohranit_fragmenty_znaniy` → `uspeshno`;
-- `sohraneno_fragmentov=6`, `vsego_fragmentov=6`;
-- version remains `chernovik`;
-- reference questions not embedded/saved;
-- publish false;
-- job → `povtor`.
+Safe document: 6 exact fragments → one OpenAI batch → 6 vectors ×1024, finite, exact input/index mapping → normative DB save `sohraneno_fragmentov=6`, `vsego_fragmentov=6`; version `chernovik`, publish false, job → `povtor`.
 
 Evidence: `docs/evidence/KB-03/KB-03A_RUNTIME_VERIFIED_2026-10-06.md`.
 
-## Почему нужен KB-03B0
+## KB-03B0 доказанный runtime
 
-`sohranit_kontrolnye_voprosy(jsonb)` возвращает только количество вопросов. `sohranit_proverki_znaniy(jsonb)` требует настоящий `vopros_id`. Прямой SELECT таблицы служебной роли запрещён. Поэтому workflow нельзя корректно завершить без узкого DB API для ID.
+TEST bridge `poluchit_kontrolnye_voprosy_znaniy(jsonb)` применён и verified:
+- owner `qbit_test_owner`;
+- service execute true;
+- bot/public execute false;
+- direct service SELECT questions false;
+- production untouched.
 
-Подготовлен файл:
-`sql/KB-03B0_question_ids_bridge_test.sql`
+Evidence: `docs/evidence/KB-03/KB-03B0_RUNTIME_VERIFIED_2026-10-07.md`.
 
-Локальный SHA-256 подготовленного SQL:
-`7e0579221b6f4974f686639d24e5f3900d8068989f6f51a64369e82de9448919`.
+## v0.12 KB-03B1
 
-Файл создаёт только в TEST:
-`qbit_bot_pervichnogo_obrascheniya.poluchit_kontrolnye_voprosy_znaniy(jsonb)`.
+Путь:
+`claim/parser/A1/A2/B → prepare version → A3 idempotent fragment embedding/save → save YAML questions → bridge IDs → one question embedding batch → draft-only top-12 → grid 0.45..0.85 → deterministic section/fact checks → save checks → release job`.
 
-Функция требует текущие `zadanie_id`, `worker_id`, `nomer_vladeniya`, `versiya_id`, проверяет live lease/fencing и выдаёт только 3–10 вопросов своей версии. PUBLIC/bot execute запрещены, service получает только EXECUTE; прямой table SELECT не выдаётся.
+Новые ключевые ноды:
+- `Служебный_KB_Сохранить вопросы`;
+- `Служебный_KB_Получить вопросы с ID`;
+- `KB-03B1 OpenAI embeddings вопросов`;
+- `Служебный_KB_Draft поиск вопросов`;
+- `KB-03B1 Оценить draft search`;
+- `Служебный_KB_Сохранить проверки`;
+- `Служебный_KB_Вернуть после 03B`;
+- `Служебный_KB_Вернуть после ошибки 03B`.
 
-## Действие Павла для KB-03B0
+Question embeddings: один batch 3..10 exact `vopros`, model `text-embedding-3-large`, dimensions 1024, float. Generative LLM = 0.
 
-Запустить **весь** `sql/KB-03B0_question_ids_bridge_test.sql` trusted postgres session в TEST. Ничего из файла не выполнять по частям.
+Search: нормативный `poisk_chernovika_znaniy`, только своя `versiya_id`/profile, top-k 12, initial threshold 0.
 
-Ожидаемые финальные результаты:
-- smoke: `smoke_result=otkaz`, `smoke_kod=nekorrektnyy_vhod`;
-- `kb03b0_result.kb03b0_status=verified`;
-- `service_execute=true`;
-- `bot_execute=false`;
-- `public_execute=false`;
-- `direct_service_select_questions=false`;
-- `production_untouched=true`;
-- `next_stage=KB-03B1_workflow`.
+Calibration: grid 0.45..0.85 step 0.05. Для B1 positive-reference validation выбирается максимальный grid threshold с full pass; если full pass отсутствует, checks сохраняются на 0.45 и version должна остаться `chernovik`. Этот threshold не считать финальным client threshold без negative/no-answer набора.
 
-До такого результата **не** считать bridge применённым и не запускать KB-03B1.
+Expected section + optional fact должны подтверждаться одним fragment после deterministic normalization. LLM-самооценки нет.
 
-## KB-03B1 после bridge
+`sohranit_proverki_znaniy` сама переводит version в `gotova` только при полном pass всех canonical questions и наличии fragments нужного profile. Publish в B1 отсутствует.
 
-После verified B0 сразу подготовить workflow поверх v0.11, но не повторять document embeddings без необходимости. Путь B1:
+## Runtime запуск v0.12
 
-`claim/parser/A1/A2/B → prepare draft/version → save canonical questions → bridge IDs → one batch OpenAI question embeddings → strict vectors → draft-only top-12 search → фактическая threshold grid 0.45..0.85 → deterministic expected path/fact checks → sohranit_proverki_znaniy → gotova only on full pass`.
+Импортировать отдельным inactive workflow. Назначить TEST OpenAI Credential обеим embedding HTTP nodes. Назначить service Postgres Credential всем Postgres nodes manual worker branch, включая четыре новые B1 service nodes.
 
-Reference checks не используют generative LLM и не публикуют версию.
+Для успешного доказательства прислать compact outputs:
+- `Служебный_KB_Сохранить вопросы`;
+- `Служебный_KB_Получить вопросы с ID` можно не присылать целиком, если много rows; предпочтительнее финальные outputs ниже;
+- `Служебный_KB_Сохранить проверки`;
+- `Служебный_KB_Вернуть после 03B`.
 
-## Guard по нагрузке на LLM
+Если B1 error path — прислать `Служебный_KB_Вернуть после ошибки 03B`.
 
-- parsing/cleaning/chunking/token counting — без generative LLM;
-- embeddings — индексные/поисковые операции, не генерация ответа;
-- question embeddings B1 — один batch на 3–10 вопросов;
-- draft search — PostgreSQL/pgvector;
-- client runtime по-прежнему query embedding → vector search → небольшой evidence package → финальная LLM;
-- candidate top-k = 12, final evidence максимум 8 fragments и обычно меньше;
-- LLM reranker в v1 не добавлять без доказанной пользы.
+Не присылать full vectors или полный draft search output без необходимости.
 
-## Следующая задача после KB-03B1
+## Следующий этап
 
-`KB-03C` — atomic publish + active-only end-to-end regression.
+После runtime-verified KB-03B1: `KB-03C` — atomic publish + active-only end-to-end regression.
 
 ## Запреты
 
-- Не менять production.
-- Не переключать рабочий трафик.
+- Production не менять.
+- Рабочий трафик не переключать.
 - Не импортировать experimental KB workflow.
 - Не продолжать старый B3.
-- Не запускать experimental evidence SQL.
 - Не публиковать реальные документы, Telegram ID, Credential refs, переписку или секреты.
