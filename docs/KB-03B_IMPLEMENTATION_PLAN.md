@@ -6,64 +6,83 @@
 
 ## Почему задача разделена
 
-При сверке DB-контракта найден обязательный разрыв: `sohranit_kontrolnye_voprosy(jsonb)` сохраняет 3–10 вопросов, но возвращает только `kolichestvo_voprosov`. Нормативный `sohranit_proverki_znaniy(jsonb)` требует реальный `vopros_id` для каждой проверки. Прямой `SELECT` таблицы `kontrolnye_voprosy` служебной роли запрещён архитектурой.
+`sohranit_kontrolnye_voprosy(jsonb)` сохраняет 3–10 questions, но возвращает только количество. `sohranit_proverki_znaniy(jsonb)` требует реальный `vopros_id`. Прямой `SELECT` таблицы `kontrolnye_voprosy` служебной роли запрещён архитектурой. Поэтому KB-03B разделена на B0 и B1.
 
-Поэтому KB-03B разделена на две постоянные подзадачи.
+## [x] KB-03B0 — узкий DB bridge для ID вопросов
 
-## [~] KB-03B0 — узкий DB bridge для ID вопросов
+Канонический файл:
+`sql/KB-03B0_question_ids_bridge_test.sql`.
 
-Файл реализации:
+Финальная runtime-версия SQL: v0.3.
 
-`sql/KB-03B0_question_ids_bridge_test.sql`
+Создана TEST-only SECURITY DEFINER-функция:
+`qbit_bot_pervichnogo_obrascheniya.poluchit_kontrolnye_voprosy_znaniy(jsonb)`.
 
-Цель: добавить TEST-only SECURITY DEFINER-функцию
+Runtime 07.10.2026 подтвердил:
+- `kb03b0_status=verified`;
+- owner `qbit_test_owner`;
+- service execute true;
+- bot/public execute false;
+- direct service SELECT questions false;
+- function требует `zadanie_id + worker_id + nomer_vladeniya + versiya_id` и проверяет live lease/fencing/version scope;
+- production untouched.
 
-`qbit_bot_pervichnogo_obrascheniya.poluchit_kontrolnye_voprosy_znaniy(jsonb)`
+Evidence: `docs/evidence/KB-03/KB-03B0_RUNTIME_VERIFIED_2026-10-07.md`.
 
-которая возвращает `vopros_id`, номер и canonical поля вопроса только для своей текущей live fenced knowledge job/version.
+## [~] KB-03B1 — workflow reference checks
 
-Ограничения:
-- schema фиксирована в SQL;
-- нужен `zadanie_id + worker_id + nomer_vladeniya + versiya_id`;
-- job обязан быть `v_rabote`, lease не истёк, worker/fence совпадают;
-- version должна быть `chernovik` или `gotova`;
-- возвращаются только 3–10 вопросов своей версии;
-- `PUBLIC` и bot role не получают EXECUTE;
-- `qbit_test_sluzhebnyy` получает только EXECUTE функции, прямой SELECT таблицы не выдаётся;
-- production не затрагивается.
+Подготовлен локальный import-ready **v0.12 KB-03B1**, ещё не runtime-verified.
 
-Критерий закрытия KB-03B0:
-- SQL применён в test без ошибки;
-- smoke возвращает `otkaz / nekorrektnyy_vhod`, а не permission error;
-- финальный `kb03b0_result.kb03b0_status = verified`;
-- owner = `qbit_test_owner`;
-- service execute = true;
-- bot/public execute = false;
-- direct service SELECT questions = false.
+SHA-256:
+`d562404cdc51788783eaf22b745310b69bcf3b2d07bcb8b5495fffdeffd6597c`
 
-## [ ] KB-03B1 — workflow reference checks
+Статика:
+- 254 nodes;
+- 206 connection keys;
+- 288 edges;
+- `active=false`;
+- Credential refs 0;
+- duplicate names 0;
+- dangling connections 0;
+- все Code nodes проходят syntax check;
+- ручной путь содержит только deterministic Code/IF/Postgres, встроенный exact tokenizer и два OpenAI HTTP embeddings вызова: fragments A3 + questions B1; generative LLM nodes нет.
 
-Зависимость: KB-03B0 runtime verified.
+### Путь v0.12
 
-Цель:
-1. заново получить canonical YAML questions через deterministic parser/KB-02B;
-2. `sohranit_kontrolnye_voprosy` сохраняет вопросы в draft;
-3. новый bridge возвращает DB `vopros_id` под текущим lease/fencing;
-4. один OpenAI embeddings batch получает только тексты `vopros`, model `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`;
-5. каждый vector строго проверяется: length 1024, finite, mapping по API index;
-6. `poisk_chernovika_znaniy` выполняется только для своей `versiya_id`/profile;
-7. search собирает top-12 при `porog_shodstva=0`, чтобы сохранить фактические similarities до выбора порога;
-8. калибровочная сетка 0.45..0.85 с шагом 0.05 оценивается на фактических результатах; порог не назначается по памяти;
-9. ожидаемый `ozhidaemyy_razdel` проверяется детерминированно по path найденных fragments;
-10. optional `ozhidaemyy_fakt` проверяется детерминированно по найденному evidence text, без LLM-самооценки;
-11. `sohranit_proverki_znaniy` сохраняет фактические fragment IDs/similarities/result;
-12. только полный pass всех canonical questions может перевести version в `gotova`;
-13. publish в KB-03B1 запрещён.
+`claim/parser/A1/A2/B → prepare version → A3 idempotent fragment embedding/save → save canonical questions → bridge question IDs → one-batch question embeddings → draft-only top-12 → threshold grid → deterministic section/fact checks → save checks → release job`
+
+Обязательные свойства:
+1. questions только из canonical YAML metadata KB-02B;
+2. `sohranit_kontrolnye_voprosy` выполняется до получения IDs;
+3. B0 bridge подтверждает DB IDs только под текущим live fence;
+4. question embeddings: `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`;
+5. exact question text, count/index mapping, vector 1024, finite values;
+6. `poisk_chernovika_znaniy` ограничен текущими `versiya_id` + profile;
+7. top-k = 12; initial search threshold = 0 для сохранения фактических similarities;
+8. grid = 0.45..0.85 шаг 0.05;
+9. B1 validation выбирает максимальный grid threshold с full pass всех positive YAML questions; если такого нет, checks сохраняются на 0.45 и version остаётся `chernovik`;
+10. ожидаемый section и optional fact должны подтверждаться одним и тем же fragment; normalization детерминированная, без LLM;
+11. `sohranit_proverki_znaniy` сохраняет реальные fragment IDs/similarities/results;
+12. только full pass всех questions может дать `status_versii=gotova`;
+13. selected B1 threshold не считается финальным client threshold: negative/no-answer calibration ещё обязательна;
+14. publish запрещён.
 
 ## Guard нагрузки
 
-KB-03B1 не использует generative LLM. Для 3–10 questions используется один embeddings batch. Draft search выполняется PostgreSQL/pgvector. В клиентский LLM эти reference-check payloads не передаются.
+KB-03B1 не использует generative LLM. Question embeddings — один batch на 3–10 вопросов. Draft search — PostgreSQL/pgvector. Reference-check payloads не передаются клиентскому LLM.
 
-## Следующий этап
+## Критерий закрытия KB-03B1
+
+Live n8n должен подтвердить:
+- questions saved = expected 3..10;
+- bridge IDs count/order/content совпадают с canonical YAML;
+- one question embedding batch, vectors ×1024, finite/index mapping true;
+- draft-only/version-scoped/profile-scoped top-12;
+- calibration matrix 0.45..0.85 фактически получена;
+- deterministic expected path/fact evaluation выполнена без LLM;
+- DB checks save успешен;
+- при full pass DB status = `gotova`; при fail = `chernovik`;
+- publish false;
+- job безопасно освобождён.
 
 После runtime-verified KB-03B1 переходить к `KB-03C` — atomic publish + active-only regression.
