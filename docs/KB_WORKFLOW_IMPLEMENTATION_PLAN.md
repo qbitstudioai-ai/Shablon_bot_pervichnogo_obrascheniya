@@ -13,6 +13,7 @@ Credential refs, runtime whitelist, реальные Telegram ID, секреты
 Исторический восстановимый checkpoint KB-01A остаётся в `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/` и не является текущей версией для импорта.
 
 Подплан завершённой KB-03B: `docs/KB-03B_IMPLEMENTATION_PLAN.md`.
+Активный подплан KB-03C: `docs/KB-03C_IMPLEMENTATION_PLAN.md`.
 
 ## Этапы
 
@@ -27,7 +28,7 @@ Credential refs, runtime whitelist, реальные Telegram ID, секреты
 | [x] KB-03A | KB-02B | OpenAI `text-embedding-3-large/1024/float`; vectors строго проверены; fragments/vectors сохранены через `sohranit_fragmenty_znaniy`. |
 | [x] KB-03B0 | KB-03A | TEST-only SECURITY DEFINER bridge возвращает реальные `vopros_id` только своей live fenced job/version; direct table SELECT не выдаётся. |
 | [x] KB-03B1 | KB-03B0 runtime | Save questions → bridge IDs → one-batch question embeddings → draft-only top-12 → factual threshold grid → deterministic expected path/fact checks → `sohranit_proverki_znaniy`; runtime 9/9, `gotova`, publish=false. |
-| [ ] KB-03C | KB-03B1 runtime | Atomic publish + stale conflict + active-only end-to-end regression. |
+| [~] KB-03C | KB-03B1 runtime | Разделена на KB-03C1 prepare-only publish branch и KB-03C2 runtime atomic publish + stale conflict + active-only regression. |
 
 ## Guard по нагрузке на LLM
 
@@ -75,14 +76,20 @@ Runtime 08.10.2026 подтвердил:
 
 B1 threshold 0.60 **не является финальным client retrieval threshold**: для него позже нужен negative/no-answer набор.
 
-## KB-03C — следующая задача
+## KB-03C — ACTIVE
 
-Цель: atomic publish готовой version + stale conflict + active-only end-to-end regression.
+Подплан: `docs/KB-03C_IMPLEMENTATION_PLAN.md`.
 
-До реализации:
-1. прочитать только нормативный publish/active-search contract;
-2. разделить KB-03C на небольшую подзадачу с постоянным ID, если объём больше одной сессии;
-3. зафиксировать start condition, done criterion и rollback;
-4. не менять production и не переключать рабочий трафик.
+### KB-03C1 — текущая маленькая задача
 
-Наличие KB-03C в этом плане само по себе не разрешает publication или production changes.
+**Prepare-only:** обновить repository-safe workflow документов, добавив безопасный publish branch после B1 full pass/`gotova`, но не импортировать его и не выполнять publication/server mutation.
+
+Перед кодом прочитать только фактический SQL/contract `opublikovat_versiyu_znaniy` и `zavershit_zadanie_znaniy`; payload/status не угадывать.
+
+Критерий: полный import-ready JSON статически проверен, publish path fail-closed, stale/conflict обработан явно, B1 path не сломан, секретов/Credential refs нет, сервер не изменён.
+
+### KB-03C2 — после C1
+
+Отдельный TEST runtime: atomic publish + stale conflict + active-only end-to-end regression через уже существующий клиентский `poisk_aktivnyh_znaniy`.
+
+Production и рабочий трафик не менять.

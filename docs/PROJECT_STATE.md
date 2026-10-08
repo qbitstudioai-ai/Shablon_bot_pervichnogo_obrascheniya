@@ -18,6 +18,8 @@ Credential refs, runtime whitelist, реальные Telegram ID, секреты
 
 Исторический восстановимый checkpoint KB-01A остаётся в `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`; старые checkpoints не считать текущей версией для импорта.
 
+Текущий workflow документов доводит knowledge version до KB-03B1, но **не содержит** вызова `opublikovat_versiyu_znaniy`. Текущий workflow бота уже использует `poisk_aktivnyh_znaniy` для опубликованного поиска. Поэтому следующая модификация относится к workflow документов; workflow бота на KB-03C1 не меняем.
+
 ## DB-04 / DB-05
 
 Нормативные DB-04/DB-05 созданы и runtime-проверены в test. KB-03A сохранил реальные `vector(1024)` fragments через `sohranit_fragmenty_znaniy`.
@@ -51,17 +53,16 @@ Runtime 08.10.2026 на safe retry Markdown:
 - positive threshold grid 0.45..0.85 рассчитана по фактическим similarities;
 - full pass 9/9 на 0.45, 0.50, 0.55 и 0.60;
 - максимальный grid threshold с full pass = 0.60;
-- при 0.65 проходит 8/9, при 0.70 — 6/9, при 0.75 — 3/9;
 - `sohranit_proverki_znaniy` вернул `uspeshno`, `uspeshnyh=9`, `vsego=9`, `status_versii=gotova`;
 - `publish_vypolnen=false`;
 - generative LLM calls = 0;
 - `next_stage=KB-03C`.
 
-`Служебный_KB_Вернуть после 03B` намеренно освобождает текущий knowledge job через `status='povtor'` и следующий запуск. Для успешного B1 это stage handoff, а не fail: внутри результата `full_pass=true`, `kb03b_gotova`, `status_versii=gotova`, `next_stage=KB-03C`.
+`Служебный_KB_Вернуть после 03B` намеренно освобождает текущий knowledge job через `status='povtor'` и следующий запуск. Для успешного B1 это stage handoff, а не fail.
 
 Evidence: `docs/evidence/KB-03/KB-03B1_RUNTIME_VERIFIED_2026-10-08.md`.
 
-Исторический неуспешный проход 6/8 сохранён отдельно в `docs/evidence/KB-03/KB-03B1_PARTIAL_RUNTIME_2026-10-07.md` и не является текущим статусом.
+Исторический неуспешный проход 6/8 сохранён отдельно в `docs/evidence/KB-03/KB-03B1_PARTIAL_RUNTIME_2026-10-07.md`.
 
 ## Ограничение нагрузки на LLM
 
@@ -79,23 +80,40 @@ B1 threshold 0.60 является только positive-reference validation th
 ## Активный план
 
 Родительский план: `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`.
-Подплан завершённой задачи: `docs/KB-03B_IMPLEMENTATION_PLAN.md`.
+Завершённый подплан: `docs/KB-03B_IMPLEMENTATION_PLAN.md`.
+Активный подплан: `docs/KB-03C_IMPLEMENTATION_PLAN.md`.
 
 Последовательность:
-`KB-01A` → `KB-01B1` → `KB-01B2` → `KB-02A1` → `KB-02A2` → `KB-02B` → `KB-03A` → `KB-03B0` → `KB-03B1` → `KB-03C`.
+`KB-01A` → `KB-01B1` → `KB-01B2` → `KB-02A1` → `KB-02A2` → `KB-02B` → `KB-03A` → `KB-03B0` → `KB-03B1` → `KB-03C1` → `KB-03C2`.
 
 Закрыты и runtime verified: KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0, KB-03B1.
 
-## Следующая маленькая задача — KB-03C
+## Текущая маленькая задача — KB-03C1
 
-Цель: безопасно спроектировать и проверить atomic publish готовой версии с stale-conflict protection и active-only end-to-end regression.
+**KB-03C1 — подготовить test-only publish branch в workflow документов без server execution.**
 
-До начала реализации новой сессии нужно прочитать только связанные контракты publish/active search и определить небольшой постоянный ID/критерий готовности. Наличие KB-03C в плане само по себе не означает, что publication или production-развёртывание разрешены.
+Условие начала выполнено: KB-03B1 = 9/9, `status_versii=gotova`, publish=false.
+
+В рамках KB-03C1:
+- перед кодом прочитать только фактический SQL/contract `opublikovat_versiyu_znaniy` и `zavershit_zadanie_znaniy`;
+- обновить только `workflows/current/Шаблон Загрузка документов Qbit.json` и связанную документацию;
+- добавить publish gate только после подтверждённого B1 full pass/`gotova`;
+- добавить service Postgres publish call и явные success/stale/error paths по фактическому DB contract;
+- не менять workflow бота;
+- не импортировать и не запускать новый JSON на n8n;
+- не выполнять publication или другие server mutations.
+
+Критерий готовности: полный repository-safe import-ready JSON статически проверен, publish path fail-closed и соответствует фактическому DB-05 contract, а сервер остаётся без изменений.
+
+Откат KB-03C1: Git revert/возврат к предыдущему JSON; сервер не затрагивается.
+
+Следующая после неё задача: KB-03C2 — отдельный TEST runtime atomic publish + stale-conflict + active-only regression с заранее уточнённым планом отката.
 
 ## Постоянные ограничения
 
 - Production не менять.
 - Не переключать рабочий трафик.
+- В KB-03C1 ничего не публиковать и не импортировать на сервер.
 - Не импортировать experimental KB workflow.
 - Не продолжать старый B3.
 - Не запускать experimental evidence SQL повторно.

@@ -8,16 +8,9 @@
 
 Runtime verified: KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0, KB-03B1.
 
-Следующая маленькая задача — **KB-03C**.
+Текущая маленькая задача — **KB-03C1**.
 
-Перед продолжением проверить актуальный `main` HEAD и прочитать:
-1. `README.md`;
-2. `docs/PROJECT_STATE.md`;
-3. этот файл;
-4. `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`;
-5. только связанные с KB-03C publish/active-search контракты.
-
-Не загружать без необходимости весь репозиторий.
+Не загружать без необходимости весь репозиторий. Для KB-03C1 достаточно актуального `PROJECT_STATE`, `KB_WORKFLOW_IMPLEMENTATION_PLAN`, `KB-03C_IMPLEMENTATION_PLAN`, текущего workflow документов и фактического SQL/contract только функций publish/job-finish.
 
 ## Текущие workflow
 
@@ -27,55 +20,69 @@ Repository-safe текущие файлы:
 
 Credential refs, runtime whitelist, реальные Telegram ID, секреты и реальные документы компаний в Git не сохраняются.
 
-Исторический checkpoint KB-01A остаётся только для восстановления/сравнения и не является текущей workflow-истиной.
+Текущий workflow документов доводит version до KB-03B1, но не вызывает `opublikovat_versiyu_znaniy`.
+
+Workflow бота уже содержит ноду `Найти опубликованные знания` и вызывает `poisk_aktivnyh_znaniy`; в KB-03C1 его не менять.
 
 ## KB-03B1 — CLOSED / runtime verified
 
-Safe retry execution 08.10.2026 подтвердил полный критерий B1:
+Safe retry execution 08.10.2026 подтвердил:
 - 53 fragments;
 - 9 canonical YAML reference questions;
-- `Служебный_KB_Сохранить вопросы`: `rezultat=uspeshno`, `kolichestvo_voprosov=9`;
-- one OpenAI question embedding batch;
-- model `text-embedding-3-large`, dimensions 1024, float;
-- 9 vectors, finite values true, dimension min/max 1024/1024, index mapping true;
-- OpenAI usage 237 tokens;
-- draft-only/version-scoped/profile-scoped top-12;
-- calibration grid 0.45..0.85;
-- 9/9 pass на 0.45, 0.50, 0.55, 0.60;
-- selected positive validation threshold = 0.60;
-- `Служебный_KB_Сохранить проверки`: `rezultat=uspeshno`, `uspeshnyh=9`, `vsego=9`, `status_versii=gotova`;
-- publish=false;
-- generative LLM calls = 0;
+- one OpenAI question embedding batch `text-embedding-3-large/1024/float`;
+- 9 vectors, finite values true, index mapping true;
+- draft-only/version/profile-scoped top-12;
+- positive grid full pass 9/9 до threshold 0.60;
+- `sohranit_proverki_znaniy`: `uspeshnyh=9`, `vsego=9`, `status_versii=gotova`;
+- `publish_vypolnen=false`;
 - `full_pass=true`, `next_stage=KB-03C`.
 
 Evidence: `docs/evidence/KB-03/KB-03B1_RUNTIME_VERIFIED_2026-10-08.md`.
 
-Предыдущий проход 6/8 остаётся историческим evidence:
-`docs/evidence/KB-03/KB-03B1_PARTIAL_RUNTIME_2026-10-07.md`.
+`status_zadaniya=povtor` после B1 — ожидаемый stage handoff текущей manual test-цепочки, а не fail.
 
-## Почему после успешного B1 job = `povtor`
+## KB-03C1 — текущая задача
 
-Это ожидаемо для текущей ручной test-цепочки. Нода `Служебный_KB_Вернуть после 03B` вызывает `zavershit_zadanie_znaniy` со `status='povtor'` и будущим `sleduyushchiy_zapusk`, чтобы освободить fenced lease и оставить job доступным следующему этапу. Успех B1 определяется не этим техническим статусом, а `kb03b_gotova`, `full_pass=true`, `status_versii=gotova`, `next_stage=KB-03C`, `publish=false`.
+Полный план: `docs/KB-03C_IMPLEMENTATION_PLAN.md`.
 
-Отдельное продуктовое наблюдение: manual worker забирает due job из очереди, а не обязательно самый недавно отправленный файл. В production UX ручного запуска быть не должно; worker должен запускаться автоматически, а пользователю показываются статусы обработки.
+Цель: подготовить новую repository-safe версию workflow документов с publish branch, **без импорта и без server execution**.
 
-## Следующая задача — KB-03C
+Условие начала выполнено: KB-03B1 9/9, version `gotova`, publish=false.
 
-Цель: atomic publish готовой версии + stale-conflict protection + active-only end-to-end regression.
+Перед изменением JSON:
+1. прочитать фактическую SQL-реализацию/contract `opublikovat_versiyu_znaniy`;
+2. прочитать только нужную часть `zavershit_zadanie_znaniy` для terminal/retry statuses;
+3. payload/status не угадывать.
 
-Начинать с отдельной небольшой подзадачи: прочитать нормативный publish/active-search contract, определить точный ID, условия начала и критерий готовности. Не публиковать ничего автоматически только потому, что B1 закрыт.
+Разрешено в KB-03C1:
+- менять только `workflows/current/Шаблон Загрузка документов Qbit.json` и связанную документацию;
+- добавить gate после B1 full pass/`gotova`;
+- добавить service Postgres publish call;
+- добавить явные success/stale-conflict/error paths;
+- выполнить локальные/static проверки JSON/nodes/connections/Code/security.
 
-KB-03B1 threshold 0.60 — только positive-reference validation threshold. Финальный client retrieval threshold требует negative/no-answer calibration.
+Не разрешено в KB-03C1:
+- импортировать новый workflow в n8n;
+- активировать его;
+- выполнять `opublikovat_versiyu_znaniy` на сервере;
+- менять Supabase или production;
+- менять workflow клиентского бота.
+
+Критерий готовности: полный import-ready JSON статически проверен, соответствует DB-05, fail-closed, не содержит Credential refs/секретов и не менял сервер.
+
+Откат: Git revert/возврат к предыдущему JSON; server state не меняется.
+
+## После KB-03C1
+
+KB-03C2 — отдельный TEST runtime atomic publish + stale conflict + active-only regression. Перед первым mutating run отдельно уточнить plan rollback по фактическому DB-05 SQL. Прямой DML для отката не использовать.
+
+B1 threshold 0.60 — не финальный client retrieval threshold; negative/no-answer calibration остаётся обязательной позже.
 
 ## Запреты
 
 - Production не менять.
 - Рабочий трафик не переключать.
-- Не публиковать версию без отдельной задачи KB-03C и проверяемого плана отката.
-- Не импортировать experimental KB workflow.
+- В KB-03C1 ничего не публиковать на сервере.
+- Не импортировать experimental workflow.
 - Не продолжать старый B3.
 - Не публиковать реальные документы, Telegram ID, Credential refs, переписку или секреты.
-
-## Текст передачи в новую сессию
-
-Продолжаем `Shablon_bot_pervichnogo_obrascheniya` с задачи KB-03C. KB-03B1 закрыт runtime 08.10.2026: 53 fragments, 9/9 canonical reference checks, one OpenAI question embedding batch `text-embedding-3-large/1024/float`, draft-only top-12, positive grid full pass до 0.60, DB `status_versii=gotova`, publish=false, next_stage=KB-03C. Сначала проверь актуальный `main` HEAD, прочитай README, PROJECT_STATE, SESSION_HANDOFF, KB_WORKFLOW_IMPLEMENTATION_PLAN и только связанные publish/active-search контракты. Не начинай publication/production changes без точной маленькой подзадачи и разрешённого test-объёма.
