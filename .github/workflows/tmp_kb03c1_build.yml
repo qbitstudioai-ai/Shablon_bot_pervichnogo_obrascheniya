@@ -1,0 +1,246 @@
+name: tmp-kb03c1-build
+
+on:
+  push:
+    branches:
+      - chatgpt/kb03c1-build-20261008
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build KB-03C1 workflow candidate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, re, uuid
+          from pathlib import Path
+
+          path = Path('workflows/current/Шаблон Загрузка документов Qbit.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          assert data.get('active') is False, 'workflow must stay inactive'
+          nodes = data['nodes']
+          con = data['connections']
+          by_name = {n['name']: n for n in nodes}
+          assert len(by_name) == len(nodes), 'duplicate node names before change'
+          assert 'KB-03C1 Версия уже готова?' not in by_name, 'KB-03C1 already present'
+
+          required = [
+              'Служебный_KB_Подготовить версию',
+              'KB-03A Проверить draft и batch',
+              'KB-03B1 Проверить сохранение checks',
+              'Служебный_KB_Вернуть после 03B',
+              'Служебный_KB_Забрать задание',
+          ]
+          for name in required:
+              assert name in by_name, f'missing required node: {name}'
+
+          def if_node(node_id, name, position, expr):
+              return {
+                  'parameters': {
+                      'conditions': {
+                          'options': {'caseSensitive': True, 'leftValue': '', 'typeValidation': 'strict', 'version': 2},
+                          'conditions': [{
+                              'leftValue': expr,
+                              'rightValue': True,
+                              'operator': {'type': 'boolean', 'operation': 'equals'},
+                              'id': str(uuid.uuid4()),
+                          }],
+                          'combinator': 'and',
+                      },
+                      'options': {},
+                  },
+                  'id': node_id,
+                  'name': name,
+                  'type': 'n8n-nodes-base.if',
+                  'typeVersion': 2.2,
+                  'position': position,
+              }
+
+          ready_if = if_node(
+              'e28ca15b-3dbe-47e0-b2c9-c98c93f1d301',
+              'KB-03C1 Версия уже готова?',
+              [-7520, 944],
+              "={{ ['gotova','opublikovana'].includes(String($json.status_versii||'')) && ['uspeshno','dublikat'].includes(String($json.rezultat||'')) }}",
+          )
+
+          b1_if = if_node(
+              'f34db1b1-2f9f-46ac-92ff-dd9e0e1a1220',
+              'KB-03C1 B1 готов к публикации?',
+              [160, -480],
+              "={{ $json.kb03b_full_pass === true && String($json.kb03b_rezultat?.status_versii||'') === 'gotova' }}",
+          )
+
+          prep_code = {
+              'parameters': {
+                  'jsCode': """const input=$json||{};\nconst prep=$('Служебный_KB_Подготовить версию').first().json||{};\nconst claim=$('Служебный_KB_Забрать задание').first().json||{};\nconst b1Full=input.kb03b_full_pass===true && String(input.kb03b_rezultat?.status_versii||'')==='gotova';\nconst resumeReady=['gotova','opublikovana'].includes(String(prep.status_versii||'')) && ['uspeshno','dublikat'].includes(String(prep.rezultat||''));\nconst sameVersion=!input.kb03b_rezultat?.versiya_id || String(input.kb03b_rezultat.versiya_id)===String(prep.versiya_id||'');\nconst publish={\n  versiya_id:prep.versiya_id||null,\n  dokument_id:prep.dokument_id||null,\n  ozhidaemaya_aktivnaya_versiya_id:prep.ozhidaemaya_aktivnaya_versiya_id??null,\n  status_versii:prep.status_versii||null,\n  zadanie_id:claim.zadanie_id||null,\n  worker_id:claim.vladelec_arendy||null,\n  nomer_vladeniya:claim.nomer_vladeniya??null,\n  povtor_cherez_sekund:Number(claim.kb01b1_cfg?.povtor_cherez_sekund||300)\n};\nconst allowed=Boolean((b1Full||resumeReady) && sameVersion && publish.versiya_id && publish.dokument_id && publish.zadanie_id && publish.worker_id && publish.nomer_vladeniya!==null);\nreturn [{json:{\n  ...input,\n  kb03c_publish_allowed:allowed,\n  kb03c_source:b1Full?'b1_full_pass':(resumeReady?'resume_ready_version':'blocked'),\n  kb03c_publish:publish,\n  kb03c_kod:allowed?'kb03c_publish_gate_open':'kb03c_publish_gate_blocked',\n  kb03c_opisanie:allowed?'Trusted DB/runtime context готов к atomic publish.':'Publish gate закрыт: нет подтверждённого ready/full-pass контекста.'\n}}];"""
+              },
+              'id': 'af2b7b57-d678-4aad-ab0c-265670b50e55',
+              'name': 'KB-03C1 Подготовить публикацию',
+              'type': 'n8n-nodes-base.code',
+              'typeVersion': 2,
+              'position': [480, -480],
+              'notes': 'Нормализует только trusted output DB/runtime. Schema/versiya/expected-active не берутся из текста клиента или LLM.',
+          }
+
+          gate_if = if_node(
+              'b457b743-a08a-4993-9dd7-dfb3b0194829',
+              'KB-03C1 Publish gate открыт?',
+              [800, -480],
+              '={{ $json.kb03c_publish_allowed === true }}',
+          )
+
+          publish_node = {
+              'parameters': {
+                  'operation': 'executeQuery',
+                  'query': "WITH r AS (\n  SELECT *\n  FROM qbit_bot_pervichnogo_obrascheniya.opublikovat_versiyu_znaniy($1::jsonb)\n)\nSELECT r.*, $2::jsonb AS kb03c_kontekst\nFROM r;",
+                  'options': {
+                      'queryBatching': 'independently',
+                      'queryReplacement': "={{ [\n  JSON.stringify({\n    operaciya_id:'kb:worker:c1-publish:'+String($json.kb03c_publish?.zadanie_id||'')+':'+String($json.kb03c_publish?.nomer_vladeniya||''),\n    versiya_id:$json.kb03c_publish?.versiya_id,\n    ozhidaemaya_aktivnaya_versiya_id:$json.kb03c_publish?.ozhidaemaya_aktivnaya_versiya_id ?? null\n  }),\n  JSON.stringify({\n    source:$json.kb03c_source||null,\n    publish:$json.kb03c_publish||{},\n    b1_full_pass:$json.kb03b_full_pass===true\n  })\n] }}",
+                  },
+              },
+              'id': '3c41b7ef-5ab6-46c4-bdea-095bcf1ea6f2',
+              'name': 'Служебный_KB_Опубликовать версию',
+              'type': 'n8n-nodes-base.postgres',
+              'typeVersion': 2.7,
+              'position': [1120, -480],
+              'continueOnFail': True,
+              'retryOnFail': True,
+              'maxTries': 2,
+              'waitBetweenTries': 1000,
+              'notes': 'KB-03C1: atomic publish через DB-05. После импорта выбрать только служебный Postgres Credential qbit_test_sluzhebnyy. Не запускать до KB-03C2 runtime шага.',
+          }
+
+          check_code = {
+              'parameters': {
+                  'jsCode': """const r=$json||{};\nconst k=r.kb03c_kontekst||{};\nconst pub=k.publish||{};\nconst result=String(r.rezultat||'');\nconst code=String(r.kod_oshibki||'');\nconst versionOk=String(r.versiya_id||'')===String(pub.versiya_id||'');\nconst success=(result==='uspeshno'||result==='dublikat') && versionOk && String(r.status_versii||'')==='opublikovana' && String(r.status_zagruzki||'')==='zavershena';\nconst stale=result==='konflikt' && code==='stale_expected_active';\nlet releaseStatus=null;\nif(!success){\n  releaseStatus=(stale||result==='otkaz'||result==='konflikt')?'oshibka':'povtor';\n}\nconst desc=success\n  ?`Version ${r.versiya_id} опубликована атомарно; upload=${r.status_zagruzki}.`\n  :(stale\n      ?'Публикация остановлена stale_expected_active; active pointer не должен быть перезаписан.'\n      :String(r.opisanie||r.message||'DB не подтвердила публикацию.'));\nreturn [{json:{\n  ...r,\n  kb03c_publish_success:success,\n  kb03c_stale_conflict:stale,\n  kb03c_release_status:releaseStatus,\n  kb03c_kod:success?'kb03c_opublikovana':(stale?'stale_expected_active':(code||'kb03c_publish_runtime_error')),\n  kb03c_opisanie:desc,\n  publish_vypolnen:success,\n  next_stage:success?'KB-03C2_active_only_regression':(stale?'KB-03C_stale_conflict':'KB-03C_retry_or_review')\n}}];"""
+              },
+              'id': '0d36e11b-1f14-47f0-8dd0-fce14c111654',
+              'name': 'KB-03C1 Проверить результат публикации',
+              'type': 'n8n-nodes-base.code',
+              'typeVersion': 2,
+              'position': [1440, -480],
+          }
+
+          success_if = if_node(
+              'a0ddd4d1-5453-4c41-bba6-f625f67ae5d8',
+              'KB-03C1 Публикация успешна?',
+              [1760, -480],
+              '={{ $json.kb03c_publish_success === true }}',
+          )
+
+          final_code = {
+              'parameters': {
+                  'jsCode': """return [{json:{\n  kb03c_status:'opublikovana',\n  rezultat:$json.rezultat||null,\n  dokument_id:$json.dokument_id||null,\n  versiya_id:$json.versiya_id||null,\n  predydushchaya_aktivnaya_versiya_id:$json.predydushchaya_aktivnaya_versiya_id??null,\n  status_versii:$json.status_versii||null,\n  status_zagruzki:$json.status_zagruzki||null,\n  publish_vypolnen:true,\n  next_stage:'KB-03C2_active_only_regression'\n}}];"""
+              },
+              'id': '851bcd70-e6d0-4bb0-9be5-e9ba040e5f37',
+              'name': 'KB-03C1 Итог публикации',
+              'type': 'n8n-nodes-base.code',
+              'typeVersion': 2,
+              'position': [2080, -640],
+              'notes': 'Терминальный runtime-результат. Сам факт публикации подтверждается только output DB function.',
+          }
+
+          release_node = {
+              'parameters': {
+                  'operation': 'executeQuery',
+                  'query': "WITH r AS (\n  SELECT *\n  FROM qbit_bot_pervichnogo_obrascheniya.zavershit_zadanie_znaniy($1::jsonb)\n)\nSELECT r.*, $2::jsonb AS kb03c_oshibka\nFROM r;",
+                  'options': {
+                      'queryBatching': 'independently',
+                      'queryReplacement': "={{ [\n  JSON.stringify({\n    operaciya_id:'kb:worker:c1-release:'+String($json.kb03c_kontekst?.publish?.zadanie_id||$json.kb03c_publish?.zadanie_id||'')+':'+String($json.kb03c_kontekst?.publish?.nomer_vladeniya||$json.kb03c_publish?.nomer_vladeniya||''),\n    zadanie_id:$json.kb03c_kontekst?.publish?.zadanie_id||$json.kb03c_publish?.zadanie_id,\n    worker_id:$json.kb03c_kontekst?.publish?.worker_id||$json.kb03c_publish?.worker_id,\n    nomer_vladeniya:$json.kb03c_kontekst?.publish?.nomer_vladeniya||$json.kb03c_publish?.nomer_vladeniya,\n    status:$json.kb03c_release_status||'povtor',\n    sleduyushchiy_zapusk:($json.kb03c_release_status||'povtor')==='povtor'\n      ?new Date(Date.now()+Number($json.kb03c_kontekst?.publish?.povtor_cherez_sekund||$json.kb03c_publish?.povtor_cherez_sekund||300)*1000).toISOString()\n      :null,\n    kod_oshibki:String($json.kb03c_kod||'kb03c_publish_blocked'),\n    opisanie_oshibki:String($json.kb03c_opisanie||'KB-03C publication не подтверждена').slice(0,1000)\n  }),\n  JSON.stringify({\n    publish_vypolnen:false,\n    stale_conflict:$json.kb03c_stale_conflict===true,\n    kod:$json.kb03c_kod||null,\n    opisanie:$json.kb03c_opisanie||null,\n    next_stage:$json.next_stage||'KB-03C_retry_or_review'\n  })\n] }}",
+                  },
+              },
+              'id': 'd24d7d44-7a82-4c1f-b429-14268e87ef8c',
+              'name': 'Служебный_KB_Завершить после ошибки публикации',
+              'type': 'n8n-nodes-base.postgres',
+              'typeVersion': 2.7,
+              'position': [2080, -320],
+              'continueOnFail': True,
+              'notes': 'Fail-closed: stale/DB reject завершаются как ошибка; неизвестная техническая ошибка возвращается в retry. Использовать служебный Postgres Credential.',
+          }
+
+          nodes.extend([ready_if, b1_if, prep_code, gate_if, publish_node, check_code, success_if, final_code, release_node])
+
+          # Existing version preparation: ready/published existing version can go directly to publish path;
+          # otherwise keep exact KB-03A path.
+          con['Служебный_KB_Подготовить версию'] = {'main': [[{'node':'KB-03C1 Версия уже готова?','type':'main','index':0}]]}
+          con['KB-03C1 Версия уже готова?'] = {'main': [
+              [{'node':'KB-03C1 Подготовить публикацию','type':'main','index':0}],
+              [{'node':'KB-03A Проверить draft и batch','type':'main','index':0}],
+          ]}
+
+          # Fresh B1 full pass goes to publish; failed B1 keeps existing release/retry behavior.
+          con['KB-03B1 Проверить сохранение checks'] = {'main': [[{'node':'KB-03C1 B1 готов к публикации?','type':'main','index':0}]]}
+          con['KB-03C1 B1 готов к публикации?'] = {'main': [
+              [{'node':'KB-03C1 Подготовить публикацию','type':'main','index':0}],
+              [{'node':'Служебный_KB_Вернуть после 03B','type':'main','index':0}],
+          ]}
+          con['KB-03C1 Подготовить публикацию'] = {'main': [[{'node':'KB-03C1 Publish gate открыт?','type':'main','index':0}]]}
+          con['KB-03C1 Publish gate открыт?'] = {'main': [
+              [{'node':'Служебный_KB_Опубликовать версию','type':'main','index':0}],
+              [{'node':'Служебный_KB_Завершить после ошибки публикации','type':'main','index':0}],
+          ]}
+          con['Служебный_KB_Опубликовать версию'] = {'main': [[{'node':'KB-03C1 Проверить результат публикации','type':'main','index':0}]]}
+          con['KB-03C1 Проверить результат публикации'] = {'main': [[{'node':'KB-03C1 Публикация успешна?','type':'main','index':0}]]}
+          con['KB-03C1 Публикация успешна?'] = {'main': [
+              [{'node':'KB-03C1 Итог публикации','type':'main','index':0}],
+              [{'node':'Служебный_KB_Завершить после ошибки публикации','type':'main','index':0}],
+          ]}
+
+          by_name = {n['name']: n for n in nodes}
+          assert len(by_name) == len(nodes), 'duplicate node names after change'
+          ids = [n['id'] for n in nodes]
+          assert len(ids) == len(set(ids)), 'duplicate node ids'
+          for src, groups in con.items():
+              assert src in by_name, f'connection source missing: {src}'
+              for outputs in groups.values():
+                  for branch in outputs:
+                      for edge in branch:
+                          assert edge['node'] in by_name, f"dangling target: {src} -> {edge['node']}"
+
+          text = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+          assert 'opublikovat_versiyu_znaniy' in text
+          assert 'stale_expected_active' in text
+          assert 'qbit_test_sluzhebnyy' in text
+          assert '"credentials"' not in text
+          for bad in [r'sk-[A-Za-z0-9_-]{20,}', r'Bearer\s+[A-Za-z0-9._-]{20,}', r'\d{8,10}:[A-Za-z0-9_-]{30,}']:
+              assert re.search(bad, text) is None, f'secret-like pattern found: {bad}'
+          path.write_text(text, encoding='utf-8')
+          print('nodes', len(nodes))
+          print('KB-03C1 nodes', sum(1 for n in nodes if 'KB-03C1' in n['name'] or 'Опубликовать версию' in n['name'] or 'ошибки публикации' in n['name']))
+          PY
+
+      - name: Validate JSON and Code node JavaScript
+        shell: bash
+        run: |
+          python3 -m json.tool 'workflows/current/Шаблон Загрузка документов Qbit.json' >/dev/null
+          node <<'JS'
+          const fs=require('fs');
+          const p='workflows/current/Шаблон Загрузка документов Qbit.json';
+          const w=JSON.parse(fs.readFileSync(p,'utf8'));
+          let checked=0;
+          for(const n of w.nodes){
+            if(n.type==='n8n-nodes-base.code'){
+              new Function(n.parameters.jsCode);
+              checked++;
+            }
+          }
+          console.log('Code nodes syntax checked:',checked);
+          JS
+
+      - name: Commit candidate and remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/tmp_kb03c1_build.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 'workflows/current/Шаблон Загрузка документов Qbit.json' .github/workflows/tmp_kb03c1_build.yml
+          git commit -m 'tmp: assemble KB-03C1 workflow candidate [skip ci]'
+          git push origin HEAD:chatgpt/kb03c1-build-20261008
