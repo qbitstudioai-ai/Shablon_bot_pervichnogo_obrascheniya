@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-10-07.
+Обновлено: 2026-10-08.
 
 ## Режим
 
@@ -8,45 +8,28 @@
 
 Каноническая schema qBit: `qbit_bot_pervichnogo_obrascheniya`.
 
-## Git и канонический workflow
+## Git и текущие workflow
 
-Фактическая основа workflow — export Павла `(7)`, raw SHA-256 `2ebd7d7b44e42fc941bb70bdc8e01ce44f9e5a1472beb653e7e4331e77da1fb3`.
+Текущая repository-safe основа разделена на два workflow:
+- `workflows/current/Шаблон Загрузка документов Qbit.json` — service intake + knowledge processing;
+- `workflows/current/Шаблон — Workflow бота Qbit.json` — клиентский бот и RAG-ответ.
 
-Последний сохранённый в Git восстановимый runtime-verified checkpoint пока:
-`workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`.
+Credential refs, runtime whitelist, реальные Telegram ID, секреты и реальные документы компаний в Git не сохраняются.
 
-Restore:
-`python tools/restore_workflow_checkpoint.py`
-
-SHA-256 старого checkpoint:
-`6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`.
-
-Фактически текущий runtime-проверенный import-ready workflow — **v0.11 KB-03A**, SHA-256 `54f5d276cbd2092fee4e0fcf8d768a73b5b5b81077c064645b3803966bc36a8b`. Отдельный Git-checkpoint v0.11 ещё не сохранён.
-
-Для активной KB-03B1 подготовлен локальный **v0.12 KB-03B1**, ещё не runtime-проверенный:
-- SHA-256 `d562404cdc51788783eaf22b745310b69bcf3b2d07bcb8b5495fffdeffd6597c`;
-- 254 nodes;
-- 206 connection keys;
-- 288 edges;
-- `active=false`;
-- Credential refs 0;
-- duplicate names 0;
-- dangling connections 0;
-- все Code nodes проходят JS syntax check.
+Исторический восстановимый checkpoint KB-01A остаётся в `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`; старые checkpoints не считать текущей версией для импорта.
 
 ## DB-04 / DB-05
 
 Нормативные DB-04/DB-05 созданы и runtime-проверены в test. KB-03A сохранил реальные `vector(1024)` fragments через `sohranit_fragmenty_znaniy`.
 
-При подготовке KB-03B найден контрактный разрыв между сохранением questions и сохранением checks. Он закрыт задачей KB-03B0.
+При подготовке KB-03B контрактный разрыв между сохранением questions и checks был закрыт задачей KB-03B0.
 
 ### KB-03B0 — CLOSED / runtime verified
 
 В TEST применена узкая SECURITY DEFINER-функция:
 `qbit_bot_pervichnogo_obrascheniya.poluchit_kontrolnye_voprosy_znaniy(jsonb)`.
 
-Runtime 07.10.2026:
-- `kb03b0_status=verified`;
+Подтверждено:
 - owner `qbit_test_owner`;
 - service execute true;
 - bot/public execute false;
@@ -55,6 +38,30 @@ Runtime 07.10.2026:
 - production untouched.
 
 Evidence: `docs/evidence/KB-03/KB-03B0_RUNTIME_VERIFIED_2026-10-07.md`.
+
+### KB-03B1 — CLOSED / runtime verified
+
+Runtime 08.10.2026 на safe retry Markdown:
+- 53 fragments;
+- 9 canonical YAML questions сохранены;
+- one-batch question embeddings: OpenAI `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`;
+- 9 vectors, dimension min/max 1024/1024, finite values true, index mapping true;
+- OpenAI usage: 237 input/prompt tokens;
+- draft search: top-k 12, только своя version/profile;
+- positive threshold grid 0.45..0.85 рассчитана по фактическим similarities;
+- full pass 9/9 на 0.45, 0.50, 0.55 и 0.60;
+- максимальный grid threshold с full pass = 0.60;
+- при 0.65 проходит 8/9, при 0.70 — 6/9, при 0.75 — 3/9;
+- `sohranit_proverki_znaniy` вернул `uspeshno`, `uspeshnyh=9`, `vsego=9`, `status_versii=gotova`;
+- `publish_vypolnen=false`;
+- generative LLM calls = 0;
+- `next_stage=KB-03C`.
+
+`Служебный_KB_Вернуть после 03B` намеренно освобождает текущий knowledge job через `status='povtor'` и следующий запуск. Для успешного B1 это stage handoff, а не fail: внутри результата `full_pass=true`, `kb03b_gotova`, `status_versii=gotova`, `next_stage=KB-03C`.
+
+Evidence: `docs/evidence/KB-03/KB-03B1_RUNTIME_VERIFIED_2026-10-08.md`.
+
+Исторический неуспешный проход 6/8 сохранён отдельно в `docs/evidence/KB-03/KB-03B1_PARTIAL_RUNTIME_2026-10-07.md` и не является текущим статусом.
 
 ## Ограничение нагрузки на LLM
 
@@ -67,41 +74,23 @@ Evidence: `docs/evidence/KB-03/KB-03B0_RUNTIME_VERIFIED_2026-10-07.md`.
 - LLM reranker в v1 не добавлять без доказанной пользы;
 - общий evidence token budget зафиксировать до окончания retrieval-калибровки.
 
-A2 runtime: 130 blocks → 53 candidates, average 237.1, max 551. KB-03A — один embedding batch fragments. KB-03B1 — один embedding batch только 3–10 questions.
-
-## OpenAI embedding profile — runtime verified
-
-KB-03A доказал `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`, exact input, vector length 1024, finite values, mapping по API index. Успешный safe runtime: 6 fragments, 910 input tokens, DB `sohraneno_fragmentov=6`, `vsego_fragmentov=6`.
+B1 threshold 0.60 является только positive-reference validation threshold. Финальный client threshold ещё требует negative/no-answer calibration.
 
 ## Активный план
 
 Родительский план: `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`.
-Подплан: `docs/KB-03B_IMPLEMENTATION_PLAN.md`.
+Подплан завершённой задачи: `docs/KB-03B_IMPLEMENTATION_PLAN.md`.
 
 Последовательность:
 `KB-01A` → `KB-01B1` → `KB-01B2` → `KB-02A1` → `KB-02A2` → `KB-02B` → `KB-03A` → `KB-03B0` → `KB-03B1` → `KB-03C`.
 
-Закрыты и runtime verified: KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0.
+Закрыты и runtime verified: KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0, KB-03B1.
 
-## Текущая маленькая задача — KB-03B1
+## Следующая маленькая задача — KB-03C
 
-v0.12 путь:
-`claim/parser/A1/A2/B → prepare version → A3 idempotent fragment save → save questions → bridge IDs → one OpenAI question batch → draft-only top-12 → threshold grid 0.45..0.85 → deterministic section/fact checks → save checks → release job`.
+Цель: безопасно спроектировать и проверить atomic publish готовой версии с stale-conflict protection и active-only end-to-end regression.
 
-Критерий:
-- canonical YAML questions сохранены, 3..10;
-- DB question IDs получены через B0 bridge и совпадают по count/order/content;
-- question vectors = `text-embedding-3-large/1024/float`, finite/index mapping true;
-- search только через `poisk_chernovika_znaniy` по своей version/profile;
-- top-k 12, initial threshold 0;
-- grid 0.45..0.85 шаг 0.05 рассчитана по фактическим similarities;
-- validation threshold = максимальный grid threshold с full pass positive YAML set, иначе 0.45 и draft remains not-ready;
-- expected section и optional fact должны подтверждаться одним fragment детерминированно;
-- checks сохраняются через `sohranit_proverki_znaniy`;
-- full pass → DB status `gotova`; fail → `chernovik`;
-- B1 threshold не является финальным client threshold без negative/no-answer calibration;
-- publish false;
-- production untouched.
+До начала реализации новой сессии нужно прочитать только связанные контракты publish/active search и определить небольшой постоянный ID/критерий готовности. Наличие KB-03C в плане само по себе не означает, что publication или production-развёртывание разрешены.
 
 ## Постоянные ограничения
 

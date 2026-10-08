@@ -8,46 +8,41 @@
 
 DB-01, DB-02, DB-03/DB-03E и canonical schema `qbit_bot_pervichnogo_obrascheniya` завершены. Нормативные DB-04/DB-05 после KB-01R4/R5 существуют в test и runtime-проверены для текущего bot/service контура.
 
-Текущая работа — канонический knowledge workflow поверх полного фактического workflow.
+Текущая работа — канонический knowledge workflow.
 
-## Канонический workflow
+## Канонические workflow
 
-Фактическая основа: export Павла `(7)`.
+Текущая repository-safe основа хранится раздельно:
+- `workflows/current/Шаблон Загрузка документов Qbit.json` — intake/очередь/обработка документов и knowledge pipeline;
+- `workflows/current/Шаблон — Workflow бота Qbit.json` — клиентский бот, поиск знаний и ответы.
 
-Последний сохранённый в Git восстановимый runtime-verified checkpoint пока:
+Credential refs, runtime whitelist, реальные Telegram ID, секреты и реальные документы компаний в Git не сохраняются.
+
+Исторический восстановимый checkpoint KB-01A остаётся в:
 `workflows/checkpoints/2026-10-05_v0.4_KB-01A_runtime_verified/`.
 
-`python tools/restore_workflow_checkpoint.py` восстанавливает этот старый checkpoint с SHA-256:
-`6f7205bb9c062139ff22d01c9d62b4b71c7619dbe5d5264121ee338b0a72bea5`.
-
-Фактически текущий runtime-проверенный import-ready workflow — **v0.11 KB-03A**, SHA-256:
-`54f5d276cbd2092fee4e0fcf8d768a73b5b5b81077c064645b3803966bc36a8b`.
-
-Отдельный Git-checkpoint v0.11 ещё не сохранён. Credential refs, runtime whitelist, реальные Telegram ID, секреты и реальные документы компаний в Git не сохраняются.
-
-Старый experimental `Шаблон_мультиканальный_KB-01_v0.3.json` не импортировать.
+Старые checkpoints — история и evidence, а не текущая версия для импорта.
 
 ## Активная задача
 
 Активный план: [KB-WF](docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md).
 
-**KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B и KB-03A закрыты и runtime-проверены.**
+**KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0 и KB-03B1 закрыты и runtime-проверены.**
 
-Что уже доказано:
-- безопасный `.md` intake и durable knowledge job;
-- safe YAML/Markdown parser и deterministic content hash;
-- draft version/profile/fingerprints;
-- структурно-смысловой chunking;
-- exact `cl100k_base` token count;
-- final fragment records с exact text/hash/token count/order/trace;
-- отдельные YAML reference questions, не входящие в retrieval text;
-- document embeddings OpenAI `text-embedding-3-large/1024/float`;
-- strict vector validation и нормативный DB save fragments/vectors;
-- ingestion/chunking этапы не используют generative LLM.
+KB-03B1 runtime 08.10.2026 подтвердил:
+- 53 fragments;
+- 9 canonical YAML reference questions;
+- один OpenAI batch для 9 exact question texts;
+- `text-embedding-3-large`, 1024, float, finite/index mapping OK;
+- draft-only/version-scoped/profile-scoped top-12;
+- factual threshold grid 0.45..0.85;
+- полный positive pass 9/9 на 0.60;
+- `status_versii=gotova`;
+- `publish=false`.
 
-Текущий ID: **KB-03B** — сохранить canonical reference questions, векторизовать их тем же OpenAI profile, выполнить draft-only search по конкретной версии и сохранить проверки. Только полный pass всех контрольных вопросов может перевести version в `gotova`.
+Evidence: `docs/evidence/KB-03/KB-03B1_RUNTIME_VERIFIED_2026-10-08.md`.
 
-Publish относится к KB-03C.
+Текущий ID: **KB-03C** — atomic publish + stale-conflict protection + active-only end-to-end regression. KB-03C не считается начатым только из-за наличия его в плане; реализацию выполнять отдельной маленькой задачей.
 
 ## Guard по нагрузке на LLM
 

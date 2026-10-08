@@ -1,6 +1,6 @@
 # KB-03B — план reference checks
 
-Обновлено: 2026-10-07.
+Обновлено: 2026-10-08.
 
 Родительская задача: `KB-03B` из `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`.
 
@@ -29,60 +29,82 @@ Runtime 07.10.2026 подтвердил:
 
 Evidence: `docs/evidence/KB-03/KB-03B0_RUNTIME_VERIFIED_2026-10-07.md`.
 
-## [~] KB-03B1 — workflow reference checks
+## [x] KB-03B1 — workflow reference checks
 
-Подготовлен локальный import-ready **v0.12 KB-03B1**, ещё не runtime-verified.
+KB-03B1 runtime-verified 08.10.2026.
 
-SHA-256:
-`d562404cdc51788783eaf22b745310b69bcf3b2d07bcb8b5495fffdeffd6597c`
-
-Статика:
-- 254 nodes;
-- 206 connection keys;
-- 288 edges;
-- `active=false`;
-- Credential refs 0;
-- duplicate names 0;
-- dangling connections 0;
-- все Code nodes проходят syntax check;
-- ручной путь содержит только deterministic Code/IF/Postgres, встроенный exact tokenizer и два OpenAI HTTP embeddings вызова: fragments A3 + questions B1; generative LLM nodes нет.
-
-### Путь v0.12
-
+Путь:
 `claim/parser/A1/A2/B → prepare version → A3 idempotent fragment embedding/save → save canonical questions → bridge question IDs → one-batch question embeddings → draft-only top-12 → threshold grid → deterministic section/fact checks → save checks → release job`
 
-Обязательные свойства:
-1. questions только из canonical YAML metadata KB-02B;
-2. `sohranit_kontrolnye_voprosy` выполняется до получения IDs;
-3. B0 bridge подтверждает DB IDs только под текущим live fence;
-4. question embeddings: `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float`;
-5. exact question text, count/index mapping, vector 1024, finite values;
-6. `poisk_chernovika_znaniy` ограничен текущими `versiya_id` + profile;
-7. top-k = 12; initial search threshold = 0 для сохранения фактических similarities;
-8. grid = 0.45..0.85 шаг 0.05;
-9. B1 validation выбирает максимальный grid threshold с full pass всех positive YAML questions; если такого нет, checks сохраняются на 0.45 и version остаётся `chernovik`;
-10. ожидаемый section и optional fact должны подтверждаться одним и тем же fragment; normalization детерминированная, без LLM;
-11. `sohranit_proverki_znaniy` сохраняет реальные fragment IDs/similarities/results;
-12. только full pass всех questions может дать `status_versii=gotova`;
-13. selected B1 threshold не считается финальным client threshold: negative/no-answer calibration ещё обязательна;
-14. publish запрещён.
+Обязательные свойства и runtime:
+1. questions только из canonical YAML metadata KB-02B — подтверждено;
+2. `sohranit_kontrolnye_voprosy` выполняется до получения IDs — подтверждено;
+3. B0 bridge подтверждает DB IDs только под текущим live fence — подтверждено;
+4. question embeddings: `text-embedding-3-large`, `dimensions=1024`, `encoding_format=float` — подтверждено;
+5. exact question text, count/index mapping, vector 1024, finite values — подтверждено;
+6. `poisk_chernovika_znaniy` ограничен текущими `versiya_id` + profile — подтверждено;
+7. top-k = 12; initial search threshold = 0 — подтверждено;
+8. grid = 0.45..0.85 шаг 0.05 — подтверждено;
+9. B1 validation выбирает максимальный grid threshold с full pass positive questions — runtime selected 0.60;
+10. expected section + optional fact подтверждаются одним fragment после deterministic normalization, без LLM — подтверждено;
+11. `sohranit_proverki_znaniy` сохранил фактические checks — подтверждено;
+12. full pass всех questions дал `status_versii=gotova` — 9/9;
+13. selected B1 threshold не считать финальным client threshold — правило сохраняется;
+14. publish в B1 не выполнялся — `publish_vypolnen=false`.
+
+## Финальный runtime 08.10.2026
+
+Safe retry execution:
+- fragments = 53;
+- canonical questions = 9;
+- question embedding batch = 1;
+- vectors = 9 × 1024;
+- vector dimension min/max = 1024/1024;
+- finite values = true;
+- index mapping = true;
+- OpenAI usage = 237 input/prompt tokens;
+- generative LLM calls = 0;
+- search `draft_only=true`, `version_scoped=true`, `profile_scoped=true`;
+- top-k = 12;
+- 0.45 → 9/9;
+- 0.50 → 9/9;
+- 0.55 → 9/9;
+- 0.60 → 9/9;
+- 0.65 → 8/9;
+- 0.70 → 6/9;
+- 0.75 → 3/9;
+- 0.80 → 0/9;
+- 0.85 → 0/9;
+- selected positive threshold = 0.60;
+- DB checks save = `uspeshno`;
+- DB `uspeshnyh=9`, `vsego=9`, `status_versii=gotova`;
+- `full_pass=true`;
+- `next_stage=KB-03C`;
+- publish=false.
+
+`Служебный_KB_Вернуть после 03B` в текущем test workflow намеренно завершает lease через `status='povtor'` и будущий `sleduyushchiy_zapusk`. Для B1 это техническое освобождение job для следующего этапа; оно не отменяет `full_pass=true` и `status_versii=gotova`.
+
+Evidence: `docs/evidence/KB-03/KB-03B1_RUNTIME_VERIFIED_2026-10-08.md`.
+
+Предыдущий 6/8 runtime остаётся историческим evidence:
+`docs/evidence/KB-03/KB-03B1_PARTIAL_RUNTIME_2026-10-07.md`.
 
 ## Guard нагрузки
 
-KB-03B1 не использует generative LLM. Question embeddings — один batch на 3–10 вопросов. Draft search — PostgreSQL/pgvector. Reference-check payloads не передаются клиентскому LLM.
+KB-03B1 не использует generative LLM. Question embeddings — один batch на canonical questions. Draft search — PostgreSQL/pgvector. Reference-check payloads не передаются клиентскому LLM.
 
-## Критерий закрытия KB-03B1
+## Критерий закрытия KB-03B1 — выполнен
 
-Live n8n должен подтвердить:
-- questions saved = expected 3..10;
-- bridge IDs count/order/content совпадают с canonical YAML;
+Подтверждены:
+- questions saved = expected 9;
+- bridge IDs count/order/content соответствуют canonical set;
 - one question embedding batch, vectors ×1024, finite/index mapping true;
 - draft-only/version-scoped/profile-scoped top-12;
-- calibration matrix 0.45..0.85 фактически получена;
-- deterministic expected path/fact evaluation выполнена без LLM;
+- calibration matrix 0.45..0.85;
+- deterministic expected path/fact evaluation без LLM;
 - DB checks save успешен;
-- при full pass DB status = `gotova`; при fail = `chernovik`;
+- full pass 9/9 → DB status `gotova`;
 - publish false;
 - job безопасно освобождён.
 
-После runtime-verified KB-03B1 переходить к `KB-03C` — atomic publish + active-only regression.
+KB-03B1 закрыт. Следующий этап — `KB-03C`: atomic publish + active-only regression.
