@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-10-08.
+Обновлено: 2026-10-10.
 
 ## Режим
 
@@ -11,78 +11,83 @@
 ## Текущие workflow
 
 Repository-safe файлы:
-- `workflows/current/Шаблон Загрузка документов Qbit.json` — service intake + knowledge processing + подготовленный KB-03C1 publish branch;
+- `workflows/current/Шаблон Загрузка документов Qbit.json` — service intake + knowledge processing + publish branch KB-03C;
 - `workflows/current/Шаблон — Workflow бота Qbit.json` — клиентский бот и active-only RAG search.
 
 Credential refs, runtime whitelist, реальные Telegram ID, секреты и реальные документы компаний в Git не сохраняются.
 
-Workflow бота уже вызывает `poisk_aktivnyh_znaniy`; для KB-03C1 он не менялся.
+Runtime-копии, использованные для KB-03C2, были отдельными неактивными TEST workflow в n8n и в Git не сохраняются.
 
-## Закрытые knowledge stages
+## Knowledge workflow — CLOSED / runtime verified
 
-Runtime verified: KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0, KB-03B1.
+Runtime verified: KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0, KB-03B1, KB-03C2.
 
-KB-03B1 final runtime 08.10.2026:
-- 53 fragments;
-- 9/9 canonical checks;
-- question embeddings OpenAI `text-embedding-3-large/1024/float`;
-- draft-only/version/profile top-12;
-- full positive pass до 0.60;
-- `status_versii=gotova`;
-- publish=false.
+KB-03C1 закрыт как static verified; KB-03C2 подтвердил prepared publish branch на реальном TEST runtime.
 
-Evidence: `docs/evidence/KB-03/KB-03B1_RUNTIME_VERIFIED_2026-10-08.md`.
+### KB-03C2 final runtime 10.10.2026
 
-## KB-03C1 — CLOSED / static verified
+Target:
+- document `2e26ffd6-b1e7-4e60-b77f-000953b8d3fe`;
+- version `1d610b99-50f9-49b9-bc2d-b443b26e31a5`;
+- upload `328035d0-6fd7-4af3-83a3-2643a8b24d2f`;
+- job `91de6175-da91-471a-be7a-97feffb646a3`.
 
-Read-only preflight готовой TEST version подтвердил:
-- version `1d610b99-50f9-49b9-bc2d-b443b26e31a5` = `gotova`;
-- document `qbit_klientskaya_baza_znaniy`;
-- 53 fragments, bad vector dimensions = 0;
-- 9/9 latest successful checks;
-- expected active = NULL, current active = NULL;
-- `opublikovat_versiyu_znaniy` существует;
-- service execute = true, bot execute = false;
-- итог `READY_FOR_KB03C1_WORKFLOW_PREP`.
+До publish worker queue был очищен только от двух конкретных старых TEST retry jobs отдельными guarded one-shot workflow; массовой очистки не было.
 
-В workflow документов добавлен безопасный publish branch по фактическому DB-05 contract. Для уже подготовленной `gotova` version есть resume path: повторный worker run не пересчитывает embeddings/checks, а после DB-confirmed existing ready version переходит к publish gate.
+Atomic publish result:
+- `rezultat=uspeshno`;
+- previous active = NULL;
+- version=`opublikovana`;
+- upload=`zavershena`;
+- workflow terminal `publish_vypolnen=true`.
 
-Static verification:
-- JSON valid;
-- 67 nodes, 9 новых C1/publish nodes;
-- duplicate names/IDs = 0;
-- dangling connections = 0;
-- 21 Code nodes syntax PASS;
-- workflow остаётся inactive;
-- secrets/Credential bindings отсутствуют.
+Post-publish read-only verification:
+- active pointer = exact target version;
+- job=`zaversheno`;
+- lease owner/deadline = NULL;
+- fragments=53;
+- published versions for the document=1;
+- result `KB03C2_POST_PUBLISH_OK`.
 
-Evidence: `docs/evidence/KB-03/KB-03C1_STATIC_VERIFIED_2026-10-08.md`.
+Bot active-only regression:
+- actual PostgreSQL role=`qbit_test_bot`;
+- function EXECUTE=true;
+- direct fragment table SELECT=false;
+- search results=12;
+- target-version results=12;
+- other-version results=0;
+- old-draft results=0;
+- max similarity=`0.793885026323472`;
+- result `KB03C2_BOT_ACTIVE_ONLY_OK`.
 
-В KB-03C1 ничего не импортировалось в n8n и ничего не публиковалось в Supabase.
+Stale expected-active protection не провоцировалась повторно на текущей published target version: DB function short-circuits same-active publish как `dublikat`. Сам optimistic-concurrency path уже runtime-проверен ранее через реальный service role на synthetic competing V2/V3 (`konflikt/stale_expected_active`) в `docs/evidence/KB-01/KB-01R5C_RUNTIME_VERIFIED_2026-10-04.md`; C1 stale routing дополнительно статически проверен.
 
-## Активный план
+Evidence:
+`docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
-Родительский план: `docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md`.
-Активный подплан: `docs/KB-03C_IMPLEMENTATION_PLAN.md`.
+## Rollback state
 
-Последовательность:
-`KB-01A` → `KB-01B1` → `KB-01B2` → `KB-02A1` → `KB-02A2` → `KB-02B` → `KB-03A` → `KB-03B0` → `KB-03B1` → `KB-03C1` → `KB-03C2`.
+Для publication visibility существует поддерживаемый DB-05 API `otozvat_dokument_znaniy(jsonb)` под dash-admin role. В KB-03C2 rollback не выполнялся, потому что publish и active-only проверки прошли успешно.
 
-## Следующая маленькая задача — KB-03C2
+При первой active version revoke вернул бы document active pointer в NULL и archived бы текущую version. Это rollback видимости публикации, а не полное восстановление job/upload статусов. Прямой DML не использовать.
 
-Подготовительный безопасный шаг:
-1. импортировать current workflow документов как отдельную неактивную TEST-копию, не перезаписывая старую;
-2. привязать существующий `qbit_test_sluzhebnyy` только к нужным Postgres-нодам текущего resume/publish пути;
-3. workflow не активировать и mutating Execute пока не запускать.
+## Следующая маленькая задача — WF-02B3C
 
-После этого перед конкретной TEST publication отдельно подтвердить действие и rollback. Затем выполнить atomic publish и active-only regression.
+Вернуться к широкому плану `docs/WORKPLAN_TEMPLATE.md` и controlled runtime smoke уже подготовленной event-driven topology:
+- подтвердить актуальный canonical workflow и исходный SHA;
+- прочитать `docs/WF-02B3_SMOKE_CHECKS.md`;
+- проверить TEST import/runtime без постоянного polling;
+- production и рабочий трафик не затрагивать.
+
+WF-02B3C в текущей сессии не начинался.
+
+Примечание: агрегирующие legacy-строки knowledge/DB-04/DB-05 в широком `WORKPLAN_TEMPLATE.md` могут отставать от специализированного KB-WF. Для фактического knowledge status использовать этот файл, `KB_WORKFLOW_IMPLEMENTATION_PLAN.md` и runtime evidence до отдельной синхронизации широкого плана.
 
 ## Постоянные ограничения
 
 - Production не менять.
 - Рабочий трафик не переключать.
-- Не выполнять publication без отдельного подтверждения конкретного TEST действия.
-- Не запускать obsolete `sql/KB-01R5C_service_publish_prepare.sql`.
+- Не использовать obsolete `sql/KB-01R5C_service_publish_prepare.sql`.
 - `KB-01R5D` оставить до dashboard stage.
 - VSCode/helper не подключать до dashboard stage.
 - Не публиковать реальные документы компаний, переписки, Telegram ID, Credential refs или секреты.

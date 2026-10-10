@@ -1,81 +1,86 @@
 # SESSION HANDOFF
 
-Обновлено: 2026-10-08.
+Обновлено: 2026-10-10.
 
 ## Исходная точка
 
 Рабочая ветка: `main`.
 
-Runtime verified: KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0, KB-03B1.
+Исходный HEAD перед закрывающим documentation commit KB-03C2:
+`f37c05497dabcab9395636ffd371c1d0e21c6124` (`feat: prepare KB-03C1 publish workflow`).
 
-KB-03C1 закрыт как **static verified**. Следующая маленькая задача — **KB-03C2**.
+Новая сессия обязана сначала перечитать фактический HEAD `main`; он важнее этого зафиксированного исходного SHA.
 
-## Текущие workflow
+Knowledge workflow закрыт до **KB-03C2 runtime verified**.
 
-Repository-safe:
-- `workflows/current/Шаблон Загрузка документов Qbit.json` — теперь содержит подготовленный publish branch KB-03C1;
-- `workflows/current/Шаблон — Workflow бота Qbit.json` — уже содержит `Найти опубликованные знания` → `poisk_aktivnyh_znaniy`.
+## Текущие repository-safe workflow
+
+- `workflows/current/Шаблон Загрузка документов Qbit.json` — knowledge pipeline + prepared publish branch;
+- `workflows/current/Шаблон — Workflow бота Qbit.json` — client bot + active-only knowledge search.
 
 Credential refs, реальные Telegram ID, секреты и документы компаний в Git не сохраняются.
 
-## KB-03B1
+Отдельные credential-bound TEST workflows, использованные для C2, являются runtime artifacts n8n и в repository-safe JSON не переносились.
 
-Final runtime 08.10.2026:
-- 53 fragments;
-- 9/9 reference checks;
-- `status_versii=gotova`;
-- publish=false;
-- selected positive validation threshold = 0.60.
+## KB-03C2 — CLOSED / runtime verified
 
-Evidence: `docs/evidence/KB-03/KB-03B1_RUNTIME_VERIFIED_2026-10-08.md`.
+Target runtime:
+- version `1d610b99-50f9-49b9-bc2d-b443b26e31a5`;
+- document `2e26ffd6-b1e7-4e60-b77f-000953b8d3fe`;
+- upload `328035d0-6fd7-4af3-83a3-2643a8b24d2f`;
+- job `91de6175-da91-471a-be7a-97feffb646a3`.
 
-## KB-03C1 — CLOSED / static verified
+Перед target claim два конкретных старых due retry jobs были безопасно переведены в `otmeneno` exact-guarded one-shot workflow. Массовая очистка очереди не выполнялась.
 
-Read-only preflight текущей TEST version:
-- `versiya_id=1d610b99-50f9-49b9-bc2d-b443b26e31a5`;
-- `dokument_id=2e26ffd6-b1e7-4e60-b77f-000953b8d3fe`;
-- `status_versii=gotova`;
-- fragments 53, bad dimensions 0;
-- checks 9/9;
-- expected active NULL = current active NULL;
-- service can publish = true;
-- bot can publish = false;
-- result `READY_FOR_KB03C1_WORKFLOW_PREP`.
+Publish path:
+- worker забрал exact target;
+- resume path использовал уже готовую version без повторного B1 embedding/check cycle;
+- `opublikovat_versiyu_znaniy` вернул `uspeshno`;
+- version=`opublikovana`;
+- upload=`zavershena`;
+- previous active=NULL;
+- terminal workflow `publish_vypolnen=true`.
 
-Publish workflow построен по фактическому `opublikovat_versiyu_znaniy(jsonb)` contract. Есть resume path для уже готовой version, trusted expected-active, explicit stale handling и fail-closed error path.
+Read-only post-publish:
+- active pointer = target version;
+- job=`zaversheno`;
+- lease cleared;
+- fragments=53;
+- exactly one published version for document;
+- `KB03C2_POST_PUBLISH_OK`.
 
-Static checks PASS: JSON, nodes/IDs/connections, 21 Code-node syntax checks, inactive workflow, no Credential bindings/secrets.
+Bot active-only runtime:
+- сначала diagnostic выявил, что ошибочно выбранный Credential был service role `qbit_test_sluzhebnyy`; права БД не менялись;
+- после выбора правильного bot connection `current_user=qbit_test_bot`;
+- bot EXECUTE active search=true;
+- bot direct SELECT fragments=false;
+- active search returned 12 rows, all 12 from target version;
+- other versions=0, known old drafts=0;
+- `KB03C2_BOT_ACTIVE_ONLY_OK`.
 
-Evidence: `docs/evidence/KB-03/KB-03C1_STATIC_VERIFIED_2026-10-08.md`.
+Stale protection:
+- current real target повторно не мутировали ради искусственного stale case;
+- DB optimistic concurrency уже runtime verified через `qbit_test_sluzhebnyy` на synthetic V2/V3 в `docs/evidence/KB-01/KB-01R5C_RUNTIME_VERIFIED_2026-10-04.md`: competing publish returned `konflikt/stale_expected_active` and active pointer remained correct;
+- current KB-03C1 workflow stale/conflict route static verified.
 
-Ничего не импортировано и не опубликовано на сервере в рамках C1.
+Evidence:
+`docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
-## KB-03C2 — следующий шаг
+## Rollback
 
-Сначала выполнить только безопасную подготовку n8n:
-- импортировать current docs workflow как **новую отдельную TEST-копию**;
-- не перезаписывать старый workflow;
-- не активировать новую копию;
-- для текущего resume path выбрать существующий service Postgres Credential `qbit_test_sluzhebnyy` минимум на нодах:
-  - `Служебный_KB_Забрать задание`;
-  - `Служебный_KB_Подготовить версию`;
-  - `Служебный_KB_Опубликовать версию`;
-  - `Служебный_KB_Завершить после ошибки публикации`.
+Supported publication-visibility rollback: `otozvat_dokument_znaniy(jsonb)` through dash-admin role after explicit need/authorization. Direct DML forbidden.
 
-После импорта Execute не нажимать до отдельного подтверждения конкретной TEST publication.
+Rollback was not executed because C2 passed. Since this was the first active version, revoke would clear active pointer and archive the version, but would not fully rewind historical job/upload statuses.
 
-Перед mutating run:
-- ещё раз подтвердить exact target version/document;
-- уточнить поддерживаемый rollback DB API;
-- прямой DML для rollback не использовать.
+## Следующая маленькая задача — WF-02B3C
 
-После разрешения C2: worker должен забрать нужный job, existing gotova version пройти resume gate, DB atomic publish подтвердить `opublikovana/zavershena`, затем bot active-only search должен увидеть эту version.
+Не начинать автоматически в этой сессии.
 
-## Запреты
+В новой сессии:
+1. проверить current `main` HEAD и отсутствие чужих изменений;
+2. прочитать `README.md`, `docs/PROJECT_STATE.md`, этот handoff и relevant rows `docs/WORKPLAN_TEMPLATE.md`;
+3. прочитать `docs/WF-02B3_SMOKE_CHECKS.md` и связанные WF-02B3C требования;
+4. определить один малый runtime smoke шаг event-driven topology без постоянного polling;
+5. production и рабочий трафик не трогать.
 
-- Production не менять.
-- Рабочий трафик не переключать.
-- Не нажимать mutating Execute без отдельного подтверждения.
-- Не использовать obsolete `sql/KB-01R5C_service_publish_prepare.sql`.
-- VSCode/helper не подключать до dashboard stage.
-- Не публиковать реальные документы, Telegram ID, Credential refs, переписку или секреты.
+VSCode/helper до dashboard stage не подключать.
