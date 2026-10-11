@@ -60,18 +60,43 @@ VSCode/helper до dashboard stage не подключать.
 
 DoD E2E-01 выполнен: реальный клиентский Telegram message прошёл основную bot-вертикаль до grounded ответа и подтверждённой внешней доставки.
 
-### WF-02B3C-E2E-02 — operator handoff/service bot — NEXT
+### WF-02B3C-E2E-02 — operator handoff/service bot — IN PROGRESS
 
-Проверить один реальный TEST handoff:
-- явная просьба клиента подключить человека;
-- durable human-needed state;
-- service Telegram получает/отражает требуемое событие только через согласованный service ingress;
-- Take выполняется атомарно текущим менеджером;
-- после Take bot и reminders не продолжают разговор;
-- ручной ответ менеджера идёт через разрешённый durable outgoing path;
-- Return явно возвращает диалог боту без автоматического client message.
+Родительский Gate C разделён на три малых runtime шага, чтобы не смешивать signal/topic, ownership CAS и manual outgoing в одной диагностике.
 
-Не включать дополнительные competing Telegram webhooks на том же service bot token.
+#### WF-02B3C-E2E-02A — human-needed → topic/signal — ACTIVE
+
+Проверить один реальный TEST handoff до служебного интерфейса:
+- клиент явно просит подключить человека;
+- `zaprosit_cheloveka(jsonb)` фиксирует durable human-needed state;
+- текущий processing job больше не продолжает bot-answer path;
+- через event-driven topic/mirror workers создаётся или переиспользуется одна operator topic;
+- в topic приходит сигнал `nuzhen_chelovek` с кнопкой «Забрать диалог»;
+- используется существующий service Telegram bot и единственный согласованный service webhook; competing webhook не создаётся.
+
+DoD 02A: реальная просьба клиента приводит к подтверждённому внешнему сигналу в правильной TEST operator topic без polling и без Production.
+
+#### WF-02B3C-E2E-02B — atomic Take + bot stop — PENDING
+
+После закрытия 02A:
+- callback «Забрать диалог» приходит через существующий service webhook и durable service ingress;
+- manager/topic state читается narrow DB-03E API;
+- `zabrat_dialog_operatorom(jsonb)` выполняет first-commit-wins Take;
+- owner становится `chelovek` с конкретным manager;
+- поздний/stale bot outgoing и reminders не продолжают диалог.
+
+DoD 02B: atomic Take подтверждён runtime и bot-side continuation после Take заблокирован DB state/final recheck.
+
+#### WF-02B3C-E2E-02C — manual reply + explicit Return — PENDING
+
+После закрытия 02B:
+- текст текущего менеджера в operator topic создаёт `sozdat_ruchnoe_ishodyashchee(jsonb)`;
+- client sender доставляет manual action через клиентского Telegram-бота и подтверждает результат;
+- callback «Вернуть боту» проходит через тот же service ingress;
+- `vernut_dialog_botu(jsonb)` явно возвращает owner `chelovek → bot`;
+- Return не создаёт автоматическое client message.
+
+DoD 02C: ручной ответ реально получен клиентом, Return подтверждён runtime, самопроизвольного сообщения после Return нет.
 
 ### WF-02B3C-E2E-03 — reminders / opt-out / recovery — PENDING
 
@@ -96,4 +121,4 @@ DoD E2E-01 выполнен: реальный клиентский Telegram mess
 
 ## Текущий статус
 
-`WF-02B3C` остаётся `[~]`, потому что проверена только основная клиентская вертикаль. Следующий один ID: `WF-02B3C-E2E-02`.
+`WF-02B3C` остаётся `[~]`. `WF-02B3C-E2E-01` закрыт. Активный один ID: `WF-02B3C-E2E-02A`.
