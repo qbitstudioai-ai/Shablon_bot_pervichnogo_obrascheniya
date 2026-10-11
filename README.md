@@ -43,12 +43,16 @@ Evidence: `docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
 ## Активная задача
 
-Следующий небольшой ID по широкому плану: **WF-02B3C** — controlled TEST runtime import/smoke event-driven topology без постоянного polling.
+Родитель: **WF-02B3C** — controlled TEST runtime event-driven topology без постоянного polling.
 
-Основной план: [WORKPLAN_TEMPLATE](docs/WORKPLAN_TEMPLATE.md).
-Перед новой сессией также прочитать [WF-02B3 smoke checks](docs/WF-02B3_SMOKE_CHECKS.md) и актуальный [PROJECT_STATE](docs/PROJECT_STATE.md).
+Малый план: [WF-02B3C E2E](docs/WF-02B3C_E2E_PLAN.md).
 
-WF-02B3C в этой сессии не начинался.
+**WF-02B3C-E2E-01 закрыт runtime 11.10.2026:** реальный client Telegram message прошёл guard → planner → OpenAI embedding → active-only DB-05 RAG → answer → Telegram; клиент получил grounded ответ по опубликованной базе знаний.
+
+Следующий один ID: **WF-02B3C-E2E-02** — operator handoff/service-bot vertical slice: durable human-needed state, service route, atomic Take, manual reply и explicit Return. Production не затрагивать.
+
+Основной широкий план: [WORKPLAN_TEMPLATE](docs/WORKPLAN_TEMPLATE.md).
+Перед новой сессией также прочитать [PROJECT_STATE](docs/PROJECT_STATE.md) и [SESSION_HANDOFF](docs/SESSION_HANDOFF.md).
 
 ## Guard по нагрузке на LLM
 
@@ -58,7 +62,7 @@ WF-02B3C в этой сессии не начинался.
 
 1. [Инструкция ChatGPT](docs/CHATGPT_INSTRUCTIONS.md).
 2. [Текущее состояние](docs/PROJECT_STATE.md).
-3. [Основной план](docs/WORKPLAN_TEMPLATE.md).
+3. [WF-02B3C E2E plan](docs/WF-02B3C_E2E_PLAN.md).
 4. [Передача](docs/SESSION_HANDOFF.md).
 5. Только спецификации, необходимые текущему ID.
 
