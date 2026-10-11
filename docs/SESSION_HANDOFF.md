@@ -1,86 +1,86 @@
 # SESSION HANDOFF
 
-Обновлено: 2026-10-10.
+Обновлено: 2026-10-11.
 
 ## Исходная точка
 
 Рабочая ветка: `main`.
 
-Исходный HEAD перед закрывающим documentation commit KB-03C2:
-`f37c05497dabcab9395636ffd371c1d0e21c6124` (`feat: prepare KB-03C1 publish workflow`).
+HEAD до текущего блока WF-02B3C: `f7fc58ed2ddcbe9166532eb6af36afe9e348eaf4` (`docs: close KB-03C2 runtime verification`).
 
-Новая сессия обязана сначала перечитать фактический HEAD `main`; он важнее этого зафиксированного исходного SHA.
+В этой сессии документация WF-02B3C обновлялась отдельными последовательными GitHub commits; новая сессия обязана сначала перечитать фактический HEAD `main`.
 
 Knowledge workflow закрыт до **KB-03C2 runtime verified**.
 
 ## Текущие repository-safe workflow
 
-- `workflows/current/Шаблон Загрузка документов Qbit.json` — knowledge pipeline + prepared publish branch;
+- `workflows/current/Шаблон Загрузка документов Qbit.json` — knowledge pipeline + publish branch;
 - `workflows/current/Шаблон — Workflow бота Qbit.json` — client bot + active-only knowledge search.
 
 Credential refs, реальные Telegram ID, секреты и документы компаний в Git не сохраняются.
 
-Отдельные credential-bound TEST workflows, использованные для C2, являются runtime artifacts n8n и в repository-safe JSON не переносились.
+Instance-specific TEST runtime workflow и diagnostic/reset artifacts в repository-safe JSON не переносились.
 
 ## KB-03C2 — CLOSED / runtime verified
 
-Target runtime:
-- version `1d610b99-50f9-49b9-bc2d-b443b26e31a5`;
-- document `2e26ffd6-b1e7-4e60-b77f-000953b8d3fe`;
-- upload `328035d0-6fd7-4af3-83a3-2643a8b24d2f`;
-- job `91de6175-da91-471a-be7a-97feffb646a3`.
-
-Перед target claim два конкретных старых due retry jobs были безопасно переведены в `otmeneno` exact-guarded one-shot workflow. Массовая очистка очереди не выполнялась.
-
-Publish path:
-- worker забрал exact target;
-- resume path использовал уже готовую version без повторного B1 embedding/check cycle;
-- `opublikovat_versiyu_znaniy` вернул `uspeshno`;
-- version=`opublikovana`;
-- upload=`zavershena`;
-- previous active=NULL;
-- terminal workflow `publish_vypolnen=true`.
-
-Read-only post-publish:
-- active pointer = target version;
-- job=`zaversheno`;
-- lease cleared;
-- fragments=53;
-- exactly one published version for document;
-- `KB03C2_POST_PUBLISH_OK`.
-
-Bot active-only runtime:
-- сначала diagnostic выявил, что ошибочно выбранный Credential был service role `qbit_test_sluzhebnyy`; права БД не менялись;
-- после выбора правильного bot connection `current_user=qbit_test_bot`;
-- bot EXECUTE active search=true;
-- bot direct SELECT fragments=false;
-- active search returned 12 rows, all 12 from target version;
-- other versions=0, known old drafts=0;
-- `KB03C2_BOT_ACTIVE_ONLY_OK`.
-
-Stale protection:
-- current real target повторно не мутировали ради искусственного stale case;
-- DB optimistic concurrency уже runtime verified через `qbit_test_sluzhebnyy` на synthetic V2/V3 в `docs/evidence/KB-01/KB-01R5C_RUNTIME_VERIFIED_2026-10-04.md`: competing publish returned `konflikt/stale_expected_active` and active pointer remained correct;
-- current KB-03C1 workflow stale/conflict route static verified.
-
-Evidence:
+Runtime target был опубликован и active-only поиск под `qbit_test_bot` проверен: 12/12 результатов только из target published version; direct SELECT fragments=false. Полное evidence:
 `docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
-## Rollback
+Supported publication-visibility rollback: `otozvat_dokument_znaniy(jsonb)` через dash-admin role после отдельной необходимости/авторизации. Direct DML не использовать.
 
-Supported publication-visibility rollback: `otozvat_dokument_znaniy(jsonb)` through dash-admin role after explicit need/authorization. Direct DML forbidden.
+## WF-02B3C — IN PROGRESS
 
-Rollback was not executed because C2 passed. Since this was the first active version, revoke would clear active pointer and archive the version, but would not fully rewind historical job/upload statuses.
+Активный малый план:
+`docs/WF-02B3C_E2E_PLAN.md`.
 
-## Следующая маленькая задача — WF-02B3C
+### WF-02B3C-E2E-01 — CLOSED / runtime verified 11.10.2026
 
-Не начинать автоматически в этой сессии.
+Реальный TEST client Telegram vertical slice завершился содержательным grounded ответом клиенту.
 
-В новой сессии:
-1. проверить current `main` HEAD и отсутствие чужих изменений;
-2. прочитать `README.md`, `docs/PROJECT_STATE.md`, этот handoff и relevant rows `docs/WORKPLAN_TEMPLATE.md`;
-3. прочитать `docs/WF-02B3_SMOKE_CHECKS.md` и связанные WF-02B3C требования;
-4. определить один малый runtime smoke шаг event-driven topology без постоянного polling;
-5. production и рабочий трафик не трогать.
+Подтверждено:
+- guard классифицирует вопрос по услуге/цене как `razresheno` и `nuzhen_rag=true` на чистом состоянии диалога;
+- planner и OpenAI embedding отрабатывают;
+- DB-05 active search вызывается текущей функцией `qbit_bot_pervichnogo_obrascheniya.poisk_aktivnyh_znaniy(jsonb)` под bot PostgreSQL role;
+- caller не получает лишний доступ к schema `extensions`;
+- RAG adapter использует `tekst_fragmenta` и `shodstvo` текущего DB-05 contract;
+- answer-LLM получает непустой evidence;
+- клиент реально получил grounded ответ и follow-up вопрос;
+- финальный чистый проход не ушёл в handoff.
 
-VSCode/helper до dashboard stage не подключать.
+### Что обнаружили по пути
+
+1. Internal event webhooks в n8n 2.41.0 требовали явный Respond to Webhook ack; иначе event call падал из-за unused Respond node topology.
+2. Client runtime временно содержал лишний service/KB pipeline; для текущей TEST runtime-копии оставили только client + active-only RAG.
+3. После старых тестов один TEST dialog сохранял stage `peredacha_cheloveku`; Павел отдельно разрешил точечный guarded reset. Raw history не удалялась.
+4. Старый RAG SQL делал caller-side `::extensions.vector(1024)` и использовал устаревший интерфейс; текущий DB-05 принимает JSONB.
+5. Вызов DB-05 без schema qualification не находился по connection `search_path`; используется полное имя schema.
+6. RAG adapter ждал legacy `soderzhanie/podobie`, поэтому evidence был пустым и answer-LLM логично выбирала менеджера. Mapping исправлен на `tekst_fragmenta/shodstvo`.
+
+Не считать старые ложные handoff доказательством плохого guard: после чистого reset guard корректно разрешил тот же вопрос; последующий handoff был вызван пустым evidence до исправления RAG mapping.
+
+## Текущая модель TEST runtime
+
+Guard/planner/answer: `gpt-6-luna` с low reasoning. Embedding: `text-embedding-3-large`, dimensions 1024.
+
+Не менять модель только из-за уже исправленных ошибок state/RAG adapter. Повышать отдельную роль только если дальнейший runtime покажет проблему качества самой модели.
+
+## Следующая маленькая задача — WF-02B3C-E2E-02
+
+Новая сессия должна проверить один TEST operator handoff/service-bot vertical slice:
+1. перечитать `README.md`, `docs/PROJECT_STATE.md`, этот handoff и `docs/WF-02B3C_E2E_PLAN.md`;
+2. проверить фактический HEAD `main`;
+3. использовать текущие два runtime workflow: client и service/KB; не плодить отдельные diagnostic workflow без фактической ошибки;
+4. отправить клиенту явную просьбу подключить человека;
+5. доказать durable human-needed state и service Telegram route;
+6. проверить atomic Take, что после Take bot/reminders не продолжают диалог;
+7. проверить manual manager reply и explicit Return;
+8. production не трогать и не создавать competing webhook на service Telegram token.
+
+После E2E-02 отдельно останутся reminders/opt-out/recovery и финальный regression/security.
+
+## Постоянные ограничения
+
+- Production/рабочие данные/рабочий трафик не менять без отдельного явного разрешения Павла.
+- Реальные Telegram ID, Credential refs, secrets, переписки и документы компаний не сохранять в Git.
+- Один service Telegram bot использует один согласованный webhook ingress; competing webhooks на том же token запрещены.
+- VSCode/helper до dashboard stage не подключать.
