@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-10-10.
+Обновлено: 2026-10-11.
 
 ## Режим
 
@@ -16,7 +16,7 @@ Repository-safe файлы:
 
 Credential refs, runtime whitelist, реальные Telegram ID, секреты и реальные документы компаний в Git не сохраняются.
 
-Runtime-копии, использованные для KB-03C2, были отдельными неактивными TEST workflow в n8n и в Git не сохраняются.
+Instance-specific TEST runtime workflow и точечные diagnostic/reset artifacts в Git не сохраняются.
 
 ## Knowledge workflow — CLOSED / runtime verified
 
@@ -65,28 +65,54 @@ Stale expected-active protection не провоцировалась повто�
 Evidence:
 `docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
+## WF-02B3C — event-driven TEST runtime — IN PROGRESS
+
+Активный малый план: `docs/WF-02B3C_E2E_PLAN.md`.
+
+### WF-02B3C-E2E-01 — CLOSED / runtime verified 11.10.2026
+
+Реальный клиентский Telegram vertical slice прошёл до grounded ответа:
+- ingress/processing выполнялись в TEST;
+- guard корректно разрешил вопрос по услугам/ценам и запросил RAG;
+- planner + OpenAI embedding отработали;
+- active-only поиск использует текущий DB-05 API `qbit_bot_pervichnogo_obrascheniya.poisk_aktivnyh_znaniy(jsonb)` под bot role;
+- caller не требует `USAGE` на schema `extensions`;
+- RAG adapter читает актуальные поля DB-05 `tekst_fragmenta/shodstvo`;
+- answer-LLM получила непустой evidence и сформировала содержательный ответ по опубликованным знаниям;
+- клиент реально получил ответ в Telegram;
+- в финальном чистом проходе ложной передачи менеджеру не было.
+
+Во время E2E были найдены и исправлены только в TEST runtime:
+- конфликт internal webhook topology с unused Respond to Webhook в n8n 2.41.0;
+- старое состояние тестового диалога `peredacha_cheloveku`, для одного разрешённого TEST dialog выполнен guarded reset без удаления raw history;
+- legacy RAG вызов с внешним `extensions.vector` cast;
+- отсутствие schema qualification при DB-05 call;
+- legacy mapping `soderzhanie/podobie` вместо текущего `tekst_fragmenta/shodstvo`.
+
+`WF-02B3C` как родитель остаётся `[~]`: operator handoff, reminders/opt-out/recovery и финальный regression ещё не проверены.
+
+## Следующая маленькая задача — WF-02B3C-E2E-02
+
+Проверить один TEST operator handoff/service-bot vertical slice по `docs/WF-02B3C_E2E_PLAN.md`:
+- явная просьба клиента подключить человека;
+- durable human-needed state;
+- service topic/mirror path через согласованный service ingress;
+- atomic Take;
+- после Take bot/reminders не продолжают диалог;
+- manual reply и explicit Return.
+
+Production не затрагивать. Не создавать competing webhook на service Telegram token.
+
 ## Rollback state
 
 Для publication visibility существует поддерживаемый DB-05 API `otozvat_dokument_znaniy(jsonb)` под dash-admin role. В KB-03C2 rollback не выполнялся, потому что publish и active-only проверки прошли успешно.
 
 При первой active version revoke вернул бы document active pointer в NULL и archived бы текущую version. Это rollback видимости публикации, а не полное восстановление job/upload статусов. Прямой DML не использовать.
 
-## Следующая маленькая задача — WF-02B3C
-
-Вернуться к широкому плану `docs/WORKPLAN_TEMPLATE.md` и controlled runtime smoke уже подготовленной event-driven topology:
-- подтвердить актуальный canonical workflow и исходный SHA;
-- прочитать `docs/WF-02B3_SMOKE_CHECKS.md`;
-- проверить TEST import/runtime без постоянного polling;
-- production и рабочий трафик не затрагивать.
-
-WF-02B3C в текущей сессии не начинался.
-
-Примечание: агрегирующие legacy-строки knowledge/DB-04/DB-05 в широком `WORKPLAN_TEMPLATE.md` могут отставать от специализированного KB-WF. Для фактического knowledge status использовать этот файл, `KB_WORKFLOW_IMPLEMENTATION_PLAN.md` и runtime evidence до отдельной синхронизации широкого плана.
-
 ## Постоянные ограничения
 
 - Production не менять.
-- Рабочий трафик не переключать.
+- Рабочий трафик не переключать без отдельного разрешения.
 - Не использовать obsolete `sql/KB-01R5C_service_publish_prepare.sql`.
 - `KB-01R5D` оставить до dashboard stage.
 - VSCode/helper не подключать до dashboard stage.
