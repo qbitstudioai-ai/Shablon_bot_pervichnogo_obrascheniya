@@ -1,6 +1,6 @@
 # WF-02B3C — E2E runtime plan
 
-Обновлено: 2026-10-11.
+Обновлено: 2026-10-12.
 
 Родительская задача: `WF-02B3C` из `docs/WORKPLAN_TEMPLATE.md`.
 
@@ -64,28 +64,37 @@ DoD E2E-01 выполнен: реальный клиентский Telegram mess
 
 Родительский Gate C разделён на три малых runtime шага, чтобы не смешивать signal/topic, ownership CAS и manual outgoing в одной диагностике.
 
-#### WF-02B3C-E2E-02A — human-needed → topic/signal — ACTIVE
+#### WF-02B3C-E2E-02A — human-needed → topic/signal — CLOSED / runtime verified
 
-Проверить один реальный TEST handoff до служебного интерфейса:
-- клиент явно просит подключить человека;
-- `zaprosit_cheloveka(jsonb)` фиксирует durable human-needed state;
-- текущий processing job больше не продолжает bot-answer path;
-- через event-driven topic/mirror workers создаётся или переиспользуется одна operator topic;
-- в topic приходит сигнал `nuzhen_chelovek` с кнопкой «Забрать диалог»;
-- используется существующий service Telegram bot и единственный согласованный service webhook; competing webhook не создаётся.
+Дата: 2026-10-12.
 
-DoD 02A: реальная просьба клиента приводит к подтверждённому внешнему сигналу в правильной TEST operator topic без polling и без Production.
+Финальный TEST-проход подтвердил:
+- реальная явная просьба клиента подключить человека дошла до durable human-needed path;
+- клиентский bot-answer path завершился передачей менеджеру, а не обычным AI-ответом;
+- topic intent был выдан event-driven worker без polling;
+- topic создаётся через изолированный TEST bridge к Telegram Bot API, потому что текущая n8n Telegram node не предоставляет `createForumTopic`;
+- для `createForumTopic` числовой service chat ID нормализуется в JSON как Number; после этого Telegram подтвердил создание topic;
+- DB topic mapping подтверждён один раз со статусом `gotova` и сохранённым `message_thread_id`;
+- накопленные mirror events после подтверждения topic привязались к правильному thread и были реально доставлены во внешнюю service topic;
+- в topic реально виден human-needed сигнал с кнопкой «Забрать диалог»;
+- использован существующий service Telegram bot и текущий согласованный service ingress; competing webhook не создавался;
+- Production не затрагивался.
 
-#### WF-02B3C-E2E-02B — atomic Take + bot stop — PENDING
+DoD 02A выполнен: реальная просьба клиента привела к подтверждённому внешнему сигналу в правильной TEST operator topic без polling и без Production.
+
+Наблюдение для следующего шага: при первом успешном создании topic накопившаяся очередь mirror events выгрузилась пачкой, поэтому видимый порядок backlog-сообщений не считается проверкой steady-state. Перед Take в 02B нужно отправить одно новое клиентское сообщение и проверить его обычное live-зеркалирование в уже существующую topic.
+
+#### WF-02B3C-E2E-02B — atomic Take + bot stop — ACTIVE
 
 После закрытия 02A:
+- сначала отправить одно новое TEST client message и проверить steady-state mirror в существующую operator topic без backlog-flush эффекта;
 - callback «Забрать диалог» приходит через существующий service webhook и durable service ingress;
 - manager/topic state читается narrow DB-03E API;
 - `zabrat_dialog_operatorom(jsonb)` выполняет first-commit-wins Take;
 - owner становится `chelovek` с конкретным manager;
 - поздний/stale bot outgoing и reminders не продолжают диалог.
 
-DoD 02B: atomic Take подтверждён runtime и bot-side continuation после Take заблокирован DB state/final recheck.
+DoD 02B: steady-state mirror подтверждён, atomic Take подтверждён runtime и bot-side continuation после Take заблокирован DB state/final recheck.
 
 #### WF-02B3C-E2E-02C — manual reply + explicit Return — PENDING
 
@@ -106,6 +115,7 @@ DoD 02C: ручной ответ реально получен клиентом,
 - handoff/refusal/completion отменяют ожидание;
 - opt-out запрещает инициативные сообщения;
 - unknown/ambiguous external delivery не повторяется вслепую;
+- явный детерминированный внешний отказ, например Telegram HTTP 4xx до подтверждённого успеха, не должен ошибочно классифицироваться как `neizvestno`; `neizvestno` оставлять только для действительно неоднозначного transport/result состояния;
 - Wait wake делает final DB recheck.
 
 ### WF-02B3C-E2E-04 — final regression/security — PENDING
@@ -119,6 +129,8 @@ DoD 02C: ручной ответ реально получен клиентом,
 - production untouched;
 - обязательные exception/security cases без избыточного тестирования.
 
+Дополнительный operability debt перед финальным regression: расследовать, можно ли упростить runtime topology в сторону «одно client message = одно основное execution», сохранив отдельные executions только там, где это оправдано Wait/lifecycle/reliability. Текущие durable queues, final recheck и sender safety при этом не ослаблять.
+
 ## Текущий статус
 
-`WF-02B3C` остаётся `[~]`. `WF-02B3C-E2E-01` закрыт. Активный один ID: `WF-02B3C-E2E-02A`.
+`WF-02B3C` остаётся `[~]`. `WF-02B3C-E2E-01` и `WF-02B3C-E2E-02A` закрыты runtime. Активный один ID: `WF-02B3C-E2E-02B`.
