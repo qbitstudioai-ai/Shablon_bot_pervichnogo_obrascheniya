@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-10-11.
+Обновлено: 2026-10-12.
 
 ## Режим
 
@@ -37,9 +37,7 @@ Target:
 Atomic publish result:
 - `rezultat=uspeshno`;
 - previous active = NULL;
-- version=`opublikovana`;
-- upload=`zavershena`;
-- workflow terminal `publish_vypolnen=true`.
+- version=`opublikovana`, upload=`zavershena`, workflow terminal `publish_vypolnen=true`.
 
 Post-publish read-only verification:
 - active pointer = exact target version;
@@ -89,17 +87,35 @@ Evidence:
 - отсутствие schema qualification при DB-05 call;
 - legacy mapping `soderzhanie/podobie` вместо текущего `tekst_fragmenta/shodstvo`.
 
-`WF-02B3C` как родитель остаётся `[~]`: operator handoff, reminders/opt-out/recovery и финальный regression ещё не проверены.
+### WF-02B3C-E2E-02A — CLOSED / runtime verified 12.10.2026
 
-## Следующая маленькая задача — WF-02B3C-E2E-02
+Реальный TEST handoff до служебной operator topic подтверждён:
+- явная просьба клиента о человеке перевела обработку в durable human-needed path;
+- обычный bot-answer path не продолжился;
+- event-driven topic worker выдал topic intent без polling;
+- текущая n8n Telegram node не поддерживает `createForumTopic`, поэтому в TEST используется отдельный минимальный bridge к Telegram Bot API без хранения Telegram token в workflow;
+- после нормализации числового service chat ID в JSON как Number Telegram подтвердил `createForumTopic`;
+- DB mapping operator topic подтверждён со статусом `gotova` и сохранённым thread ID;
+- queued mirror events привязались к thread и реально появились в созданной topic;
+- human-needed сигнал с кнопкой «Забрать диалог» реально виден в служебной topic;
+- competing service Telegram webhook не создавался; Production не затрагивался.
 
-Проверить один TEST operator handoff/service-bot vertical slice по `docs/WF-02B3C_E2E_PLAN.md`:
-- явная просьба клиента подключить человека;
-- durable human-needed state;
-- service topic/mirror path через согласованный service ingress;
-- atomic Take;
-- после Take bot/reminders не продолжают диалог;
-- manual reply и explicit Return.
+Первое отображение topic было backlog-flush после позднего создания темы: клиентские mirror-сообщения и bot-сообщения пришли пачками. Это не считается проверкой steady-state порядка. В начале E2E-02B нужно отправить одно новое client message и проверить live mirror в уже существующую topic до нажатия Take.
+
+Обнаруженный recovery debt: явный Telegram HTTP 4xx сейчас попадает в общий `create_forum_topic_neizvestno`. До финального recovery/regression нужно разделить детерминированный внешний отказ и действительно неоднозначный transport/result outcome; blind retry допустим только после доказанного отсутствия внешнего успеха.
+
+Operability debt: один client message сейчас может порождать несколько n8n executions. Перед финальным regression отдельно оценить упрощение в сторону одного основного execution, сохраняя отдельные Wait/sender executions только там, где это оправдано lifecycle/reliability.
+
+`WF-02B3C` как родитель остаётся `[~]`: atomic Take, manual reply/Return, reminders/opt-out/recovery и финальный regression ещё не закрыты.
+
+## Следующая маленькая задача — WF-02B3C-E2E-02B
+
+Проверить один TEST atomic Take + bot stop по `docs/WF-02B3C_E2E_PLAN.md`:
+- сначала одно новое client message должно live-зеркалироваться в уже созданную operator topic;
+- затем callback «Забрать диалог» проходит через существующий service webhook и durable ingress;
+- `zabrat_dialog_operatorom(jsonb)` выполняет first-commit-wins Take;
+- owner становится `chelovek` с конкретным manager;
+- поздний bot outgoing и reminders не продолжают диалог после Take.
 
 Production не затрагивать. Не создавать competing webhook на service Telegram token.
 
