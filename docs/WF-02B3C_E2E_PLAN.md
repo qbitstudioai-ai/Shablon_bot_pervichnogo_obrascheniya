@@ -1,6 +1,6 @@
 # WF-02B3C — E2E runtime plan
 
-Обновлено: 2026-10-12.
+Обновлено: 2026-10-14.
 
 Родительская задача: `WF-02B3C` из `docs/WORKPLAN_TEMPLATE.md`.
 
@@ -40,72 +40,63 @@ VSCode/helper до dashboard stage не подключать.
 
 Дата: 2026-10-11.
 
-Финальный чистый проход после точечных runtime-исправлений подтвердил:
-- клиентский вопрос по стоимости принят и durable processing начался;
-- guard классифицировал его как разрешённый вопрос по услугам/ценам с `nuzhen_rag=true`, а не как просьбу о человеке;
-- planner сформировал поисковый запрос и required point;
-- embedding выполняется через OpenAI profile текущей TEST-конфигурации;
-- active-only DB-05 search вызывается как `qbit_bot_pervichnogo_obrascheniya.poisk_aktivnyh_znaniy(jsonb)` под bot PostgreSQL role;
-- caller больше не делает cast в `extensions.vector`; доступ runtime role к schema `extensions` расширять не потребовалось;
-- RAG adapter читает актуальные поля DB-05 `tekst_fragmenta` и `shodstvo`, поэтому answer-LLM получает непустой evidence;
-- answer-LLM сформировала содержательный grounded ответ по опубликованным знаниям и уточняющий вопрос;
-- клиент реально получил ответ в Telegram;
-- ложной передачи менеджеру в финальном чистом проходе не было.
-
-Во время диагностики были выявлены и устранены TEST-runtime несоответствия:
-- старое состояние диалога `peredacha_cheloveku` влияло на guard; для одного разрешённого TEST-диалога выполнен guarded reset с сохранением raw history;
-- старый RAG query использовал устаревшую многoаргументную сигнатуру и внешний `extensions.vector` cast;
-- вызов DB-05 без schema qualification не находился по connection `search_path`;
-- RAG adapter ожидал legacy `soderzhanie/podobie`, тогда как DB-05 возвращает `tekst_fragmenta/shodstvo`.
-
-DoD E2E-01 выполнен: реальный клиентский Telegram message прошёл основную bot-вертикаль до grounded ответа и подтверждённой внешней доставки.
+Финальный чистый проход подтвердил клиентский Telegram vertical slice до grounded ответа и подтверждённой внешней доставки.
 
 ### WF-02B3C-E2E-02 — operator handoff/service bot — IN PROGRESS
 
-Родительский Gate C разделён на три малых runtime шага, чтобы не смешивать signal/topic, ownership CAS и manual outgoing в одной диагностике.
-
-#### WF-02B3C-E2E-02A — human-needed → topic/signal — CLOSED / runtime verified
+#### WF-02B3C-E2E-02A — human-needed → тема/сигнал — CLOSED / runtime verified
 
 Дата: 2026-10-12.
 
-Финальный TEST-проход подтвердил:
-- реальная явная просьба клиента подключить человека дошла до durable human-needed path;
-- клиентский bot-answer path завершился передачей менеджеру, а не обычным AI-ответом;
-- topic intent был выдан event-driven worker без polling;
-- topic создаётся через изолированный TEST bridge к Telegram Bot API, потому что текущая n8n Telegram node не предоставляет `createForumTopic`;
-- для `createForumTopic` числовой service chat ID нормализуется в JSON как Number; после этого Telegram подтвердил создание topic;
-- DB topic mapping подтверждён один раз со статусом `gotova` и сохранённым `message_thread_id`;
-- накопленные mirror events после подтверждения topic привязались к правильному thread и были реально доставлены во внешнюю service topic;
-- в topic реально виден human-needed сигнал с кнопкой «Забрать диалог»;
-- использован существующий service Telegram bot и текущий согласованный service ingress; competing webhook не создавался;
-- Production не затрагивался.
+Подтверждено:
+- реальная просьба клиента подключить человека дошла до durable human-needed path;
+- обычный bot-answer path не продолжился;
+- тема клиента создаётся event-driven без polling;
+- mapping темы подтверждён в DB;
+- клиентские/bot mirror events реально доставляются в правильную тему;
+- сигнал с кнопкой «Забрать диалог» виден менеджерам;
+- competing webhook не создавался; Production не затрагивался.
 
-DoD 02A выполнен: реальная просьба клиента привела к подтверждённому внешнему сигналу в правильной TEST operator topic без polling и без Production.
+#### WF-02B3C-E2E-02B — atomic Take + bot stop — CLOSED / runtime verified
 
-Наблюдение для следующего шага: при первом успешном создании topic накопившаяся очередь mirror events выгрузилась пачкой, поэтому видимый порядок backlog-сообщений не считается проверкой steady-state. Перед Take в 02B нужно отправить одно новое клиентское сообщение и проверить его обычное live-зеркалирование в уже существующую topic.
+Дата закрытия: 2026-10-14.
 
-#### WF-02B3C-E2E-02B — atomic Take + bot stop — ACTIVE
+Runtime подтверждения:
+- steady-state client mirror в существующую тему работает;
+- bot reply mirror работает;
+- callback «Забрать диалог» проходит через текущий service webhook и durable ingress;
+- manager/topic state читается narrow DB API;
+- список менеджеров синхронизируется без прямого DML service role;
+- optimistic concurrency работает: stale version возвращает `konflikt/stale_dialog_version`, повтор с актуальной версией успешен;
+- `zabrat_dialog_operatorom(jsonb)` выполняет Take first-commit-wins;
+- owner становится `chelovek`, status=`peredan_cheloveku`, закрепляется конкретный manager;
+- публичное сообщение о захвате видно другим менеджерам;
+- ручной текст закреплённого менеджера создаёт `sozdat_ruchnoe_ishodyashchee(jsonb)` и реально приходит клиенту через client sender;
+- после Take клиентские сообщения продолжают сохраняться/зеркалироваться;
+- бот после Take не отвечает;
+- кнопка «Забрать диалог» после Take на новых mirror-сообщениях не показывается;
+- read-only post-Take check: active reminders=0, pending bot/system outgoing=0, active bot jobs=0.
 
-После закрытия 02A:
-- сначала отправить одно новое TEST client message и проверить steady-state mirror в существующую operator topic без backlog-flush эффекта;
-- callback «Забрать диалог» приходит через существующий service webhook и durable service ingress;
-- manager/topic state читается narrow DB-03E API;
-- `zabrat_dialog_operatorom(jsonb)` выполняет first-commit-wins Take;
-- owner становится `chelovek` с конкретным manager;
-- поздний/stale bot outgoing и reminders не продолжают диалог.
+DoD 02B выполнен: steady-state mirror подтверждён, atomic Take подтверждён runtime, bot-side continuation и ожидающие напоминания/задачи после Take отсутствуют.
 
-DoD 02B: steady-state mirror подтверждён, atomic Take подтверждён runtime и bot-side continuation после Take заблокирован DB state/final recheck.
+#### WF-02B3C-E2E-02C — manual reply + completion — ACTIVE
 
-#### WF-02B3C-E2E-02C — manual reply + explicit Return — PENDING
+Бизнес-решение заменило старый Return-сценарий: если менеджер забрал диалог, он ведёт его до завершения. Переход `chelovek → bot` для того же диалога больше не является целевым.
 
-После закрытия 02B:
-- текст текущего менеджера в operator topic создаёт `sozdat_ruchnoe_ishodyashchee(jsonb)`;
-- client sender доставляет manual action через клиентского Telegram-бота и подтверждает результат;
-- callback «Вернуть боту» проходит через тот же service ingress;
-- `vernut_dialog_botu(jsonb)` явно возвращает owner `chelovek → bot`;
-- Return не создаёт автоматическое client message.
+Уже подтверждено из 02B:
+- текст текущего менеджера в теме создаёт `sozdat_ruchnoe_ishodyashchee(jsonb)`;
+- client sender реально доставляет manual action клиенту.
 
-DoD 02C: ручной ответ реально получен клиентом, Return подтверждён runtime, самопроизвольного сообщения после Return нет.
+Осталось реализовать и проверить:
+- обновить нормативную спецификацию operator handoff на `bot → manager → completion`;
+- добавить явное действие «Завершить диалог» вместо «Вернуть боту»;
+- завершение разрешено только текущему закреплённому менеджеру;
+- завершение атомарно переводит диалог в terminal state и отменяет ожидания/напоминания;
+- завершение не создаёт автоматического client message без отдельного бизнес-решения;
+- в служебной теме видно, кто и когда завершил диалог;
+- последующий новый вход клиента не должен самопроизвольно продолжать завершённый диалог; правило нового диалога нужно явно зафиксировать и проверить.
+
+DoD 02C: manager completion подтверждён runtime, история видна в служебной теме, старый Return-переход не используется.
 
 ### WF-02B3C-E2E-03 — reminders / opt-out / recovery — PENDING
 
@@ -115,7 +106,7 @@ DoD 02C: ручной ответ реально получен клиентом,
 - handoff/refusal/completion отменяют ожидание;
 - opt-out запрещает инициативные сообщения;
 - unknown/ambiguous external delivery не повторяется вслепую;
-- явный детерминированный внешний отказ, например Telegram HTTP 4xx до подтверждённого успеха, не должен ошибочно классифицироваться как `neizvestno`; `neizvestno` оставлять только для действительно неоднозначного transport/result состояния;
+- явный детерминированный внешний отказ не должен ошибочно классифицироваться как `neizvestno`;
 - Wait wake делает final DB recheck.
 
 ### WF-02B3C-E2E-04 — final regression/security — PENDING
@@ -133,4 +124,8 @@ DoD 02C: ручной ответ реально получен клиентом,
 
 ## Текущий статус
 
-`WF-02B3C` остаётся `[~]`. `WF-02B3C-E2E-01` и `WF-02B3C-E2E-02A` закрыты runtime. Активный один ID: `WF-02B3C-E2E-02B`.
+`WF-02B3C` остаётся `[~]`.
+
+Закрыты runtime: `WF-02B3C-E2E-01`, `WF-02B3C-E2E-02A`, `WF-02B3C-E2E-02B`.
+
+Активный один ID: `WF-02B3C-E2E-02C` — завершение диалога менеджером без возврата боту.
