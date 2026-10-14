@@ -29,16 +29,6 @@ Credential refs, runtime whitelist, реальные Telegram ID, секреты
 
 **KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB-03B0, KB-03B1, KB-03C1 и KB-03C2 закрыты.**
 
-KB-03C2 runtime 10.10.2026 подтвердил:
-- atomic TEST publish target version `1d610b99-50f9-49b9-bc2d-b443b26e31a5`;
-- version=`opublikovana`, upload=`zavershena`, job=`zaversheno`;
-- active pointer указывает на exact target version;
-- 53 fragments и одна published version у logical document;
-- поиск выполнен реально под `qbit_test_bot`;
-- 12/12 найденных результатов относятся только к target version;
-- старые draft versions в active-only поиск не попали;
-- direct table SELECT у bot role отсутствует.
-
 Evidence: `docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
 ## Активная задача
@@ -47,13 +37,17 @@ Evidence: `docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
 Малый план: [WF-02B3C E2E](docs/WF-02B3C_E2E_PLAN.md).
 
-**WF-02B3C-E2E-01 закрыт runtime 11.10.2026:** реальный client Telegram message прошёл guard → planner → OpenAI embedding → active-only DB-05 RAG → answer → Telegram; клиент получил grounded ответ по опубликованной базе знаний.
+Закрыты runtime:
+- **WF-02B3C-E2E-01** — client → guard → RAG → grounded Telegram answer;
+- **WF-02B3C-E2E-02A** — human-needed → служебная тема/сигнал;
+- **WF-02B3C-E2E-02B** — atomic Take + bot stop + ручной ответ менеджера;
+- **WF-02B3C-E2E-02C** — private manager alerts + работа менеджера только через forum topic.
 
-**WF-02B3C-E2E-02A закрыт runtime 12.10.2026:** явная просьба о человеке создала durable human-needed state, event-driven worker создал отдельную служебную тему клиента, DB mapping подтверждён, queued mirror events доставлены, в теме видна кнопка «Забрать диалог».
+Актуальная операторская модель: private chat служебного бота используется для важных уведомлений, рабочая переписка менеджера идёт только в общей теме клиента; обязательного completion и Return сейчас нет.
 
-**WF-02B3C-E2E-02B закрыт runtime 14.10.2026:** atomic Take подтверждён, owner меняется `bot → chelovek`, закреплённый менеджер реально отвечает клиенту, bot-side continuation остановлен, новые сообщения продолжают зеркалироваться без кнопки Take; post-Take check дал active reminders=0, pending bot/system outgoing=0, active bot jobs=0.
+Следующий один ID: **WF-02B3C-E2E-03A** — confirmed outbound → ожидание ответа → reminder lifecycle. Нужно доказать, что reminder создаётся только после подтверждённой отправки сообщения, требующего ответа, новый client input отменяет ожидание, а Wait wake делает final DB recheck и не отправляет устаревший reminder.
 
-Следующий один ID: **WF-02B3C-E2E-02C** — завершение диалога менеджером по схеме `bot → chelovek → zavershen`, без возврата того же диалога боту. Нормативная спецификация `docs/specs/OPERATOR_HANDOFF.md` обновлена на v0.2. Production не затрагивать.
+TEST-only utility `sql/Сбросить забранные диалоги.sql` v0.3 позволяет вручную вернуть захваченные TEST-диалоги конкретного менеджера в `bot/aktivnyy` без удаления истории. Реальные Telegram ID в Git не сохраняются.
 
 Основной широкий план: [WORKPLAN_TEMPLATE](docs/WORKPLAN_TEMPLATE.md).
 Перед новой сессией также прочитать [PROJECT_STATE](docs/PROJECT_STATE.md) и [SESSION_HANDOFF](docs/SESSION_HANDOFF.md).
