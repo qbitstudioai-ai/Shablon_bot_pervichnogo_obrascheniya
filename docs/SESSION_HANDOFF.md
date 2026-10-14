@@ -11,9 +11,10 @@ Knowledge workflow закрыт до **KB-03C2 runtime verified**.
 WF-02B3C остаётся IN PROGRESS. Закрыты runtime:
 - `WF-02B3C-E2E-01` — client → guard → RAG → grounded Telegram answer;
 - `WF-02B3C-E2E-02A` — human-needed → служебная тема/сигнал;
-- `WF-02B3C-E2E-02B` — atomic Take + bot stop.
+- `WF-02B3C-E2E-02B` — atomic Take + bot stop;
+- `WF-02B3C-E2E-02C` — private manager alerts + group work.
 
-Активный один ID: `WF-02B3C-E2E-02C` — завершение диалога менеджером без возврата боту.
+Активный один ID: `WF-02B3C-E2E-03A` — confirmed outbound → ожидание → reminder lifecycle.
 
 Новая сессия обязана сначала перечитать фактический HEAD `main`, `README.md`, `docs/PROJECT_STATE.md`, этот handoff и `docs/WF-02B3C_E2E_PLAN.md`.
 
@@ -22,74 +23,71 @@ WF-02B3C остаётся IN PROGRESS. Закрыты runtime:
 - `workflows/current/Шаблон Загрузка документов Qbit.json` — knowledge pipeline + publish branch;
 - `workflows/current/Шаблон — Workflow бота Qbit.json` — client bot + active-only knowledge search.
 
-Credential refs, реальные Telegram ID, секреты и документы компаний в Git не сохраняются.
+Credential refs, реальные Telegram ID, секреты и документы компаний в Git не сохраняются. Instance-specific TEST runtime workflow также не сохраняются.
 
-Instance-specific TEST runtime workflow, runtime Credentials, промежуточные Telegram-сервисы и diagnostic/reset artifacts в repository-safe JSON не переносились.
+Повторно используемый TEST-only SQL `sql/Сбросить забранные диалоги.sql` v0.3 хранится в Git без реальных Telegram ID.
 
-## WF-02B3C-E2E-02B — CLOSED / runtime verified 14.10.2026
+## Operator handoff — runtime verified
 
-Подтверждено:
-- steady-state зеркалирование клиента и подтверждённого ответа бота работает;
-- callback «Забрать диалог» проходит durable service ingress;
-- optimistic concurrency возвращает `stale_dialog_version`, затем повтор с актуальной версией проходит;
-- `zabrat_dialog_operatorom(jsonb)` переводит owner `bot → chelovek` и фиксирует конкретного менеджера;
-- в служебной теме видно, кто забрал диалог;
-- ручной текст текущего менеджера реально доставляется клиенту через клиентского бота;
-- клиентские сообщения после Take продолжают сохраняться/зеркалироваться;
-- бот после Take не отвечает;
-- кнопка «Забрать диалог» после Take больше не показывается;
-- read-only post-Take check: active reminders=0, pending bot/system outgoing=0, active bot jobs=0.
+Актуальное бизнес-решение:
+- менеджер общается с клиентом только в forum topic общей служебной Telegram-группы;
+- private chat служебного бота используется только для важных уведомлений;
+- personal alert может быть отправлен нескольким разрешённым менеджерам;
+- Take остаётся first-commit-wins и закрепляет одного менеджера;
+- после Take диалог остаётся у менеджера;
+- обязательного `Завершить диалог` и Return в текущей v1-логике нет.
 
-DoD 02B выполнен.
+Runtime подтверждено:
+- service runtime v8 PRIVATE ALERTS активен;
+- `/start` подтверждает private chat разрешённого менеджера;
+- client runtime v11 PRIVATE ALERTS активен;
+- human-needed сохранил групповой mirror и доставил private alert `🔴 Требуется подключение`;
+- ранее захваченные диалоги под новым runtime продолжают зеркалироваться в правильные темы и управляться менеджером;
+- atomic Take и ручной ответ менеджера были отдельно доказаны в 02B.
 
-## Бизнес-решение для 02C
+Новый тестовый аккаунт намеренно оставлен bot-owned для дальнейших проверок; повторный Take не выполнялся, чтобы сохранить возможность тестировать обычного бота.
 
-После захвата менеджер обязан довести текущий диалог до завершения.
+## TEST reset utility
 
-Целевой жизненный цикл:
+`sql/Сбросить забранные диалоги.sql` v0.3 — ручной TEST-only reset по Telegram user ID менеджера.
 
-`bot → chelovek → zavershen`.
+Runtime доказательство 14.10.2026:
+- `current_role=qbit_test_owner`;
+- `dialogov_sbroseno=2`;
+- новый owner=`bot`;
+- новый status=`aktivnyy`;
+- история сохранена;
+- Production не затронут.
 
-Переход `chelovek → bot` для того же `dialog_id` больше не является целевым сценарием.
+Этот SQL не является продуктовой кнопкой Return и не вызывается runtime workflow.
 
-Нормативная спецификация `docs/specs/OPERATOR_HANDOFF.md` обновлена на v0.2: Return удалён из целевой логики, добавлено явное завершение менеджером и правило нового диалога после завершения.
+## WF-02B3C-E2E-03A — ACTIVE
 
-## WF-02B3C-E2E-02C — ACTIVE
+Цель: доказать базовый reminder contract на одном bot-owned TEST-аккаунте, не используя handoff.
 
-Уже подтверждено из 02B:
-- текущий закреплённый менеджер может писать клиенту;
-- другой менеджер не должен получать право через клиентский текст;
-- bot-side continuation после Take остановлен.
+Нужно проверить реальным runtime:
+1. бот отправляет сообщение, которое действительно требует ответа пользователя;
+2. исходящая доставка подтверждается;
+3. только после confirmed outbound появляется ожидание/reminder и фиксируется `t0`;
+4. до срока не возникает лишней инициативной отправки;
+5. новый client input до срока отменяет старое ожидание;
+6. после wake выполняется final DB recheck и stale reminder не отправляется.
 
-Подготовлено локально, но **ещё не применено/не импортировано/не runtime-проверено**:
-- `DB-03D3_manager_completion.sql` — narrow SECURITY DEFINER API `zavershit_dialog_menedzherom(jsonb)` для TEST;
-- служебный runtime v8 — принимает `complete:<dialog_id>`, проверяет тему/менеджера/версию и вызывает DB-03D3;
-- клиентский runtime v11 — на событии успешного Take показывает кнопку `✅ Завершить диалог`, а завершение отображает обычным сообщением без кнопок.
+DoD 03A: один полный reminder lifecycle подтверждён, включая cancellation новым входом и отсутствие устаревшей отправки.
 
-DB-03D3 не создаёт автоматического сообщения клиенту. Он должен отменить ожидания/напоминания/не начатые действия, записать terminal state и durable событие `✅ <имя менеджера> завершил диалог` в служебную тему.
+После 03A отдельно идут:
+- `WF-02B3C-E2E-03B` — handoff/refusal/opt-out cancellation;
+- `WF-02B3C-E2E-03C` — unknown/ambiguous delivery recovery;
+- затем `WF-02B3C-E2E-04` — final regression/security.
 
-Порядок runtime-проверки 02C:
-1. применить полный DB-03D3 в TEST Supabase и проверить итоговый JSON-result;
-2. заменить служебный runtime на v8 и клиентский runtime на v11; включить только после проверки Credentials;
-3. создать новый TEST-диалог и выполнить Take;
-4. убедиться, что на сообщении успешного захвата есть `✅ Завершить диалог`;
-5. нажать кнопку текущим закреплённым менеджером;
-6. проверить DB result: `status_dialoga=zavershen`, manager сохранён, версия увеличена;
-7. проверить видимое сообщение о завершении в служебной теме;
-8. проверить, что завершение не отправило клиенту автоматический текст;
-9. после завершения отправить новое сообщение клиента и доказать, что создан новый `dialog_id`, а старый не переоткрыт.
+## Известные долги до финального regression
 
-## Следующий этап после 02C
-
-`WF-02B3C-E2E-03` — reminders / opt-out / recovery.
-
-Отдельные долги до финального regression:
-- явный Telegram HTTP 4xx для создания темы отделить от действительно неоднозначного внешнего результата;
+- явный Telegram HTTP 4xx при создании темы отделить от действительно неоднозначного внешнего результата;
 - оценить упрощение количества n8n executions без ослабления durable queue/final recheck.
 
 ## Постоянные ограничения
 
 - Production/рабочие данные/рабочий трафик не менять без отдельного явного разрешения Павла.
 - Реальные Telegram ID, Credential refs, secrets, переписки и документы компаний не сохранять в Git.
-- Один service Telegram bot использует один согласованный webhook ingress; competing webhooks на том же token запрещены.
+- Один service Telegram bot использует один согласованный webhook ingress; competing webhooks запрещены.
 - VSCode/helper до dashboard stage не подключать.
