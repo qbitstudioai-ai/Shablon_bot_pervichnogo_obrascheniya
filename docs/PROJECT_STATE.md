@@ -24,44 +24,7 @@ Runtime verified: KB-01A, KB-01B1, KB-01B2, KB-02A1, KB-02A2, KB-02B, KB-03A, KB
 
 KB-03C1 закрыт как static verified; KB-03C2 подтвердил prepared publish branch на реальном TEST runtime.
 
-### KB-03C2 final runtime 10.10.2026
-
-Target:
-- document `2e26ffd6-b1e7-4e60-b77f-000953b8d3fe`;
-- version `1d610b99-50f9-49b9-bc2d-b443b26e31a5`;
-- upload `328035d0-6fd7-4af3-83a3-2643a8b24d2f`;
-- job `91de6175-da91-471a-be7a-97feffb646a3`.
-
-До publish worker queue был очищен только от двух конкретных старых TEST retry jobs отдельными guarded one-shot workflow; массовой очистки не было.
-
-Atomic publish result:
-- `rezultat=uspeshno`;
-- previous active = NULL;
-- version=`opublikovana`, upload=`zavershena`, workflow terminal `publish_vypolnen=true`.
-
-Post-publish read-only verification:
-- active pointer = exact target version;
-- job=`zaversheno`;
-- lease owner/deadline = NULL;
-- fragments=53;
-- published versions for the document=1;
-- result `KB03C2_POST_PUBLISH_OK`.
-
-Bot active-only regression:
-- actual PostgreSQL role=`qbit_test_bot`;
-- function EXECUTE=true;
-- direct fragment table SELECT=false;
-- search results=12;
-- target-version results=12;
-- other-version results=0;
-- old-draft results=0;
-- max similarity=`0.793885026323472`;
-- result `KB03C2_BOT_ACTIVE_ONLY_OK`.
-
-Stale expected-active protection не провоцировалась повторно на текущей published target version: DB function short-circuits same-active publish как `dublikat`. Сам optimistic-concurrency path уже runtime-проверен ранее через реальный service role на synthetic competing V2/V3 (`konflikt/stale_expected_active`) в `docs/evidence/KB-01/KB-01R5C_RUNTIME_VERIFIED_2026-10-04.md`; C1 stale routing дополнительно статически проверен.
-
-Evidence:
-`docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
+Evidence: `docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
 ## WF-02B3C — event-driven TEST runtime — IN PROGRESS
 
@@ -69,80 +32,80 @@ Evidence:
 
 ### WF-02B3C-E2E-01 — CLOSED / runtime verified 11.10.2026
 
-Реальный клиентский Telegram vertical slice прошёл до grounded ответа:
-- ingress/processing выполнялись в TEST;
-- guard корректно разрешил вопрос по услугам/ценам и запросил RAG;
-- planner + OpenAI embedding отработали;
-- active-only поиск использует текущий DB-05 API `qbit_bot_pervichnogo_obrascheniya.poisk_aktivnyh_znaniy(jsonb)` под bot role;
-- caller не требует `USAGE` на schema `extensions`;
-- RAG adapter читает актуальные поля DB-05 `tekst_fragmenta/shodstvo`;
-- answer-LLM получила непустой evidence и сформировала содержательный ответ по опубликованным знаниям;
-- клиент реально получил ответ в Telegram;
-- в финальном чистом проходе ложной передачи менеджеру не было.
-
-Во время E2E были найдены и исправлены только в TEST runtime:
-- конфликт internal webhook topology с unused Respond to Webhook в n8n 2.41.0;
-- старое состояние тестового диалога `peredacha_cheloveku`, для одного разрешённого TEST dialog выполнен guarded reset без удаления raw history;
-- legacy RAG вызов с внешним `extensions.vector` cast;
-- отсутствие schema qualification при DB-05 call;
-- legacy mapping `soderzhanie/podobie` вместо текущего `tekst_fragmenta/shodstvo`.
+Реальный клиентский Telegram vertical slice прошёл guard → planner → OpenAI embedding → active-only DB-05 RAG → answer → Telegram; клиент получил grounded ответ по опубликованным знаниям.
 
 ### WF-02B3C-E2E-02A — CLOSED / runtime verified 12.10.2026
 
-Реальный TEST handoff до служебной темы подтверждён:
-- явная просьба клиента о человеке перевела обработку в durable human-needed path;
-- обычный bot-answer path не продолжился;
-- event-driven worker выдал намерение создать отдельную тему клиента без polling;
-- текущая n8n Telegram node не поддерживает `createForumTopic`, поэтому в TEST используется отдельный минимальный промежуточный сервис к Telegram Bot API без хранения Telegram token в workflow;
-- после нормализации числового service chat ID в JSON как Number Telegram подтвердил создание темы;
-- DB mapping темы подтверждён со статусом `gotova` и сохранённым thread ID;
-- queued mirror events привязались к правильной теме и реально появились в ней;
-- human-needed сигнал с кнопкой «Забрать диалог» реально виден в служебной теме;
-- competing service Telegram webhook не создавался; Production не затрагивался.
+Реальная просьба клиента о человеке создала durable human-needed path и служебную тему клиента. Клиентские/bot events доставляются в правильную тему; кнопка «Забрать диалог» видна менеджерам; Production не затрагивался.
 
-Обнаруженный recovery debt: явный Telegram HTTP 4xx сейчас попадает в общий `create_forum_topic_neizvestno`. До финального recovery/regression нужно разделить детерминированный внешний отказ и действительно неоднозначный transport/result outcome; blind retry допустим только после доказанного отсутствия внешнего успеха.
+Обнаруженный recovery debt: явный Telegram HTTP 4xx при создании темы нужно отделить от действительно неоднозначного внешнего результата.
 
-Operability debt: один client message сейчас может порождать несколько n8n executions. Перед финальным regression отдельно оценить упрощение в сторону одного основного execution, сохраняя отдельные Wait/sender executions только там, где это оправдано lifecycle/reliability.
+Operability debt: перед финальным regression оценить упрощение количества n8n executions без ослабления durable queue/final recheck.
 
 ### WF-02B3C-E2E-02B — CLOSED / runtime verified 14.10.2026
 
 Подтверждено в TEST runtime:
-- новое клиентское сообщение live-зеркалируется в уже существующую тему;
-- подтверждённый ответ бота также live-зеркалируется;
-- callback «Забрать диалог» проходит через существующий служебный webhook и durable ingress;
-- список разрешённых менеджеров синхронизируется через узкую SECURITY DEFINER функцию без прямого DML служебной роли;
-- первая попытка Take при изменившейся версии корректно вернула `konflikt/stale_dialog_version`;
-- повтор с актуальной версией выполнил `zabrat_dialog_operatorom(jsonb)` успешно: owner `bot → chelovek`, статус `peredan_cheloveku`, закреплён конкретный менеджер;
-- в теме появляется публичное сообщение `👤 Диалог переключён на <имя менеджера>` и статус владельца;
-- текст закреплённого менеджера проходит через `sozdat_ruchnoe_ishodyashchee(jsonb)` и существующий client sender и реально доставляется клиенту;
-- после Take новые сообщения клиента продолжают сохраняться и зеркалироваться в ту же тему;
-- после Take автоматический ответ бота больше не создаётся/не отправляется;
-- кнопка «Забрать диалог» на новых сообщениях после Take больше не показывается;
-- read-only проверка после Take: активные напоминания = 0, незапущенные bot/system outgoing = 0, активные bot processing jobs = 0.
+- steady-state client mirror и bot reply mirror работают;
+- callback «Забрать диалог» проходит durable service ingress;
+- manager/topic state читается narrow DB API;
+- список менеджеров синхронизируется без прямого DML service role;
+- optimistic concurrency работает: stale version возвращает `konflikt/stale_dialog_version`, повтор с актуальной версией успешен;
+- `zabrat_dialog_operatorom(jsonb)` выполняет Take first-commit-wins;
+- owner становится `chelovek`, status=`peredan_cheloveku`, закрепляется конкретный manager;
+- публичное сообщение о захвате видно другим менеджерам;
+- ручной текст закреплённого менеджера создаёт `sozdat_ruchnoe_ishodyashchee(jsonb)` и реально приходит клиенту через client sender;
+- после Take клиентские сообщения продолжают сохраняться/зеркалироваться;
+- бот после Take не отвечает;
+- кнопка «Забрать диалог» после Take на новых сообщениях не показывается;
+- read-only post-Take check: active reminders=0, pending bot/system outgoing=0, active bot jobs=0.
 
-DoD E2E-02B выполнен: atomic Take подтверждён runtime, bot-side continuation после Take заблокирован, ожидающие напоминания/задачи/не начатые ответы бота отсутствуют.
+DoD 02B выполнен.
+
+## WF-02B3C-E2E-02C — ACTIVE
 
 Бизнес-решение: после захвата менеджер ведёт текущий диалог до завершения. Возврат этого же диалога обратно боту больше не является целевым сценарием.
 
-## Следующая маленькая задача — WF-02B3C-E2E-02C
+Нормативная спецификация `docs/specs/OPERATOR_HANDOFF.md` обновлена на v0.2. Целевой жизненный цикл:
 
-Реализовать и проверить явное завершение диалога менеджером:
-- сохранить уже работающий ручной ответ закреплённого менеджера клиенту;
-- вместо «Вернуть боту» добавить действие «Завершить диалог»;
-- завершение разрешено только текущему закреплённому менеджеру;
-- завершение переводит диалог в terminal state, отменяет ожидания/напоминания и не создаёт автоматического сообщения клиенту без отдельного решения;
-- в служебной теме сохраняется видимое событие, кто и когда завершил диалог;
-- новый последующий вход клиента должен обрабатываться по утверждённому правилу нового диалога, а не самопроизвольно возвращать завершённый диалог боту.
+`bot → chelovek → zavershen`.
 
-До реализации обновить нормативную спецификацию operator handoff: удалить Return как целевой переход текущего диалога и описать `bot → manager → completion`.
+После `zavershen` следующий новый вход клиента должен создать новый `dialog_id`; текущий ingress уже ищет только незавершённый диалог и не должен оживлять terminal state.
+
+Подготовлено локально, но **ещё не применено/не импортировано/не runtime-проверено**:
+- `DB-03D3_manager_completion.sql` — узкая SECURITY DEFINER функция `zavershit_dialog_menedzherom(jsonb)` для `qbit_test_sluzhebnyy`;
+- служебный runtime v8 — принимает `complete:<dialog_id>`, проверяет служебное событие/тему/менеджера/версию и вызывает DB-03D3;
+- клиентский runtime v11 — успешный Take отображает с кнопкой `✅ Завершить диалог`; completion event отображается обычным сообщением без кнопок.
+
+DB-03D3 по проекту должен:
+- разрешать завершение только текущему закреплённому активному менеджеру;
+- атомарно перевести диалог в `status=zavershen`;
+- сохранить текущего менеджера для истории;
+- увеличить версию диалога и поколение ожидания;
+- отменить active processing jobs, reminders и не начатые outgoing actions;
+- не создавать автоматического сообщения клиенту;
+- создать одно durable событие в служебную тему `✅ <имя менеджера> завершил диалог`;
+- не выдавать service role прямой DML на runtime tables.
+
+### Следующий runtime шаг
+
+1. Применить полный `DB-03D3_manager_completion.sql` в TEST Supabase и проверить итоговый result.
+2. Импортировать служебный v8 и клиентский v11, проверить Credentials, затем активировать.
+3. Создать новый TEST-диалог, выполнить Take и увидеть кнопку `✅ Завершить диалог`.
+4. Завершить диалог текущим менеджером и проверить `status_dialoga=zavershen` + публичное событие в теме.
+5. Убедиться, что клиент не получил автоматический текст при завершении.
+6. После завершения отправить новое клиентское сообщение и подтвердить новый `dialog_id`, а не переоткрытие старого.
+
+DoD 02C: manager completion подтверждён runtime, история завершения видна в служебной теме, старый Return-переход не используется, следующий вход создаёт новый диалог.
 
 Production не затрагивать. Не создавать competing webhook на service Telegram token.
 
+## Следующие этапы
+
+После 02C: `WF-02B3C-E2E-03` — reminders / opt-out / recovery, затем `WF-02B3C-E2E-04` — final regression/security.
+
 ## Rollback state
 
-Для publication visibility существует поддерживаемый DB-05 API `otozvat_dokument_znaniy(jsonb)` под dash-admin role. В KB-03C2 rollback не выполнялся, потому что publish и active-only проверки прошли успешно.
-
-При первой active version revoke вернул бы document active pointer в NULL и archived бы текущую version. Это rollback видимости публикации, а не полное восстановление job/upload статусов. Прямой DML не использовать.
+Для publication visibility существует поддерживаемый DB-05 API `otozvat_dokument_znaniy(jsonb)` под dash-admin role. Direct DML не использовать.
 
 ## Постоянные ограничения
 
