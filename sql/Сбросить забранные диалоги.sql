@@ -228,9 +228,7 @@ BEGIN
 END
 $postcheck$;
 
-COMMIT;
-
--- Итог без вывода Telegram ID и UUID диалогов.
+-- Итог формируется ДО COMMIT, пока временная таблица ещё существует.
 SELECT pg_catalog.jsonb_build_object(
     'test_reset_status', 'applied',
     'dialogov_sbroseno', (SELECT count(*) FROM _qbit_reset_targets),
@@ -244,3 +242,5 @@ SELECT pg_catalog.jsonb_build_object(
         ELSE 'Забранные TEST-диалоги менеджера возвращены боту. История и темы сохранены.'
     END
 ) AS test_manager_dialog_reset_result;
+
+COMMIT;
