@@ -1,6 +1,6 @@
 # SESSION HANDOFF
 
-Обновлено: 2026-10-12.
+Обновлено: 2026-10-14.
 
 ## Исходная точка
 
@@ -10,7 +10,10 @@ Knowledge workflow закрыт до **KB-03C2 runtime verified**.
 
 WF-02B3C остаётся IN PROGRESS. Закрыты runtime:
 - `WF-02B3C-E2E-01` — client → guard → RAG → grounded Telegram answer;
-- `WF-02B3C-E2E-02A` — human-needed → operator topic/signal.
+- `WF-02B3C-E2E-02A` — human-needed → служебная тема/сигнал;
+- `WF-02B3C-E2E-02B` — atomic Take + bot stop.
+
+Активный один ID: `WF-02B3C-E2E-02C` — завершение диалога менеджером без возврата боту.
 
 Новая сессия обязана сначала перечитать фактический HEAD `main`, `README.md`, `docs/PROJECT_STATE.md`, этот handoff и `docs/WF-02B3C_E2E_PLAN.md`.
 
@@ -21,82 +24,68 @@ WF-02B3C остаётся IN PROGRESS. Закрыты runtime:
 
 Credential refs, реальные Telegram ID, секреты и документы компаний в Git не сохраняются.
 
-Instance-specific TEST runtime workflow, runtime Credentials, bridge secrets и diagnostic/reset artifacts в repository-safe JSON не переносились.
+Instance-specific TEST runtime workflow, runtime Credentials, промежуточные Telegram-сервисы и diagnostic/reset artifacts в repository-safe JSON не переносились.
 
-## KB-03C2 — CLOSED / runtime verified
-
-Runtime target опубликован, active-only поиск под `qbit_test_bot` проверен: 12/12 результатов только из target published version; direct SELECT fragments=false. Полное evidence:
-`docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
-
-Supported publication-visibility rollback: `otozvat_dokument_znaniy(jsonb)` через dash-admin role после отдельной необходимости/авторизации. Direct DML не использовать.
-
-## WF-02B3C-E2E-01 — CLOSED / runtime verified 11.10.2026
-
-Реальный TEST client Telegram vertical slice завершился содержательным grounded ответом клиенту.
+## WF-02B3C-E2E-02B — CLOSED / runtime verified 14.10.2026
 
 Подтверждено:
-- guard корректно разрешил вопрос по услуге/цене с `nuzhen_rag=true`;
-- planner и OpenAI embedding отработали;
-- DB-05 active search вызывается текущей JSONB-функцией под bot role;
-- caller не получил лишний доступ к schema `extensions`;
-- RAG adapter использует текущие поля `tekst_fragmenta` и `shodstvo`;
-- answer-LLM получила непустой evidence;
-- клиент реально получил grounded ответ;
-- финальный чистый проход не ушёл в handoff.
+- steady-state зеркалирование клиента и подтверждённого ответа бота работает;
+- callback «Забрать диалог» проходит durable service ingress;
+- optimistic concurrency возвращает `stale_dialog_version`, затем повтор с актуальной версией проходит;
+- `zabrat_dialog_operatorom(jsonb)` переводит owner `bot → chelovek` и фиксирует конкретного менеджера;
+- в служебной теме видно, кто забрал диалог;
+- ручной текст текущего менеджера реально доставляется клиенту через клиентского бота;
+- клиентские сообщения после Take продолжают сохраняться/зеркалироваться;
+- бот после Take не отвечает;
+- кнопка «Забрать диалог» после Take больше не показывается;
+- read-only post-Take check: active reminders=0, pending bot/system outgoing=0, active bot jobs=0.
 
-## WF-02B3C-E2E-02A — CLOSED / runtime verified 12.10.2026
+DoD 02B выполнен.
 
-Реальный TEST operator handoff до служебной topic завершён.
+## Бизнес-решение для 02C
 
-Подтверждено:
-- клиент явно попросил человека;
-- durable human-needed path сработал, обычный bot-answer path не продолжился;
-- topic intent забран event-driven worker без polling;
-- n8n 2.41.0 Telegram node не предоставляет `createForumTopic`, поэтому в TEST для этого вызова используется отдельный минимальный bridge к Telegram Bot API;
-- bridge изолирован от Supabase/n8n database, Telegram token и bridge key не хранятся в workflow/Git;
-- service group и bot права проверялись через Bot API: target — supergroup forum, service bot — administrator с правом manage topics;
-- критичное runtime-исправление: числовой service chat ID для `createForumTopic` передаётся как Number, не строка;
-- Telegram подтвердил создание topic, DB сохранила mapping со статусом `gotova` и thread ID;
-- накопленные mirror events были привязаны к созданному thread и реально доставлены во внешнюю topic;
-- human-needed signal с кнопкой «Забрать диалог» реально присутствует;
-- competing webhook на service Telegram token не создавался;
-- Production не затрагивался.
+После захвата менеджер обязан довести текущий диалог до завершения.
 
-### Наблюдение по отображению
+Целевой жизненный цикл:
 
-Первое успешное создание topic произошло после нескольких предыдущих TEST-сообщений, поэтому накопленная очередь mirror events выгрузилась пачкой. В Telegram клиентские события оказались сгруппированы выше, bot-события ниже. Это не доказательство steady-state порядка.
+`bot → chelovek → zavershen`.
 
-Перед нажатием «Забрать диалог» в следующей сессии нужно отправить **одно новое** client message и проверить, как оно live-зеркалируется в уже существующую topic без backlog flush.
+Переход `chelovek → bot` для того же `dialog_id` больше не является целевым сценарием.
 
-### Найденные долги
+Нормативная спецификация `docs/specs/OPERATOR_HANDOFF.md` обновлена на v0.2: Return удалён из целевой логики, добавлено явное завершение менеджером и правило нового диалога после завершения.
 
-1. **Topic error semantics.** Текущий parser переводит любой неуспех `createForumTopic` в `create_forum_topic_neizvestno`. Во время диагностики явный Telegram HTTP 400 также попал в `neizvestno`. В recovery/regression нужно разделить детерминированный отказ и действительно неоднозначный transport/result outcome; blind retry запрещён при неоднозначном результате.
-2. **Operability.** Один client message может порождать несколько n8n executions. До финального regression оценить упрощение в сторону одного основного execution, сохранив отдельные Wait/sender executions только там, где это оправдано lifecycle/reliability. Durable queues и final recheck не ослаблять.
+## WF-02B3C-E2E-02C — ACTIVE
 
-## Текущая модель TEST runtime
+Уже подтверждено из 02B:
+- текущий закреплённый менеджер может писать клиенту;
+- другой менеджер не должен получать право через клиентский текст;
+- bot-side continuation после Take остановлен.
 
-Guard/planner/answer: `gpt-6-luna` с low reasoning. Embedding: `text-embedding-3-large`, dimensions 1024.
+Подготовлено локально, но **ещё не применено/не импортировано/не runtime-проверено**:
+- `DB-03D3_manager_completion.sql` — narrow SECURITY DEFINER API `zavershit_dialog_menedzherom(jsonb)` для TEST;
+- служебный runtime v8 — принимает `complete:<dialog_id>`, проверяет тему/менеджера/версию и вызывает DB-03D3;
+- клиентский runtime v11 — на событии успешного Take показывает кнопку `✅ Завершить диалог`, а завершение отображает обычным сообщением без кнопок.
 
-Не менять модель из-за уже исправленных state/RAG/topic integration проблем.
+DB-03D3 не создаёт автоматического сообщения клиенту. Он должен отменить ожидания/напоминания/не начатые действия, записать terminal state и durable событие `✅ <имя менеджера> завершил диалог` в служебную тему.
 
-## Следующая маленькая задача — WF-02B3C-E2E-02B
+Порядок runtime-проверки 02C:
+1. применить полный DB-03D3 в TEST Supabase и проверить итоговый JSON-result;
+2. заменить служебный runtime на v8 и клиентский runtime на v11; включить только после проверки Credentials;
+3. создать новый TEST-диалог и выполнить Take;
+4. убедиться, что на сообщении успешного захвата есть `✅ Завершить диалог`;
+5. нажать кнопку текущим закреплённым менеджером;
+6. проверить DB result: `status_dialoga=zavershen`, manager сохранён, версия увеличена;
+7. проверить видимое сообщение о завершении в служебной теме;
+8. проверить, что завершение не отправило клиенту автоматический текст;
+9. после завершения отправить новое сообщение клиента и доказать, что создан новый `dialog_id`, а старый не переоткрыт.
 
-Цель: подтвердить steady-state mirror, затем atomic Take и остановку bot-side continuation.
+## Следующий этап после 02C
 
-Порядок:
-1. перечитать актуальные документы и HEAD `main`;
-2. не менять Production и не создавать competing Telegram webhook;
-3. отправить одно новое сообщение клиентскому TEST Telegram-боту;
-4. проверить, что оно появляется в существующей operator topic в обычном live-режиме и не создаёт новую topic;
-5. после этого нажать существующую кнопку «Забрать диалог»;
-6. доказать, что callback прошёл через согласованный service webhook и durable service ingress;
-7. проверить `zabrat_dialog_operatorom(jsonb)` / first-commit-wins Take;
-8. доказать owner=`chelovek` с конкретным manager;
-9. проверить, что поздний/stale bot outgoing и reminders после Take не продолжают диалог.
+`WF-02B3C-E2E-03` — reminders / opt-out / recovery.
 
-DoD 02B: steady-state mirror подтверждён, atomic Take runtime-подтверждён, bot-side continuation после Take заблокирован DB state/final recheck.
-
-После 02B отдельной сессией: `WF-02B3C-E2E-02C` — manual manager reply + explicit Return.
+Отдельные долги до финального regression:
+- явный Telegram HTTP 4xx для создания темы отделить от действительно неоднозначного внешнего результата;
+- оценить упрощение количества n8n executions без ослабления durable queue/final recheck.
 
 ## Постоянные ограничения
 
