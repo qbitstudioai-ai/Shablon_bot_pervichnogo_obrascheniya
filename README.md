@@ -49,9 +49,11 @@ Evidence: `docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
 **WF-02B3C-E2E-01 закрыт runtime 11.10.2026:** реальный client Telegram message прошёл guard → planner → OpenAI embedding → active-only DB-05 RAG → answer → Telegram; клиент получил grounded ответ по опубликованной базе знаний.
 
-**WF-02B3C-E2E-02A закрыт runtime 12.10.2026:** явная просьба о человеке создала durable human-needed state, event-driven topic worker создал operator topic через TEST Telegram bridge, DB mapping подтверждён, queued mirror events доставлены, в topic видна кнопка «Забрать диалог».
+**WF-02B3C-E2E-02A закрыт runtime 12.10.2026:** явная просьба о человеке создала durable human-needed state, event-driven worker создал отдельную служебную тему клиента, DB mapping подтверждён, queued mirror events доставлены, в теме видна кнопка «Забрать диалог».
 
-Следующий один ID: **WF-02B3C-E2E-02B** — сначала steady-state mirror одного нового client message в существующую topic, затем atomic Take и проверка остановки bot/reminder continuation. Production не затрагивать.
+**WF-02B3C-E2E-02B закрыт runtime 14.10.2026:** atomic Take подтверждён, owner меняется `bot → chelovek`, закреплённый менеджер реально отвечает клиенту, bot-side continuation остановлен, новые сообщения продолжают зеркалироваться без кнопки Take; post-Take check дал active reminders=0, pending bot/system outgoing=0, active bot jobs=0.
+
+Следующий один ID: **WF-02B3C-E2E-02C** — завершение диалога менеджером по схеме `bot → chelovek → zavershen`, без возврата того же диалога боту. Нормативная спецификация `docs/specs/OPERATOR_HANDOFF.md` обновлена на v0.2. Production не затрагивать.
 
 Основной широкий план: [WORKPLAN_TEMPLATE](docs/WORKPLAN_TEMPLATE.md).
 Перед новой сессией также прочитать [PROJECT_STATE](docs/PROJECT_STATE.md) и [SESSION_HANDOFF](docs/SESSION_HANDOFF.md).
