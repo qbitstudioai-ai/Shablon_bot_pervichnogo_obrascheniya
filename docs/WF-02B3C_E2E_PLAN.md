@@ -31,7 +31,7 @@ VSCode/helper до dashboard stage не подключать.
 - bot/service PostgreSQL routing разнесён;
 - service и client workflow разделены;
 - knowledge pipeline удалён из client workflow, оставлен active-only RAG;
-- OpenAI guard/planner/answer используют `gpt-6-luna` в текущем TEST runtime;
+- OpenAI guard/planner/answer используют текущую TEST-конфигурацию;
 - event webhooks используют явный fast ack через Respond to Webhook;
 - постоянные Schedule/Manual trigger отсутствуют в runtime client workflow;
 - опубликованная TEST база знаний и active-only поиск под bot role уже runtime-проверены отдельно.
@@ -40,9 +40,9 @@ VSCode/helper до dashboard stage не подключать.
 
 Дата: 2026-10-11.
 
-Финальный чистый проход подтвердил клиентский Telegram vertical slice до grounded ответа и подтверждённой внешней доставки.
+Финальный чистый проход подтвердил client Telegram vertical slice до grounded ответа и подтверждённой внешней доставки.
 
-### WF-02B3C-E2E-02 — operator handoff/service bot — IN PROGRESS
+### WF-02B3C-E2E-02 — operator handoff/service bot — CLOSED / runtime verified
 
 #### WF-02B3C-E2E-02A — human-needed → тема/сигнал — CLOSED / runtime verified
 
@@ -53,86 +53,98 @@ VSCode/helper до dashboard stage не подключать.
 - обычный bot-answer path не продолжился;
 - тема клиента создаётся event-driven без polling;
 - mapping темы подтверждён в DB;
-- клиентские/bot mirror events реально доставляются в правильную тему;
-- сигнал с кнопкой «Забрать диалог» виден менеджерам;
-- competing webhook не создавался; Production не затрагивался.
+- client/bot mirror events реально доставляются в правильную тему;
+- сигнал с кнопкой «Забрать диалог» виден менеджерам.
 
 #### WF-02B3C-E2E-02B — atomic Take + bot stop — CLOSED / runtime verified
 
-Дата закрытия: 2026-10-14.
+Дата: 2026-10-14.
 
-Runtime подтверждения:
-- steady-state client mirror в существующую тему работает;
-- bot reply mirror работает;
-- callback «Забрать диалог» проходит через текущий service webhook и durable ingress;
-- manager/topic state читается narrow DB API;
-- список менеджеров синхронизируется без прямого DML service role;
-- optimistic concurrency работает: stale version возвращает `konflikt/stale_dialog_version`, повтор с актуальной версией успешен;
-- `zabrat_dialog_operatorom(jsonb)` выполняет Take first-commit-wins;
+Подтверждено:
+- steady-state mirror работает;
+- callback «Забрать диалог» проходит durable service ingress;
+- optimistic concurrency и first-commit-wins Take работают;
 - owner становится `chelovek`, status=`peredan_cheloveku`, закрепляется конкретный manager;
-- публичное сообщение о захвате видно другим менеджерам;
-- ручной текст закреплённого менеджера создаёт `sozdat_ruchnoe_ishodyashchee(jsonb)` и реально приходит клиенту через client sender;
-- после Take клиентские сообщения продолжают сохраняться/зеркалироваться;
+- ручной текст закреплённого менеджера реально приходит клиенту;
+- после Take сообщения клиента продолжают сохраняться/зеркалироваться;
 - бот после Take не отвечает;
-- кнопка «Забрать диалог» после Take на новых mirror-сообщениях не показывается;
-- read-only post-Take check: active reminders=0, pending bot/system outgoing=0, active bot jobs=0.
+- новые сообщения после Take не показывают кнопку Take;
+- active reminders=0, pending bot/system outgoing=0, active bot jobs=0.
 
-DoD 02B выполнен: steady-state mirror подтверждён, atomic Take подтверждён runtime, bot-side continuation и ожидающие напоминания/задачи после Take отсутствуют.
+#### WF-02B3C-E2E-02C — private manager alerts + group work — CLOSED / runtime verified
 
-#### WF-02B3C-E2E-02C — private manager alerts + group work — ACTIVE
+Дата: 2026-10-14.
 
-Бизнес-решение 14.10.2026:
-- менеджер ведёт переписку с клиентом **только в теме общей служебной Telegram-группы**;
-- личный чат служебного бота используется только для важных уведомлений, а не для рабочей переписки;
-- уведомление «нужен менеджер» должно приходить нескольким разрешённым менеджерам, у которых включены личные уведомления и подтверждён private chat;
-- Take остаётся first-commit-wins: забирает диалог только один менеджер;
-- после Take диалог остаётся у менеджера; обязательное действие «Завершить диалог» сейчас не реализуется и не является условием закрытия этого этапа;
-- старый Return-переход не используется.
+Бизнес-решение:
+- рабочая переписка менеджера с клиентом идёт только в forum topic общей служебной группы;
+- private chat служебного бота используется только для важных уведомлений;
+- уведомление может fan-out нескольким активным разрешённым менеджерам с подтверждённым private chat;
+- Take остаётся first-commit-wins;
+- обязательного completion и Return в текущей v1-логике нет.
 
-Уже подтверждено runtime:
-- DB-03H `sozdat_lichnye_uvedomleniya_menedzheram(jsonb)` применён в TEST: `function_ok=true`, `bot_execute_ok=true`, `service_execute_denied=true`, `production_untouched=true`;
-- служебный runtime v8 PRIVATE ALERTS импортирован и активирован;
-- `/start` в личном чате разрешённого менеджера успешно подтвердил private chat; служебный бот ответил, что личные уведомления подключены.
+Runtime подтверждено:
+- DB-03H применён: функция доступна bot role, недоступна service role, Production не затронут;
+- service runtime v8 PRIVATE ALERTS активирован;
+- `/start` подтвердил private chat менеджера;
+- client runtime v11 PRIVATE ALERTS активирован;
+- новый human-needed запрос сохранил групповой сигнал и реально доставил private alert `🔴 Требуется подключение`;
+- существующие human-owned диалоги под новым runtime продолжили штатно работать через темы группы;
+- новый тестовый аккаунт намеренно оставлен bot-owned для следующих E2E-проверок; повторный Take не требовался, поскольку atomic Take уже runtime-подтверждён в 02B.
 
-Следующий runtime-порядок:
-1. заменить клиентский runtime v10 на подготовленный v11 PRIVATE ALERTS;
-2. проверить Credentials и активировать только v11;
-3. создать новый TEST-запрос человека от клиента;
-4. подтвердить, что `🚨 Нужен менеджер` остаётся в теме клиента;
-5. подтвердить, что личное уведомление приходит разрешённому менеджеру;
-6. проверить кнопку «Забрать диалог» и first-commit-wins Take;
-7. после Take продолжить переписку только в теме группы и убедиться, что бот не отвечает.
+DoD 02C выполнен.
 
-DoD 02C: private alert доставлен минимум одному подтверждённому менеджеру, групповой сигнал сохранён, Take работает из служебного Telegram-контура, а рабочая переписка после Take остаётся только в forum topic.
+### WF-02B3C-E2E-03 — reminders / opt-out / recovery — ACTIVE
 
-### WF-02B3C-E2E-03 — reminders / opt-out / recovery — PENDING
+Проверяем небольшими подшагами.
 
-После Gate C отдельно проверить:
-- reminder только после confirmed outbound, реально требующего ответа;
-- новый client input отменяет ожидание;
-- handoff/refusal отменяют ожидание;
-- opt-out запрещает инициативные сообщения;
+#### WF-02B3C-E2E-03A — confirmed outbound → ожидание → reminder lifecycle — ACTIVE
+
+Цель: на одном bot-owned TEST-аккаунте доказать базовый reminder contract без handoff.
+
+Нужно подтвердить:
+- reminder/ожидание появляется только после подтверждённо отправленного сообщения, которое действительно требует ответа;
+- `t0` относится к подтверждённой отправке, а не к моменту генерации текста;
+- до срока reminder клиенту ничего лишнего не отправляется;
+- новый client input до срабатывания reminder отменяет старое ожидание;
+- Wait wake перед действием делает final DB recheck и не отправляет устаревший reminder.
+
+DoD 03A: один полный реальный цикл ожидания подтверждён runtime, включая отмену новым client input и отсутствие stale reminder.
+
+#### WF-02B3C-E2E-03B — handoff/refusal/opt-out cancellation — PENDING
+
+Проверить отдельно:
+- handoff отменяет ожидание;
+- отказ/terminal business decision отменяет ожидание;
+- opt-out запрещает инициативные сообщения.
+
+#### WF-02B3C-E2E-03C — external delivery recovery — PENDING
+
+Проверить отдельно:
 - unknown/ambiguous external delivery не повторяется вслепую;
-- явный детерминированный внешний отказ не должен ошибочно классифицироваться как `neizvestno`;
-- Wait wake делает final DB recheck.
+- явный детерминированный Telegram/API отказ не классифицируется как `neizvestno`;
+- recovery не создаёт дублей без подтверждённой поддержки внешнего API.
 
 ### WF-02B3C-E2E-04 — final regression/security — PENDING
 
-Финальный проход после C/D:
+Финальный проход:
 - event-driven topology без постоянного polling;
 - credential routing и role split;
 - active-only KB isolation;
 - no direct runtime table DML;
 - secret-safe export;
 - production untouched;
-- обязательные exception/security cases без избыточного тестирования.
+- обязательные exception/security cases.
 
-Дополнительный operability debt перед финальным regression: расследовать, можно ли упростить runtime topology в сторону «одно client message = одно основное execution», сохранив отдельные executions только там, где это оправдано Wait/lifecycle/reliability. Текущие durable queues, final recheck и sender safety при этом не ослаблять.
+Дополнительный operability debt перед финальным regression: оценить, можно ли упростить runtime topology в сторону «одно client message = одно основное execution», сохранив отдельные executions только там, где это оправдано Wait/lifecycle/reliability. Durable queues, final recheck и sender safety не ослаблять.
+
+## TEST-only reset utility
+
+`sql/Сбросить забранные диалоги.sql` v0.3 хранится как ручной TEST-инструмент без реальных Telegram ID. Runtime проверено: два human-owned TEST-диалога возвращены в `bot/aktivnyy`, история сохранена, Production не затронут.
 
 ## Текущий статус
 
 `WF-02B3C` остаётся `[~]`.
 
-Закрыты runtime: `WF-02B3C-E2E-01`, `WF-02B3C-E2E-02A`, `WF-02B3C-E2E-02B`.
+Закрыты runtime: `WF-02B3C-E2E-01`, `WF-02B3C-E2E-02A`, `WF-02B3C-E2E-02B`, `WF-02B3C-E2E-02C`.
 
-Активный один ID: `WF-02B3C-E2E-02C` — личные уведомления менеджерам + работа в общей теме.
+Активный один ID: `WF-02B3C-E2E-03A` — базовый reminder lifecycle.
