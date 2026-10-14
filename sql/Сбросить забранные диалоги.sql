@@ -1,5 +1,8 @@
 -- Сбросить забранные диалоги
+-- Версия: v0.3
 -- TEST-only. Менять только Telegram user ID менеджера в VALUES('...').
+-- ВАЖНО: запускать ВЕСЬ файл целиком. Если в SQL Editor выделен только фрагмент,
+-- Supabase выполнит только выделение и SET LOCAL ROLE не сработает.
 -- История сообщений и operator topic сохраняются. Production не затрагивается.
 
 BEGIN;
@@ -17,6 +20,21 @@ END
 $trusted$;
 
 SET LOCAL ROLE qbit_test_owner;
+
+DO $role_guard$
+BEGIN
+  IF current_user <> 'qbit_test_owner' THEN
+    RAISE EXCEPTION 'Reset остановлен: current_user=%, ожидался qbit_test_owner. Запустите ВЕСЬ файл целиком.', current_user;
+  END IF;
+  IF NOT pg_catalog.has_table_privilege(
+      current_user,
+      'qbit_bot_pervichnogo_obrascheniya.zadaniya_obrabotki',
+      'UPDATE'
+  ) THEN
+    RAISE EXCEPTION 'Reset остановлен: qbit_test_owner не имеет UPDATE на zadaniya_obrabotki';
+  END IF;
+END
+$role_guard$;
 
 CREATE TEMP TABLE _qbit_reset_param(telegram_user_id text NOT NULL) ON COMMIT DROP;
 INSERT INTO _qbit_reset_param VALUES ('TELEGRAM_USER_ID_МЕНЕДЖЕРА');
@@ -116,6 +134,8 @@ $post$;
 
 SELECT pg_catalog.jsonb_build_object(
   'test_reset_status','applied',
+  'file_version','v0.3',
+  'current_role',current_user,
   'dialogov_sbroseno',(SELECT count(*) FROM _qbit_reset_targets),
   'novyy_vladelec','bot',
   'novyy_status','aktivnyy',
