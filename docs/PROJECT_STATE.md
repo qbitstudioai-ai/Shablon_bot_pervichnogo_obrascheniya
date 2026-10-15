@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-10-14.
+Обновлено: 2026-10-15.
 
 ## Режим
 
@@ -94,9 +94,33 @@ Runtime-проверка: `dialogov_sbroseno=2`, `current_role=qbit_test_owner`,
 - явный детерминированный внешний отказ не классифицируется как `neizvestno`;
 - opt-out запрещает инициативные сообщения.
 
-Первый подшаг E2E-03: проверить обычный confirmed outbound → ожидание ответа → reminder lifecycle на одном bot-owned TEST-аккаунте, не затрагивая handoff.
+### WF-02B3C-E2E-03A — ACTIVE / partial runtime proof 15.10.2026
 
-Production не затрагивать.
+Runtime уже подтверждено на bot-owned TEST-диалоге:
+- основной ответ действительно требовал ответа (`ozhidaet_otvet=true`), был подтверждён внешним Telegram result и получил `t0` по факту подтверждённой отправки;
+- БД атомарно создала durable `napominanie_1` и `napominanie_2` только после confirmed outbound;
+- для ускоренного TEST использовались разрешённые интервалы 1 и 3 минуты, а `poterya_posle_vtorogo_minut` установлен в минимально допустимые 60 минут;
+- первое и второе напоминания реально пришли клиенту примерно через 1 и 3 минуты от основного ответа;
+- напоминание не запускает новый reminder lifecycle: sender reminder содержит `napominanie_id`, поэтому reminder gate корректно отсекает его.
+
+Во время теста найден runtime wiring defect в экспортированном workflow:
+- старая нода `Нужно запланировать напоминания?` была ошибочно подключена после mirror-ветки;
+- `Служебные события включены? зеркало` не имела входа от confirmed outbound;
+- `Запустить зеркало по событию` ошибочно продолжал выполнение в старую reminder-ноду;
+- `Сохранить намерение отправки` будил sender даже когда БД вернула отказ и outgoing intent не был создан.
+
+Локально подготовлена repository-safe коррекция для `workflows/current/Шаблон — Workflow бота Qbit.json`:
+- confirmed outbound расходится независимо в integration/reminder/loss/mirror checks;
+- reminder gate использует пять явных AND-условий и ведёт только в `Ждать первое напоминание`;
+- mirror gate ведёт только в `Запустить зеркало по событию`;
+- после `Сохранить намерение отправки` добавлен gate `Исходящее действие создано?`, который будит sender только при `uspeshno/dublikat` и наличии `deystvie_id`;
+- удалён disconnected LEGACY service/manual reply/Return cluster и orphan duplicate внутреннего ACK.
+
+Static-проверка подготовленного JSON: валидный JSON, 148 nodes, без дублирующихся имён и битых connection targets; активных функциональных orphan nodes нет. Repository-safe export не содержит Credential refs и реальных Telegram ID. Файл подготовлен неактивным; его импорт/активация в n8n после этой фиксации ещё не являются runtime proof.
+
+DoD 03A пока НЕ закрыт: осталось импортировать исправленный TEST JSON и доказать, что новый client input до срока отменяет старое ожидание, а stale reminder после wake не отправляется.
+
+Production не затрагивался.
 
 ## Следующие этапы
 

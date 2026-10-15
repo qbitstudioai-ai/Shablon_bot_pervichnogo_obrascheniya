@@ -1,6 +1,6 @@
 # WF-02B3C — E2E runtime plan
 
-Обновлено: 2026-10-14.
+Обновлено: 2026-10-15.
 
 Родительская задача: `WF-02B3C` из `docs/WORKPLAN_TEMPLATE.md`.
 
@@ -97,18 +97,32 @@ DoD 02C выполнен.
 
 Проверяем небольшими подшагами.
 
-#### WF-02B3C-E2E-03A — confirmed outbound → ожидание → reminder lifecycle — ACTIVE
+#### WF-02B3C-E2E-03A — confirmed outbound → ожидание → reminder lifecycle — ACTIVE / PARTIAL RUNTIME VERIFIED
+
+Дата текущего partial proof: 2026-10-15.
 
 Цель: на одном bot-owned TEST-аккаунте доказать базовый reminder contract без handoff.
 
-Нужно подтвердить:
-- reminder/ожидание появляется только после подтверждённо отправленного сообщения, которое действительно требует ответа;
-- `t0` относится к подтверждённой отправке, а не к моменту генерации текста;
-- до срока reminder клиенту ничего лишнего не отправляется;
-- новый client input до срабатывания reminder отменяет старое ожидание;
-- Wait wake перед действием делает final DB recheck и не отправляет устаревший reminder.
+Уже runtime подтверждено:
+- bot reply с `ozhidaet_otvet=true` был подтверждён внешним Telegram result;
+- `t0` установлен по времени подтверждённой отправки;
+- только после confirmed outbound БД создала durable reminder1/reminder2;
+- при controlled TEST интервалах 1/3 минуты reminder1 и reminder2 реально доставлены примерно в ожидаемые сроки;
+- sender второго reminder не запускает новый reminder lifecycle, потому что payload содержит `napominanie_id`.
 
-DoD 03A: один полный реальный цикл ожидания подтверждён runtime, включая отмену новым client input и отсутствие stale reminder.
+Найден и подготовлен к исправлению runtime wiring defect:
+- old reminder IF был ошибочно связан с mirror wake;
+- mirror condition не получала confirmed outbound;
+- outgoing sender wake не был защищён от результата `otkaz` при создании intent.
+
+Локально подготовлен repository-safe workflow: independent fan-out integration/reminder/loss/mirror, explicit reminder gate, dedicated `Исходящее действие создано?` gate и удаление disconnected LEGACY cluster. Исправленный JSON должен быть импортирован неактивным и проверен в TEST перед заменой активной версии.
+
+Осталось подтвердить для DoD 03A:
+- новый client input до reminder срока отменяет старое ожидание;
+- после wake final DB recheck не отправляет stale reminder;
+- исправленная wiring-версия реально проходит тот же reminder lifecycle после импорта.
+
+DoD 03A: один полный реальный цикл ожидания подтверждён runtime, включая отмену новым client input и отсутствие stale reminder. Пока НЕ закрыт.
 
 #### WF-02B3C-E2E-03B — handoff/refusal/opt-out cancellation — PENDING
 
@@ -147,4 +161,4 @@ DoD 03A: один полный реальный цикл ожидания под
 
 Закрыты runtime: `WF-02B3C-E2E-01`, `WF-02B3C-E2E-02A`, `WF-02B3C-E2E-02B`, `WF-02B3C-E2E-02C`.
 
-Активный один ID: `WF-02B3C-E2E-03A` — базовый reminder lifecycle.
+Активный один ID: `WF-02B3C-E2E-03A`. Reminder1/reminder2 delivery уже runtime подтверждены; следующий тест — cancellation новым client input и stale reminder suppression на исправленном workflow.
