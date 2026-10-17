@@ -1,6 +1,6 @@
 # SESSION HANDOFF
 
-Обновлено: 2026-10-15.
+Обновлено: 2026-10-17.
 
 ## Исходная точка
 
@@ -14,7 +14,7 @@ WF-02B3C остаётся IN PROGRESS. Закрыты runtime:
 - `WF-02B3C-E2E-02B` — atomic Take + bot stop;
 - `WF-02B3C-E2E-02C` — private manager alerts + group work.
 
-Активный один ID: `WF-02B3C-E2E-03A` — confirmed outbound → ожидание → reminder lifecycle.
+Активный следующий ID: `WF-02B3C-E2E-03B` — handoff/refusal/opt-out cancellation.
 
 Новая сессия обязана сначала перечитать фактический HEAD `main`, `README.md`, `docs/PROJECT_STATE.md`, этот handoff и `docs/WF-02B3C_E2E_PLAN.md`.
 
@@ -61,41 +61,29 @@ Runtime доказательство 14.10.2026:
 
 Этот SQL не является продуктовой кнопкой Return и не вызывается runtime workflow.
 
-## WF-02B3C-E2E-03A — ACTIVE / partial runtime proof 15.10.2026
+## WF-02B3C-E2E-03A — CLOSED / runtime verified 17.10.2026
 
-Уже доказано в реальном TEST runtime:
-- обычный bot answer с `ozhidaet_otvet=true` был confirmed Telegram delivery;
-- `t0` зафиксирован по подтверждённой отправке;
-- БД создала `napominanie_1` и `napominanie_2` только после confirmed outbound;
-- controlled TEST настройки 1/3 минуты дали реальные reminder1 и reminder2 примерно в ожидаемые сроки;
-- loss delay пришлось вернуть к допустимому минимуму 60 минут, потому что DB contract отклоняет waiting effects с `poterya_posle_sekund < 3600`;
-- reminder sender корректно не запускает новый reminder lifecycle, когда payload уже содержит `napominanie_id`.
+Подтверждено в реальном TEST runtime:
+- confirmed reply-needing bot answer создаёт waiting/reminder lifecycle только после подтверждённой отправки;
+- `t0` относится к confirmed outbound;
+- reminder1/reminder2 реально доставляются при controlled TEST 1/3 минуты;
+- corrected workflow импортирован и активирован без видимых ошибок;
+- mirror branch восстановлена и работает независимо от reminder branch; накопленные mirror events были доставлены после восстановления связи;
+- новый client input до reminder1 отменяет старое ожидание: по старому ответу stale reminder не был отправлен после wake, напоминания пришли только по актуальному сообщению;
+- sender wake после `Сохранить намерение отправки` теперь защищён gate `Исходящее действие создано?`.
 
-Во время диагностики обнаружено, почему интерфейс n8n вводил в заблуждение:
-- экспортированный runtime содержал старую `Нужно запланировать напоминания?`, подключённую к mirror-ветке;
-- `Служебные события включены? зеркало` была disconnected от `Подтвердить отправку и обновить состояние`;
-- `Запустить зеркало по событию` ошибочно продолжал выполнение в old reminder IF;
-- параллельно была добавлена временная `Нужно запланировать напоминания? TEST`, которая действительно запускала Wait и дала успешные reminder1/reminder2.
+Corrected workflow имеет 148 nodes и прошёл static graph validation. Runtime TEST-файл содержит instance-specific настройки и в Git не сохраняется. Repository-safe corrected JSON подготовлен локально без Credential refs/реальных Telegram ID, но большой workflow-файл пока не перезаписан в GitHub из-за ограничения текущего коннектора на передачу локального файла как содержимого write action.
 
-Подготовлен исправленный JSON:
-- одна каноническая `Нужно запланировать напоминания?` с пятью явными AND-проверками;
-- confirmed outbound независимо запускает integration/reminder/loss/mirror checks;
-- mirror gate ведёт только в mirror wake;
-- `Сохранить намерение отправки` теперь проходит через `Исходящее действие создано?`, поэтому sender wake разрешён только после `uspeshno/dublikat` и наличия `deystvie_id`;
-- удалён disconnected LEGACY service/manual reply/Return cluster и orphan duplicate внутреннего ACK;
-- repository-safe export не содержит Credential refs и реальных Telegram ID и подготовлен неактивным.
+### Следующий один ID: WF-02B3C-E2E-03B
 
-Static validation corrected JSON: 148 nodes, unique node names, все connection source/targets существуют, активных функциональных orphan nodes нет. Runtime import/activation исправленного файла пока не проверены.
+Проверить отдельно:
+- handoff отменяет активное ожидание;
+- terminal refusal отменяет ожидание;
+- opt-out запрещает инициативные сообщения.
 
-DoD 03A НЕ закрыт. Следующий один runtime-шаг после безопасного импорта исправленного JSON: отправить bot-owned клиенту сообщение, дождаться confirmed reply-needing bot answer, затем ДО reminder1 отправить новый client input и доказать в БД/Telegram, что старое ожидание отменено и stale reminder после wake не отправлен.
+03C после этого остаётся external delivery recovery; затем E2E-04 final regression/security.
 
-После завершения теста вернуть reminder intervals с временных TEST 1/3 минут к нормальным значениям 180/720 минут; loss default 1440 минут.
-
-## После 03A
-
-- `WF-02B3C-E2E-03B` — handoff/refusal/opt-out cancellation;
-- `WF-02B3C-E2E-03C` — unknown/ambiguous delivery recovery;
-- затем `WF-02B3C-E2E-04` — final regression/security.
+Перед продолжением проверить TEST reminder settings. В 03A использовались ускоренные 1/3 минуты и loss 60 минут; после reminder-блока вернуть штатные 180/720 минут и loss 1440 минут.
 
 ## Известные долги до финального regression
 

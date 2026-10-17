@@ -41,11 +41,12 @@ Evidence: `docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 - **WF-02B3C-E2E-01** — client → guard → RAG → grounded Telegram answer;
 - **WF-02B3C-E2E-02A** — human-needed → служебная тема/сигнал;
 - **WF-02B3C-E2E-02B** — atomic Take + bot stop + ручной ответ менеджера;
-- **WF-02B3C-E2E-02C** — private manager alerts + работа менеджера только через forum topic.
+- **WF-02B3C-E2E-02C** — private manager alerts + работа менеджера только через forum topic;
+- **WF-02B3C-E2E-03A** — confirmed outbound → reminder lifecycle → cancellation новым client input без stale reminder.
 
 Актуальная операторская модель: private chat служебного бота используется для важных уведомлений, рабочая переписка менеджера идёт только в общей теме клиента; обязательного completion и Return сейчас нет.
 
-Следующий один ID: **WF-02B3C-E2E-03A** — confirmed outbound → ожидание ответа → reminder lifecycle. Нужно доказать, что reminder создаётся только после подтверждённой отправки сообщения, требующего ответа, новый client input отменяет ожидание, а Wait wake делает final DB recheck и не отправляет устаревший reminder.
+Следующий один ID: **WF-02B3C-E2E-03B** — handoff/refusal/opt-out cancellation. Проверить, что передача человеку, terminal refusal и opt-out отменяют активное ожидание и не допускают инициативную отправку.
 
 TEST-only utility `sql/Сбросить забранные диалоги.sql` v0.3 позволяет вручную вернуть захваченные TEST-диалоги конкретного менеджера в `bot/aktivnyy` без удаления истории. Реальные Telegram ID в Git не сохраняются.
 

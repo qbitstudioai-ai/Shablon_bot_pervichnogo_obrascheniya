@@ -1,6 +1,6 @@
 # Текущее состояние проекта
 
-Обновлено: 2026-10-15.
+Обновлено: 2026-10-17.
 
 ## Режим
 
@@ -94,33 +94,28 @@ Runtime-проверка: `dialogov_sbroseno=2`, `current_role=qbit_test_owner`,
 - явный детерминированный внешний отказ не классифицируется как `neizvestno`;
 - opt-out запрещает инициативные сообщения.
 
-### WF-02B3C-E2E-03A — ACTIVE / partial runtime proof 15.10.2026
+### WF-02B3C-E2E-03A — CLOSED / runtime verified 17.10.2026
 
-Runtime уже подтверждено на bot-owned TEST-диалоге:
-- основной ответ действительно требовал ответа (`ozhidaet_otvet=true`), был подтверждён внешним Telegram result и получил `t0` по факту подтверждённой отправки;
-- БД атомарно создала durable `napominanie_1` и `napominanie_2` только после confirmed outbound;
-- для ускоренного TEST использовались разрешённые интервалы 1 и 3 минуты, а `poterya_posle_vtorogo_minut` установлен в минимально допустимые 60 минут;
-- первое и второе напоминания реально пришли клиенту примерно через 1 и 3 минуты от основного ответа;
-- напоминание не запускает новый reminder lifecycle: sender reminder содержит `napominanie_id`, поэтому reminder gate корректно отсекает его.
+Runtime подтверждено на bot-owned TEST-диалоге:
+- основной ответ с `ozhidaet_otvet=true` был подтверждён Telegram и получил `t0` по факту confirmed outbound;
+- БД создала durable `napominanie_1` и `napominanie_2` только после confirmed outbound;
+- при controlled TEST интервалах 1/3 минуты первое и второе напоминания реально пришли примерно в ожидаемые сроки;
+- sender напоминания не запускает новый reminder lifecycle, когда payload уже содержит `napominanie_id`;
+- исправленный workflow импортирован и активирован без видимых ошибок;
+- ветка mirror после исправления работает независимо: новые client/bot/reminder events попадают в служебную тему, накопленные ранее mirror events догнались после восстановления связи;
+- новый client input, отправленный до reminder1 старого ожидания, отменил старый lifecycle: клиент получил напоминания только по актуальному сообщению, stale reminders старого ответа не были отправлены после срока.
 
-Во время теста найден runtime wiring defect в экспортированном workflow:
-- старая нода `Нужно запланировать напоминания?` была ошибочно подключена после mirror-ветки;
-- `Служебные события включены? зеркало` не имела входа от confirmed outbound;
-- `Запустить зеркало по событию` ошибочно продолжал выполнение в старую reminder-ноду;
-- `Сохранить намерение отправки` будил sender даже когда БД вернула отказ и outgoing intent не был создан.
+Во время 03A устранены два wiring defect:
+- reminder и mirror больше не образуют ошибочную последовательную цепочку; confirmed outbound независимо запускает integration/reminder/loss/mirror checks;
+- после `Сохранить намерение отправки` gate `Исходящее действие создано?` будит sender только при `uspeshno/dublikat` и наличии `deystvie_id`.
 
-Локально подготовлена repository-safe коррекция для `workflows/current/Шаблон — Workflow бота Qbit.json`:
-- confirmed outbound расходится независимо в integration/reminder/loss/mirror checks;
-- reminder gate использует пять явных AND-условий и ведёт только в `Ждать первое напоминание`;
-- mirror gate ведёт только в `Запустить зеркало по событию`;
-- после `Сохранить намерение отправки` добавлен gate `Исходящее действие создано?`, который будит sender только при `uspeshno/dublikat` и наличии `deystvie_id`;
-- удалён disconnected LEGACY service/manual reply/Return cluster и orphan duplicate внутреннего ACK.
+Repository-safe corrected JSON статически проверен: 148 nodes, уникальные имена, все connection source/targets существуют, активных функциональных orphan nodes нет, Credential refs и реальные Telegram ID отсутствуют. Из-за ограничения текущего GitHub-коннектора большой JSON пока не перезаписан в репозитории; канонический repository-safe файл нужно загрузить отдельным безопасным способом перед финальным regression.
 
-Static-проверка подготовленного JSON: валидный JSON, 148 nodes, без дублирующихся имён и битых connection targets; активных функциональных orphan nodes нет. Repository-safe export не содержит Credential refs и реальных Telegram ID. Файл подготовлен неактивным; его импорт/активация в n8n после этой фиксации ещё не являются runtime proof.
+DoD 03A выполнен. Production не затрагивался.
 
-DoD 03A пока НЕ закрыт: осталось импортировать исправленный TEST JSON и доказать, что новый client input до срока отменяет старое ожидание, а stale reminder после wake не отправляется.
+### WF-02B3C-E2E-03B — NEXT
 
-Production не затрагивался.
+Следующая одна задача: проверить handoff/refusal/opt-out cancellation. До начала новой задачи не менять Production и не расширять scope.
 
 ## Следующие этапы
 
