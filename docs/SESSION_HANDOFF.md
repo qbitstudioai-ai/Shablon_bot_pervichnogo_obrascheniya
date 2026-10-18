@@ -1,6 +1,6 @@
 # SESSION HANDOFF
 
-Обновлено: 2026-10-17.
+Обновлено: 2026-10-18.
 
 ## Исходная точка
 
@@ -14,7 +14,7 @@ WF-02B3C остаётся IN PROGRESS. Закрыты runtime:
 - `WF-02B3C-E2E-02B` — atomic Take + bot stop;
 - `WF-02B3C-E2E-02C` — private manager alerts + group work.
 
-Активный следующий ID: `WF-02B3C-E2E-03B` — handoff/refusal/opt-out cancellation.
+Активный следующий ID: **`TPL-FIN-01`** — проверить и закончить тематическую защиту/три предупреждения/блокировку по `docs/TEMPLATE_FINALIZATION_PLAN.md`. Предыдущие E2E-03B/03C/04 остаются открытыми до обязательных проверок, не закрывать задним числом.
 
 Новая сессия обязана сначала перечитать фактический HEAD `main`, `README.md`, `docs/PROJECT_STATE.md`, этот handoff и `docs/WF-02B3C_E2E_PLAN.md`.
 
@@ -74,7 +74,7 @@ Runtime доказательство 14.10.2026:
 
 Corrected workflow имеет 148 nodes и прошёл static graph validation. Runtime TEST-файл содержит instance-specific настройки и в Git не сохраняется. Repository-safe corrected JSON подготовлен локально без Credential refs/реальных Telegram ID, но большой workflow-файл пока не перезаписан в GitHub из-за ограничения текущего коннектора на передачу локального файла как содержимого write action.
 
-### Следующий один ID: WF-02B3C-E2E-03B
+### Ранее следующий E2E-ID: WF-02B3C-E2E-03B — остаётся открытым
 
 Проверить отдельно:
 - handoff отменяет активное ожидание;
@@ -84,6 +84,14 @@ Corrected workflow имеет 148 nodes и прошёл static graph validation.
 03C после этого остаётся external delivery recovery; затем E2E-04 final regression/security.
 
 Перед продолжением проверить TEST reminder settings. В 03A использовались ускоренные 1/3 минуты и loss 60 минут; после reminder-блока вернуть штатные 180/720 минут и loss 1440 минут.
+
+## Решение 18.10.2026 / handoff
+
+Записан завершающий план `TPL-FIN-00` (документы) → `TPL-FIN-01` (тематика/логическая блокировка) → `TPL-FIN-02` (критические Telegram-уведомления об ошибках) → `TPL-FIN-03` (переносимые очищенные два JSON и SQL в GitHub + межкомпанейская изоляция) → `TPL-FIN-04` (сайт qBit, последний этап). Приёмка production и полные `QA-01`/`REL-01` не объявлены закрытыми.
+
+Доказательство TEST 18.10: SQL `DB-03I` получил `VERIFIED` при ручном применении; Sales Brain v1.3 на втором тестовом аккаунте отправил основной ответ и два контекстных догоняющих через 1 и 3 минуты. На аккаунте с `initiative_banned=true` напоминания отменены. Guard→3 warnings→block/unblock ещё не runtime-проверен; Error Workflow и web adapter ещё не реализованы/не проверены. Ни актуальный очищенный v1.3, ни DB-03I не зафиксированы в Git как canonical. Переход к коду только с `TPL-FIN-01`, без одновременных изменений других задач.
+
+Бизнес-решение Sales Brain: «дорого», «подумаю», «не подходит» — возражения для продолжения продажи, а не terminal refusal; «не пишите» — приоритетный запрет инициативы. Отложенный контакт после подтверждения клиентом отдельно тестировать.
 
 ## Известные долги до финального regression
 

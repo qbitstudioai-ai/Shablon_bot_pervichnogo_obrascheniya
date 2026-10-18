@@ -46,7 +46,7 @@ Evidence: `docs/evidence/KB-03/KB-03C2_RUNTIME_VERIFIED_2026-10-10.md`.
 
 Актуальная операторская модель: private chat служебного бота используется для важных уведомлений, рабочая переписка менеджера идёт только в общей теме клиента; обязательного completion и Return сейчас нет.
 
-Следующий один ID: **WF-02B3C-E2E-03B** — handoff/refusal/opt-out cancellation. Проверить, что передача человеку, terminal refusal и opt-out отменяют активное ожидание и не допускают инициативную отправку.
+По решению 18.10.2026 активный завершающий план — **[TPL-FIN](docs/TEMPLATE_FINALIZATION_PLAN.md)**: 1) тематическая блокировка; 2) критические уведомления об ошибках; 3) переносимая GitHub-версия двух workflow и SQL; 4) сайт qBit. Следующий один ID: **TPL-FIN-01**. Незакрытые пункты E2E-03B/03C/04 остаются обязательными проверками и входят в соответствующие TPL-FIN задачи.
 
 TEST-only utility `sql/Сбросить забранные диалоги.sql` v0.3 позволяет вручную вернуть захваченные TEST-диалоги конкретного менеджера в `bot/aktivnyy` без удаления истории. Реальные Telegram ID в Git не сохраняются.
 
@@ -81,6 +81,7 @@ TEST-only utility `sql/Сбросить забранные диалоги.sql` v
 | Загрузка знаний | [KNOWLEDGE_INGESTION](docs/specs/KNOWLEDGE_INGESTION.md), [MARKDOWN_FORMAT](docs/specs/MARKDOWN_FORMAT.md) |
 | Завершённая реализация knowledge workflow | [KB-WF](docs/KB_WORKFLOW_IMPLEMENTATION_PLAN.md) |
 | Runtime evidence | [docs/evidence](docs/evidence/) |
+| Завершение функционального шаблона | [TPL-FIN](docs/TEMPLATE_FINALIZATION_PLAN.md) |
 | Передача между сессиями | [SESSION_HANDOFF](docs/SESSION_HANDOFF.md) |
 
 Реальные документы компаний, переписки, секреты, Credential refs и дампы БД в публичный репозиторий не загружаются.

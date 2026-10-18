@@ -1,6 +1,6 @@
 # WF-02B3C — E2E runtime plan
 
-Обновлено: 2026-10-17.
+Обновлено: 2026-10-18.
 
 Родительская задача: `WF-02B3C` из `docs/WORKPLAN_TEMPLATE.md`.
 
@@ -115,7 +115,7 @@ DoD 02C выполнен.
 
 DoD 03A выполнен. Production не затрагивался.
 
-#### WF-02B3C-E2E-03B — handoff/refusal/opt-out cancellation — NEXT
+#### WF-02B3C-E2E-03B — handoff/refusal/opt-out cancellation — OPEN / входит в TPL-FIN
 
 Проверить отдельно:
 - handoff отменяет ожидание;
@@ -152,4 +152,4 @@ DoD 03A выполнен. Production не затрагивался.
 
 Закрыты runtime: `WF-02B3C-E2E-01`, `WF-02B3C-E2E-02A`, `WF-02B3C-E2E-02B`, `WF-02B3C-E2E-02C`, `WF-02B3C-E2E-03A`.
 
-Следующий один ID: `WF-02B3C-E2E-03B` — handoff/refusal/opt-out cancellation.
+С 18.10.2026 следующий один ID: **`TPL-FIN-01`** — тематическая блокировка по [TPL-FIN](TEMPLATE_FINALIZATION_PLAN.md). Открытые E2E-03B (обновлённая sales-семантика), E2E-03C (delivery failure/recovery) и E2E-04 (final regression/security) перенесены как обязательные критерии TPL-FIN-02/03/04; их статус НЕ изменён на closed.
